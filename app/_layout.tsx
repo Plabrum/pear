@@ -87,6 +87,7 @@ function AppShell() {
   useEffect(() => {
     if (loading) return;
     if (currentGroup === targetGroup) return;
+    if (currentGroup === 'settings') return;
     const path =
       targetGroup === '(auth)'
         ? '/(auth)/login'
@@ -107,6 +108,7 @@ function AppShell() {
       <Stack.Screen name="(auth)" options={{ headerShown: false }} />
       <Stack.Screen name="(onboarding)" options={{ headerShown: false }} />
       <Stack.Screen name="invite" options={{ headerShown: false }} />
+      <Stack.Screen name="settings" options={{ headerShown: false }} />
     </Stack>
   );
 }

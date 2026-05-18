@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router';
 import { toast } from 'sonner-native';
 import { useQueryClient } from '@tanstack/react-query';
+import { Ionicons } from '@expo/vector-icons';
 
 import { useAuth } from '@/context/auth';
 import { View, Text, Pressable, ScrollView, SafeAreaView } from '@/lib/tw';
@@ -51,12 +52,11 @@ function MeContent() {
           Me
         </Text>
         <Pressable
-          onPress={handleSwitchToDater}
-          className="px-3 py-1.5 rounded-full bg-surface"
-          style={{ borderWidth: 1, borderColor: 'rgba(31,27,22,0.10)' }}
-          hitSlop={6}
+          onPress={() => router.push('/settings' as any)}
+          hitSlop={8}
+          style={{ padding: 6 }}
         >
-          <Text className="text-xs font-semibold text-ink-mid">Switch to dater mode</Text>
+          <Ionicons name="settings-outline" size={22} color="#4A4338" />
         </Pressable>
       </View>
 
@@ -73,15 +73,6 @@ function MeContent() {
           </Text>
           <Text className="text-sm mt-0.5 text-ink-dim">{subtitle}</Text>
         </View>
-        <Pressable
-          onPress={() => router.push('/(tabs)/profile/settings' as any)}
-          hitSlop={8}
-          className="px-2 py-2"
-        >
-          <Text className="text-ink-mid" style={{ fontSize: 18 }}>
-            ⚙
-          </Text>
-        </Pressable>
       </View>
 
       <View className="px-4">
@@ -121,7 +112,7 @@ function MeContent() {
       </Text>
       <View className="px-4" style={{ gap: 8 }}>
         <Pressable
-          onPress={() => router.push('/(tabs)/profile/settings' as any)}
+          onPress={() => router.push('/settings' as any)}
           className="bg-white rounded-xl px-3.5 py-3 flex-row items-center"
           style={{ borderWidth: 1, borderColor: 'rgba(31,27,22,0.06)', gap: 10 }}
         >
