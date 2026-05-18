@@ -87,6 +87,7 @@ function AppShell() {
   useEffect(() => {
     if (loading) return;
     if (currentGroup === targetGroup) return;
+    if (currentGroup === 'settings') return;
     const path =
       targetGroup === '(auth)'
         ? '/(auth)/login'
