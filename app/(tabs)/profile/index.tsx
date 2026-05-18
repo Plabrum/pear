@@ -62,7 +62,7 @@ function SettingsButton() {
   const router = useRouter();
   return (
     <Pressable
-      onPress={() => router.push('/(tabs)/profile/settings' as any)}
+      onPress={() => router.push('/settings' as any)}
       className="flex-row items-center"
       style={{ gap: 6, paddingVertical: 6, paddingHorizontal: 10 }}
       hitSlop={8}
