@@ -7,6 +7,7 @@ import { useWingSwipe } from '@/hooks/use-wing-swipe';
 import { View, Text, Pressable, ScrollView, SafeAreaView } from '@/lib/tw';
 import { FaceAvatar } from '@/components/ui/FaceAvatar';
 import { Pill } from '@/components/ui/Pill';
+
 import { ForwardSheet } from '@/components/ui/ForwardSheet';
 import { NoteModal } from '@/components/ui/NoteModal';
 import { useGetApiProfilesUserIdSuspense } from '@/lib/api/generated/profiles/profiles';
