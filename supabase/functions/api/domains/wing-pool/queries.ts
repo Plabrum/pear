@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull, ne, notExists, or, sql } from 'drizzle-orm';
+import { and, desc, eq, isNotNull, isNull, ne, notExists, or, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import type { DBOrTx } from '../../db/client.ts';
 import { contacts, datingProfiles, decisions, profiles, profilePhotos } from '../../db/schema.ts';
@@ -72,6 +72,7 @@ export async function fetchWingPool(
           and(
             eq(decisions.actorId, daterId),
             eq(decisions.recipientId, datingProfiles.userId),
+            isNotNull(decisions.decision),
           ),
         ),
     ),
