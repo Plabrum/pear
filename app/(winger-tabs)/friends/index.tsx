@@ -1,13 +1,16 @@
+import { useState } from 'react';
 import { StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { toast } from 'sonner-native';
 import { useQueryClient } from '@tanstack/react-query';
+import { Ionicons } from '@expo/vector-icons';
 
 import { colors } from '@/constants/theme';
 import { View, Text, Pressable, ScrollView, SafeAreaView } from '@/lib/tw';
 import { FaceAvatar } from '@/components/ui/FaceAvatar';
 import { Sprout } from '@/components/ui/Sprout';
 import ScreenSuspense from '@/components/ui/ScreenSuspense';
+import { InviteWingpersonSheet } from '@/components/wingpeople/InviteWingpersonSheet';
 import {
   getGetApiWingpeopleQueryKey,
   useGetApiWingpeopleSuspense,
@@ -23,7 +26,7 @@ function SectionHeader({ title }: { title: string }) {
   );
 }
 
-function FriendsContent() {
+function FriendsContent({ onOpenInvite }: { onOpenInvite: () => void }) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { data } = useGetApiWingpeopleSuspense();
@@ -59,6 +62,13 @@ function FriendsContent() {
         <Text className="font-serif text-ink" style={{ fontSize: 28, letterSpacing: -0.5 }}>
           Friends
         </Text>
+        <Sprout
+          size="sm"
+          icon={<Ionicons name="add" size={14} color="#FBF8F1" />}
+          onPress={onOpenInvite}
+        >
+          Invite
+        </Sprout>
       </View>
       <Text className="px-4 pb-1 text-sm text-ink-dim">
         {wingingFor.length === 0
@@ -141,11 +151,18 @@ function FriendsContent() {
 }
 
 export default function FriendsScreen() {
+  const [inviteVisible, setInviteVisible] = useState(false);
+
   return (
     <SafeAreaView className="flex-1 bg-page" edges={['top']}>
       <ScreenSuspense>
-        <FriendsContent />
+        <FriendsContent onOpenInvite={() => setInviteVisible(true)} />
       </ScreenSuspense>
+      <InviteWingpersonSheet
+        visible={inviteVisible}
+        onClose={() => setInviteVisible(false)}
+        variant="winger"
+      />
     </SafeAreaView>
   );
 }
