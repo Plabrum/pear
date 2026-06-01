@@ -51,6 +51,7 @@ export const profilePhotos = pgTable("profile_photos", {
 	storageUrl: text("storage_url").notNull(),
 	displayOrder: integer("display_order").notNull(),
 	approvedAt: timestamp("approved_at", { withTimezone: true, mode: 'string' }),
+	rejectedAt: timestamp("rejected_at", { withTimezone: true, mode: 'string' }),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 }, (table) => [
 	index("profile_photos_dating_profile_id_display_order_idx").using("btree", table.datingProfileId.asc().nullsLast().op("int4_ops"), table.displayOrder.asc().nullsLast().op("int4_ops")),
@@ -113,6 +114,7 @@ export const promptResponses = pgTable("prompt_responses", {
 	profilePromptId: uuid("profile_prompt_id").notNull(),
 	message: text().notNull(),
 	isApproved: boolean("is_approved").default(false).notNull(),
+	isRejected: boolean("is_rejected").default(false).notNull(),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 }, (table) => [
 	index("prompt_responses_profile_prompt_id_idx").using("btree", table.profilePromptId.asc().nullsLast().op("uuid_ops")),
