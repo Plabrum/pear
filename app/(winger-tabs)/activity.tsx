@@ -60,6 +60,57 @@ function StatusPill({ label, variant }: { label: string; variant: PillVariant })
   );
 }
 
+type ActivityMeta = { label: string; variant: PillVariant; message: string };
+
+function peopleMeta(item: PeopleActivityRow): ActivityMeta {
+  switch (item.status) {
+    case 'matched':
+      return { label: 'Matched', variant: 'positive', message: 'Your pick became a match.' };
+    case 'not_accepted':
+      return {
+        label: 'Not accepted',
+        variant: 'muted',
+        message: `${item.daterName} passed on ${item.suggestedName}.`,
+      };
+    case 'pending':
+      return {
+        label: 'Pending',
+        variant: 'neutral',
+        message: `You suggested ${item.suggestedName} — pending review.`,
+      };
+  }
+}
+
+function photoMeta(item: PhotoActivityRow): ActivityMeta {
+  switch (item.status) {
+    case 'approved':
+      return { label: 'Approved', variant: 'positive', message: 'Photo suggestion was approved.' };
+    case 'not_accepted':
+      return {
+        label: 'Not accepted',
+        variant: 'muted',
+        message: 'Photo suggestion was not accepted.',
+      };
+    case 'pending':
+      return {
+        label: 'Pending',
+        variant: 'neutral',
+        message: 'Photo suggestion pending approval.',
+      };
+  }
+}
+
+function promptPill(status: PromptActivityRow['status']): { label: string; variant: PillVariant } {
+  switch (status) {
+    case 'accepted':
+      return { label: 'Accepted', variant: 'positive' };
+    case 'not_accepted':
+      return { label: 'Not accepted', variant: 'muted' };
+    case 'pending':
+      return { label: 'Pending', variant: 'neutral' };
+  }
+}
+
 function Card({ children, muted }: { children: React.ReactNode; muted?: boolean }) {
   return (
     <View
@@ -104,12 +155,7 @@ function PeopleTab() {
   return (
     <View style={{ gap: 8 }}>
       {data.map((item: PeopleActivityRow) => {
-        const pill =
-          item.status === 'matched'
-            ? { label: 'Matched', variant: 'positive' as const }
-            : item.status === 'not_accepted'
-              ? { label: 'Not accepted', variant: 'muted' as const }
-              : { label: 'Pending', variant: 'neutral' as const };
+        const meta = peopleMeta(item);
         return (
           <Card key={item.id} muted={item.status === 'not_accepted'}>
             <View className="flex-row gap-3 items-start">
@@ -124,14 +170,8 @@ function PeopleTab() {
                     {formatRelativeTime(item.createdAt)}
                   </Text>
                 </View>
-                <Text className="text-sm mt-0.5 text-fg-muted">
-                  {item.status === 'matched'
-                    ? 'Your pick became a match.'
-                    : item.status === 'not_accepted'
-                      ? `${item.daterName} passed on ${item.suggestedName}.`
-                      : `You suggested ${item.suggestedName} — pending review.`}
-                </Text>
-                <StatusPill {...pill} />
+                <Text className="text-sm mt-0.5 text-fg-muted">{meta.message}</Text>
+                <StatusPill label={meta.label} variant={meta.variant} />
               </View>
             </View>
           </Card>
@@ -151,12 +191,7 @@ function PhotosTab() {
   return (
     <View style={{ gap: 8 }}>
       {data.map((item: PhotoActivityRow) => {
-        const pill =
-          item.status === 'approved'
-            ? { label: 'Approved', variant: 'positive' as const }
-            : item.status === 'not_accepted'
-              ? { label: 'Not accepted', variant: 'muted' as const }
-              : { label: 'Pending', variant: 'neutral' as const };
+        const meta = photoMeta(item);
         const photoUrl = getPhotoUrl(item.storageUrl);
         return (
           <Card key={item.id} muted={item.status === 'not_accepted'}>
@@ -183,14 +218,8 @@ function PhotosTab() {
                     {formatRelativeTime(item.createdAt)}
                   </Text>
                 </View>
-                <Text className="text-sm mt-0.5 text-fg-muted">
-                  {item.status === 'approved'
-                    ? 'Photo suggestion was approved.'
-                    : item.status === 'not_accepted'
-                      ? 'Photo suggestion was not accepted.'
-                      : 'Photo suggestion pending approval.'}
-                </Text>
-                <StatusPill {...pill} />
+                <Text className="text-sm mt-0.5 text-fg-muted">{meta.message}</Text>
+                <StatusPill label={meta.label} variant={meta.variant} />
               </View>
             </View>
           </Card>
@@ -210,12 +239,7 @@ function PromptsTab() {
   return (
     <View style={{ gap: 8 }}>
       {data.map((item: PromptActivityRow) => {
-        const pill =
-          item.status === 'accepted'
-            ? { label: 'Accepted', variant: 'positive' as const }
-            : item.status === 'not_accepted'
-              ? { label: 'Not accepted', variant: 'muted' as const }
-              : { label: 'Pending', variant: 'neutral' as const };
+        const pill = promptPill(item.status);
         return (
           <Card key={item.id} muted={item.status === 'not_accepted'}>
             <View className="flex-row gap-3 items-start">

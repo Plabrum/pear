@@ -2,7 +2,7 @@ import { Modal, StyleSheet } from 'react-native';
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
 import { toast } from 'sonner-native';
-import { useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -29,11 +29,9 @@ const STATUS_OPTIONS = [
   { label: 'Just Winging', value: 'winging' as const },
 ];
 
-const STATUS_LABEL: Record<string, string> = {
-  open: 'Open to Dating',
-  break: 'Taking a Break',
-  winging: 'Just Winging',
-};
+const STATUS_LABEL: Record<string, string> = Object.fromEntries(
+  STATUS_OPTIONS.map((o) => [o.value, o.label])
+);
 
 function SectionLabel({ children }: { children: string }) {
   if (!children) return <View style={{ height: 8 }} />;
@@ -126,7 +124,6 @@ function SettingsScreenInner() {
   const { data: wingpeopleData } = useGetApiWingpeopleSuspense();
 
   const [statusPickerVisible, setStatusPickerVisible] = useState(false);
-  const [updatingStatus, setUpdatingStatus] = useState(false);
 
   const wingCount = wingpeopleData.wingpeople.length;
   const phoneDetail = profile?.phoneNumber ?? undefined;
@@ -135,22 +132,23 @@ function SettingsScreenInner() {
     datingProfile?.datingStatus ?? (profile?.role === 'winger' ? 'winging' : undefined);
   const statusDetail = currentStatus ? STATUS_LABEL[currentStatus] : undefined;
 
-  const handleSelectStatus = async (value: 'open' | 'break' | 'winging') => {
+  const updateStatus = useMutation({
+    mutationFn: (datingStatus: 'open' | 'break' | 'winging') =>
+      patchApiDatingProfilesMe({ datingStatus }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: getGetApiDatingProfilesMeQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getGetApiProfilesMeQueryKey() });
+    },
+    onError: () => toast.error("Couldn't update dating status. Try again."),
+    onSettled: () => setStatusPickerVisible(false),
+  });
+
+  const handleSelectStatus = (value: 'open' | 'break' | 'winging') => {
     if (!datingProfile || value === datingProfile.datingStatus) {
       setStatusPickerVisible(false);
       return;
     }
-    setUpdatingStatus(true);
-    try {
-      await patchApiDatingProfilesMe({ datingStatus: value });
-      queryClient.invalidateQueries({ queryKey: getGetApiDatingProfilesMeQueryKey() });
-      queryClient.invalidateQueries({ queryKey: getGetApiProfilesMeQueryKey() });
-    } catch {
-      toast.error("Couldn't update dating status. Try again.");
-    } finally {
-      setUpdatingStatus(false);
-      setStatusPickerVisible(false);
-    }
+    updateStatus.mutate(value);
   };
 
   const handleLogOut = async () => {
@@ -236,7 +234,7 @@ function SettingsScreenInner() {
                 return (
                   <Pressable
                     key={opt.value}
-                    onPress={() => !updatingStatus && handleSelectStatus(opt.value)}
+                    onPress={() => !updateStatus.isPending && handleSelectStatus(opt.value)}
                     style={{
                       flexDirection: 'row',
                       alignItems: 'center',
@@ -244,7 +242,7 @@ function SettingsScreenInner() {
                       paddingVertical: 16,
                       borderTopWidth: StyleSheet.hairlineWidth,
                       borderTopColor: LINE,
-                      opacity: updatingStatus ? 0.5 : 1,
+                      opacity: updateStatus.isPending ? 0.5 : 1,
                     }}
                   >
                     <Text
