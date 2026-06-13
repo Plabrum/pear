@@ -1,19 +1,63 @@
 import { z } from '@hono/zod-openapi';
 
-export const ActivityKind = z.enum(['match', 'pass', 'sent', 'reply']).openapi('ActivityKind');
+export const PeopleActivityStatus = z
+  .enum(['matched', 'pending', 'not_accepted'])
+  .openapi('PeopleActivityStatus');
 
-export const ActivityRow = z.object({
-  id: z.string(),
-  kind: ActivityKind,
-  daterId: z.string().uuid(),
-  daterName: z.string(),
-  recipientName: z.string().nullable(),
-  promptQuestion: z.string().nullable(),
-  message: z.string().nullable(),
-  createdAt: z.string(),
-}).openapi('ActivityRow');
+export const PeopleActivityRow = z
+  .object({
+    id: z.string(),
+    daterId: z.string().uuid(),
+    daterName: z.string(),
+    suggestedName: z.string(),
+    status: PeopleActivityStatus,
+    createdAt: z.string(),
+  })
+  .openapi('PeopleActivityRow');
 
-export const WingerActivityResponse = z.array(ActivityRow).openapi('WingerActivityResponse');
+export const PhotoActivityStatus = z
+  .enum(['approved', 'pending', 'not_accepted'])
+  .openapi('PhotoActivityStatus');
 
-export type ActivityRow = z.infer<typeof ActivityRow>;
-export type ActivityKind = z.infer<typeof ActivityKind>;
+export const PhotoActivityRow = z
+  .object({
+    id: z.string().uuid(),
+    daterId: z.string().uuid(),
+    daterName: z.string(),
+    storageUrl: z.string(),
+    status: PhotoActivityStatus,
+    createdAt: z.string(),
+  })
+  .openapi('PhotoActivityRow');
+
+export const PromptActivityStatus = z
+  .enum(['accepted', 'pending', 'not_accepted'])
+  .openapi('PromptActivityStatus');
+
+export const PromptActivityRow = z
+  .object({
+    id: z.string().uuid(),
+    daterId: z.string().uuid(),
+    daterName: z.string(),
+    promptQuestion: z.string(),
+    message: z.string(),
+    status: PromptActivityStatus,
+    createdAt: z.string(),
+  })
+  .openapi('PromptActivityRow');
+
+export const WingerPeopleActivityResponse = z
+  .array(PeopleActivityRow)
+  .openapi('WingerPeopleActivityResponse');
+
+export const WingerPhotosActivityResponse = z
+  .array(PhotoActivityRow)
+  .openapi('WingerPhotosActivityResponse');
+
+export const WingerPromptsActivityResponse = z
+  .array(PromptActivityRow)
+  .openapi('WingerPromptsActivityResponse');
+
+export type PeopleActivityRow = z.infer<typeof PeopleActivityRow>;
+export type PhotoActivityRow = z.infer<typeof PhotoActivityRow>;
+export type PromptActivityRow = z.infer<typeof PromptActivityRow>;

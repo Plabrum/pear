@@ -240,18 +240,15 @@
           "$ref": "#/components/schemas/WingerTab"
         }
       },
-      "ActivityKind": {
+      "PeopleActivityStatus": {
         "type": "string",
-        "enum": ["match", "pass", "sent", "reply"]
+        "enum": ["matched", "pending", "not_accepted"]
       },
-      "ActivityRow": {
+      "PeopleActivityRow": {
         "type": "object",
         "properties": {
           "id": {
             "type": "string"
-          },
-          "kind": {
-            "$ref": "#/components/schemas/ActivityKind"
           },
           "daterId": {
             "type": "string",
@@ -260,17 +257,86 @@
           "daterName": {
             "type": "string"
           },
-          "recipientName": {
+          "suggestedName": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PeopleActivityStatus"
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": ["id", "daterId", "daterName", "suggestedName", "status", "createdAt"]
+      },
+      "WingerPeopleActivityResponse": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/PeopleActivityRow"
+        }
+      },
+      "PhotoActivityStatus": {
+        "type": "string",
+        "enum": ["approved", "pending", "not_accepted"]
+      },
+      "PhotoActivityRow": {
+        "type": "object",
+        "properties": {
+          "id": {
             "type": "string",
-            "nullable": true
+            "format": "uuid"
+          },
+          "daterId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "daterName": {
+            "type": "string"
+          },
+          "storageUrl": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PhotoActivityStatus"
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": ["id", "daterId", "daterName", "storageUrl", "status", "createdAt"]
+      },
+      "WingerPhotosActivityResponse": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/PhotoActivityRow"
+        }
+      },
+      "PromptActivityStatus": {
+        "type": "string",
+        "enum": ["accepted", "pending", "not_accepted"]
+      },
+      "PromptActivityRow": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "daterId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "daterName": {
+            "type": "string"
           },
           "promptQuestion": {
-            "type": "string",
-            "nullable": true
+            "type": "string"
           },
           "message": {
-            "type": "string",
-            "nullable": true
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PromptActivityStatus"
           },
           "createdAt": {
             "type": "string"
@@ -278,19 +344,18 @@
         },
         "required": [
           "id",
-          "kind",
           "daterId",
           "daterName",
-          "recipientName",
           "promptQuestion",
           "message",
+          "status",
           "createdAt"
         ]
       },
-      "WingerActivityResponse": {
+      "WingerPromptsActivityResponse": {
         "type": "array",
         "items": {
-          "$ref": "#/components/schemas/ActivityRow"
+          "$ref": "#/components/schemas/PromptActivityRow"
         }
       },
       "WingProfile": {
@@ -2197,7 +2262,7 @@
         }
       }
     },
-    "/api/winger-activity": {
+    "/api/winger-activity/people": {
       "get": {
         "tags": ["winger-activity"],
         "security": [
@@ -2220,11 +2285,87 @@
         ],
         "responses": {
           "200": {
-            "description": "Recent winger activity: suggestion outcomes and authored prompt replies, newest first",
+            "description": "Profiles suggested by the winger and their match outcomes",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/WingerActivityResponse"
+                  "$ref": "#/components/schemas/WingerPeopleActivityResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          }
+        }
+      }
+    },
+    "/api/winger-activity/photos": {
+      "get": {
+        "tags": ["winger-activity"],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Photos suggested by the winger and their approval status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WingerPhotosActivityResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          }
+        }
+      }
+    },
+    "/api/winger-activity/prompts": {
+      "get": {
+        "tags": ["winger-activity"],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Prompt responses suggested by the winger and their acceptance status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WingerPromptsActivityResponse"
                 }
               }
             }

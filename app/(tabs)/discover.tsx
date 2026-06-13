@@ -35,18 +35,20 @@ import { useDiscover, type PoolFetcher, type LikeResult } from '@/hooks/use-disc
 import type { Enums } from '@/types/database';
 import { getApiDiscover, useGetApiDiscoverSuspense } from '@/lib/api/generated/discover/discover';
 import { useGetApiLikesYouCountSuspense } from '@/lib/api/generated/likes-you/likes-you';
-import type { DiscoverProfile } from '@/lib/api/generated/model';
+import type { DiscoverProfile, WingingForRow } from '@/lib/api/generated/model';
 import {
   useGetApiDatingProfilesMeSuspense,
   patchApiDatingProfilesMe,
   getGetApiDatingProfilesMeQueryKey,
 } from '@/lib/api/generated/profiles/profiles';
 import { postApiReports } from '@/lib/api/generated/reports/reports';
+import { useGetApiWingpeopleSuspense } from '@/lib/api/generated/contacts/contacts';
 import { LargeHeader } from '@/components/ui/LargeHeader';
 import { Pill } from '@/components/ui/Pill';
 import { Sprout } from '@/components/ui/Sprout';
 import { WingStack } from '@/components/ui/WingStack';
 import { PearMark } from '@/components/ui/PearMark';
+import { ForwardSheet } from '@/components/ui/ForwardSheet';
 import ScreenSuspense from '@/components/ui/ScreenSuspense';
 import { cardButtonShadow } from '@/lib/styles';
 
@@ -333,17 +335,20 @@ function DiscoverCard({
   onLike,
   onPass,
   onReport,
+  wingingFor,
 }: {
   card: DiscoverProfile;
   onLike: () => void;
   onPass: () => void;
   onReport: (reason: string) => Promise<void>;
+  wingingFor: WingingForRow[];
 }) {
   const swipeX = useSharedValue(0);
   const [photoIndex, setPhotoIndex] = useState(0);
   const [reportStep, setReportStep] = useState<ReportStep | null>(null);
   const [reportReason, setReportReason] = useState('');
   const [reporting, setReporting] = useState(false);
+  const [forwardOpen, setForwardOpen] = useState(false);
   const photos = card.photos;
 
   const finishSwipe = useCallback(
@@ -526,6 +531,15 @@ function DiscoverCard({
           </View>
         </ModalView>
       </Modal>
+      {wingingFor.length > 0 && (
+        <ForwardSheet
+          visible={forwardOpen}
+          recipientId={card.userId}
+          recipientName={card.chosenName}
+          wingingFor={wingingFor}
+          onClose={() => setForwardOpen(false)}
+        />
+      )}
       <GestureDetector gesture={pan}>
         <Animated.View
           style={[
@@ -606,6 +620,27 @@ function DiscoverCard({
                   />
                 ))}
               </View>
+            )}
+
+            {/* Forward icon */}
+            {wingingFor.length > 0 && (
+              <Pressable
+                onPress={() => setForwardOpen(true)}
+                hitSlop={8}
+                style={{
+                  position: 'absolute',
+                  top: 14,
+                  left: 14,
+                  width: 30,
+                  height: 30,
+                  borderRadius: 15,
+                  backgroundColor: 'rgba(0,0,0,0.35)',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Ionicons name="arrow-redo-outline" size={16} color="rgba(255,255,255,0.9)" />
+              </Pressable>
             )}
 
             {/* Report icon */}
@@ -1040,9 +1075,17 @@ type PoolViewProps = {
   fetchPool: PoolFetcher;
   emptyState: React.ReactNode;
   onDecrementLikes: ((recipientId: string) => void) | null;
+  wingingFor: WingingForRow[];
 };
 
-function PoolView({ userId, initialPool, fetchPool, emptyState, onDecrementLikes }: PoolViewProps) {
+function PoolView({
+  userId,
+  initialPool,
+  fetchPool,
+  emptyState,
+  onDecrementLikes,
+  wingingFor,
+}: PoolViewProps) {
   const queryClient = useQueryClient();
   const { pool, index, like, pass } = useDiscover(fetchPool, userId, initialPool);
   const [matchCard, setMatchCard] = useState<DiscoverProfile | null>(null);
@@ -1093,7 +1136,13 @@ function PoolView({ userId, initialPool, fetchPool, emptyState, onDecrementLikes
   return (
     <>
       <View className="flex-1 px-3.5 pb-2">
-        <DiscoverCard card={card} onLike={handleLike} onPass={handlePass} onReport={handleReport} />
+        <DiscoverCard
+          card={card}
+          onLike={handleLike}
+          onPass={handlePass}
+          onReport={handleReport}
+          wingingFor={wingingFor}
+        />
       </View>
       {matchCard && (
         <MatchOverlay
@@ -1113,11 +1162,13 @@ function LikesYouPool({
   emptyState,
   onDecrementLikes,
   handPickedOnly,
+  wingingFor,
 }: {
   userId: string;
   emptyState: React.ReactNode;
   onDecrementLikes: ((recipientId: string) => void) | null;
   handPickedOnly: boolean;
+  wingingFor: WingingForRow[];
 }) {
   const { data: initialPool } = useGetApiDiscoverSuspense({
     pageSize: PAGE_SIZE,
@@ -1144,6 +1195,7 @@ function LikesYouPool({
       fetchPool={fetchPool}
       emptyState={emptyState}
       onDecrementLikes={onDecrementLikes}
+      wingingFor={wingingFor}
     />
   );
 }
@@ -1152,10 +1204,12 @@ function DiscoverFeedPool({
   userId,
   emptyState,
   handPickedOnly,
+  wingingFor,
 }: {
   userId: string;
   emptyState: React.ReactNode;
   handPickedOnly: boolean;
+  wingingFor: WingingForRow[];
 }) {
   const { data: initialPool } = useGetApiDiscoverSuspense({
     pageSize: PAGE_SIZE,
@@ -1176,6 +1230,7 @@ function DiscoverFeedPool({
       fetchPool={fetchPool}
       emptyState={emptyState}
       onDecrementLikes={null}
+      wingingFor={wingingFor}
     />
   );
 }
@@ -1184,7 +1239,9 @@ function DiscoverFeedPool({
 
 function DiscoverContent({ userId }: { userId: string }) {
   const { data: likesYouCountResponse } = useGetApiLikesYouCountSuspense();
+  const { data: wingpeopleData } = useGetApiWingpeopleSuspense();
   const initialLikesYouCount = likesYouCountResponse.count;
+  const wingingFor = wingpeopleData.wingingFor;
   const [activeFilters, setActiveFilters] = useState<Filter[]>([]);
   const [decidedLikesYou, setDecidedLikesYou] = useState<ReadonlySet<string>>(() => new Set());
 
@@ -1242,6 +1299,7 @@ function DiscoverContent({ userId }: { userId: string }) {
               })
             }
             handPickedOnly={wantsHandPicked}
+            wingingFor={wingingFor}
           />
         ) : (
           <DiscoverFeedPool
@@ -1249,6 +1307,7 @@ function DiscoverContent({ userId }: { userId: string }) {
             userId={userId}
             emptyState={emptyState}
             handPickedOnly={wantsHandPicked}
+            wingingFor={wingingFor}
           />
         )}
       </Suspense>

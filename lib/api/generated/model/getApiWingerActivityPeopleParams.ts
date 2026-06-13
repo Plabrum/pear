@@ -5,7 +5,7 @@
  * OpenAPI spec version: 1.0.0
  */
 
-export type GetApiWingerActivityParams = {
+export type GetApiWingerActivityPeopleParams = {
   /**
    * @minimum 1
    * @maximum 100

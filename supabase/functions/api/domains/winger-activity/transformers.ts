@@ -1,65 +1,52 @@
-import type { ActivityRow } from './schemas.ts';
+import type { PeopleActivityRow, PhotoActivityRow, PromptActivityRow } from './schemas.ts';
+import type { SuggestionRow, PhotoRow, PromptRow } from './queries.ts';
 
-export type SuggestionActivityRow = {
-  id: string;
-  decision: 'approved' | 'declined' | null;
-  created_at: string;
-  dater_id: string;
-  dater_name: string;
-  recipient_name: string;
-  has_match: boolean;
-};
-
-export type ReplyActivityRow = {
-  id: string;
-  created_at: string;
-  dater_id: string;
-  dater_name: string;
-  prompt_question: string;
-  message: string;
-};
-
-function suggestionToRow(row: SuggestionActivityRow): ActivityRow {
-  const kind: ActivityRow['kind'] =
+export function transformSuggestion(row: SuggestionRow): PeopleActivityRow {
+  const status: PeopleActivityRow['status'] =
     row.decision === 'declined'
-      ? 'pass'
+      ? 'not_accepted'
       : row.decision === 'approved' && row.has_match
-        ? 'match'
-        : 'sent';
+        ? 'matched'
+        : 'pending';
   return {
     id: `suggestion:${row.id}`,
-    kind,
     daterId: row.dater_id,
     daterName: row.dater_name,
-    recipientName: row.recipient_name,
-    promptQuestion: null,
-    message: null,
+    suggestedName: row.recipient_name,
+    status,
     createdAt: row.created_at,
   };
 }
 
-function replyToRow(row: ReplyActivityRow): ActivityRow {
+export function transformPhoto(row: PhotoRow): PhotoActivityRow {
+  const status: PhotoActivityRow['status'] = row.rejected_at
+    ? 'not_accepted'
+    : row.approved_at
+      ? 'approved'
+      : 'pending';
   return {
-    id: `reply:${row.id}`,
-    kind: 'reply',
+    id: row.id,
     daterId: row.dater_id,
     daterName: row.dater_name,
-    recipientName: null,
+    storageUrl: row.storage_url,
+    status,
+    createdAt: row.created_at,
+  };
+}
+
+export function transformPrompt(row: PromptRow): PromptActivityRow {
+  const status: PromptActivityRow['status'] = row.is_rejected
+    ? 'not_accepted'
+    : row.is_approved
+      ? 'accepted'
+      : 'pending';
+  return {
+    id: row.id,
+    daterId: row.dater_id,
+    daterName: row.dater_name,
     promptQuestion: row.prompt_question,
     message: row.message,
+    status,
     createdAt: row.created_at,
   };
-}
-
-export function buildActivityFeed(
-  suggestions: SuggestionActivityRow[],
-  replies: ReplyActivityRow[],
-  limit: number,
-): ActivityRow[] {
-  const rows: ActivityRow[] = [
-    ...suggestions.map(suggestionToRow),
-    ...replies.map(replyToRow),
-  ];
-  rows.sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0));
-  return rows.slice(0, limit);
 }

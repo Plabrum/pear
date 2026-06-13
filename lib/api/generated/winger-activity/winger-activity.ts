@@ -14,13 +14,20 @@ import type {
   UseSuspenseQueryResult,
 } from '@tanstack/react-query';
 
-import type { GetApiWingerActivityParams, WingerActivityResponse } from '../model';
+import type {
+  GetApiWingerActivityPeopleParams,
+  GetApiWingerActivityPhotosParams,
+  GetApiWingerActivityPromptsParams,
+  WingerPeopleActivityResponse,
+  WingerPhotosActivityResponse,
+  WingerPromptsActivityResponse,
+} from '../model';
 
 import { pearFetch } from '../../http';
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
-export const getGetApiWingerActivityUrl = (params?: GetApiWingerActivityParams) => {
+export const getGetApiWingerActivityPeopleUrl = (params?: GetApiWingerActivityPeopleParams) => {
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
@@ -32,109 +39,386 @@ export const getGetApiWingerActivityUrl = (params?: GetApiWingerActivityParams) 
   const stringifiedParams = normalizedParams.toString();
 
   return stringifiedParams.length > 0
-    ? `/api/winger-activity?${stringifiedParams}`
-    : `/api/winger-activity`;
+    ? `/api/winger-activity/people?${stringifiedParams}`
+    : `/api/winger-activity/people`;
 };
 
-export const getApiWingerActivity = async (
-  params?: GetApiWingerActivityParams,
+export const getApiWingerActivityPeople = async (
+  params?: GetApiWingerActivityPeopleParams,
   options?: RequestInit
-): Promise<WingerActivityResponse> => {
-  return pearFetch<WingerActivityResponse>(getGetApiWingerActivityUrl(params), {
+): Promise<WingerPeopleActivityResponse> => {
+  return pearFetch<WingerPeopleActivityResponse>(getGetApiWingerActivityPeopleUrl(params), {
     ...options,
     method: 'GET',
   });
 };
 
-export const getGetApiWingerActivityQueryKey = (params?: GetApiWingerActivityParams) => {
-  return [`/api/winger-activity`, ...(params ? [params] : [])] as const;
+export const getGetApiWingerActivityPeopleQueryKey = (
+  params?: GetApiWingerActivityPeopleParams
+) => {
+  return [`/api/winger-activity/people`, ...(params ? [params] : [])] as const;
 };
 
-export const getGetApiWingerActivitySuspenseQueryOptions = <
-  TData = Awaited<ReturnType<typeof getApiWingerActivity>>,
+export const getGetApiWingerActivityPeopleSuspenseQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiWingerActivityPeople>>,
   TError = void,
 >(
-  params?: GetApiWingerActivityParams,
+  params?: GetApiWingerActivityPeopleParams,
   options?: {
     query?: Partial<
-      UseSuspenseQueryOptions<Awaited<ReturnType<typeof getApiWingerActivity>>, TError, TData>
+      UseSuspenseQueryOptions<Awaited<ReturnType<typeof getApiWingerActivityPeople>>, TError, TData>
     >;
     request?: SecondParameter<typeof pearFetch>;
   }
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getGetApiWingerActivityQueryKey(params);
+  const queryKey = queryOptions?.queryKey ?? getGetApiWingerActivityPeopleQueryKey(params);
 
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiWingerActivity>>> = ({ signal }) =>
-    getApiWingerActivity(params, { signal, ...requestOptions });
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiWingerActivityPeople>>> = ({
+    signal,
+  }) => getApiWingerActivityPeople(params, { signal, ...requestOptions });
 
   return { queryKey, queryFn, ...queryOptions } as UseSuspenseQueryOptions<
-    Awaited<ReturnType<typeof getApiWingerActivity>>,
+    Awaited<ReturnType<typeof getApiWingerActivityPeople>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type GetApiWingerActivitySuspenseQueryResult = NonNullable<
-  Awaited<ReturnType<typeof getApiWingerActivity>>
+export type GetApiWingerActivityPeopleSuspenseQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiWingerActivityPeople>>
 >;
-export type GetApiWingerActivitySuspenseQueryError = void;
+export type GetApiWingerActivityPeopleSuspenseQueryError = void;
 
-export function useGetApiWingerActivitySuspense<
-  TData = Awaited<ReturnType<typeof getApiWingerActivity>>,
+export function useGetApiWingerActivityPeopleSuspense<
+  TData = Awaited<ReturnType<typeof getApiWingerActivityPeople>>,
   TError = void,
 >(
-  params: undefined | GetApiWingerActivityParams,
+  params: undefined | GetApiWingerActivityPeopleParams,
   options: {
     query: Partial<
-      UseSuspenseQueryOptions<Awaited<ReturnType<typeof getApiWingerActivity>>, TError, TData>
+      UseSuspenseQueryOptions<Awaited<ReturnType<typeof getApiWingerActivityPeople>>, TError, TData>
     >;
     request?: SecondParameter<typeof pearFetch>;
   },
   queryClient?: QueryClient
 ): UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetApiWingerActivitySuspense<
-  TData = Awaited<ReturnType<typeof getApiWingerActivity>>,
+export function useGetApiWingerActivityPeopleSuspense<
+  TData = Awaited<ReturnType<typeof getApiWingerActivityPeople>>,
   TError = void,
 >(
-  params?: GetApiWingerActivityParams,
+  params?: GetApiWingerActivityPeopleParams,
   options?: {
     query?: Partial<
-      UseSuspenseQueryOptions<Awaited<ReturnType<typeof getApiWingerActivity>>, TError, TData>
+      UseSuspenseQueryOptions<Awaited<ReturnType<typeof getApiWingerActivityPeople>>, TError, TData>
     >;
     request?: SecondParameter<typeof pearFetch>;
   },
   queryClient?: QueryClient
 ): UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetApiWingerActivitySuspense<
-  TData = Awaited<ReturnType<typeof getApiWingerActivity>>,
+export function useGetApiWingerActivityPeopleSuspense<
+  TData = Awaited<ReturnType<typeof getApiWingerActivityPeople>>,
   TError = void,
 >(
-  params?: GetApiWingerActivityParams,
+  params?: GetApiWingerActivityPeopleParams,
   options?: {
     query?: Partial<
-      UseSuspenseQueryOptions<Awaited<ReturnType<typeof getApiWingerActivity>>, TError, TData>
+      UseSuspenseQueryOptions<Awaited<ReturnType<typeof getApiWingerActivityPeople>>, TError, TData>
     >;
     request?: SecondParameter<typeof pearFetch>;
   },
   queryClient?: QueryClient
 ): UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
-export function useGetApiWingerActivitySuspense<
-  TData = Awaited<ReturnType<typeof getApiWingerActivity>>,
+export function useGetApiWingerActivityPeopleSuspense<
+  TData = Awaited<ReturnType<typeof getApiWingerActivityPeople>>,
   TError = void,
 >(
-  params?: GetApiWingerActivityParams,
+  params?: GetApiWingerActivityPeopleParams,
   options?: {
     query?: Partial<
-      UseSuspenseQueryOptions<Awaited<ReturnType<typeof getApiWingerActivity>>, TError, TData>
+      UseSuspenseQueryOptions<Awaited<ReturnType<typeof getApiWingerActivityPeople>>, TError, TData>
     >;
     request?: SecondParameter<typeof pearFetch>;
   },
   queryClient?: QueryClient
 ): UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetApiWingerActivitySuspenseQueryOptions(params, options);
+  const queryOptions = getGetApiWingerActivityPeopleSuspenseQueryOptions(params, options);
+
+  const query = useSuspenseQuery(queryOptions, queryClient) as UseSuspenseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getGetApiWingerActivityPhotosUrl = (params?: GetApiWingerActivityPhotosParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/winger-activity/photos?${stringifiedParams}`
+    : `/api/winger-activity/photos`;
+};
+
+export const getApiWingerActivityPhotos = async (
+  params?: GetApiWingerActivityPhotosParams,
+  options?: RequestInit
+): Promise<WingerPhotosActivityResponse> => {
+  return pearFetch<WingerPhotosActivityResponse>(getGetApiWingerActivityPhotosUrl(params), {
+    ...options,
+    method: 'GET',
+  });
+};
+
+export const getGetApiWingerActivityPhotosQueryKey = (
+  params?: GetApiWingerActivityPhotosParams
+) => {
+  return [`/api/winger-activity/photos`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetApiWingerActivityPhotosSuspenseQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiWingerActivityPhotos>>,
+  TError = void,
+>(
+  params?: GetApiWingerActivityPhotosParams,
+  options?: {
+    query?: Partial<
+      UseSuspenseQueryOptions<Awaited<ReturnType<typeof getApiWingerActivityPhotos>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof pearFetch>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetApiWingerActivityPhotosQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiWingerActivityPhotos>>> = ({
+    signal,
+  }) => getApiWingerActivityPhotos(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseSuspenseQueryOptions<
+    Awaited<ReturnType<typeof getApiWingerActivityPhotos>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetApiWingerActivityPhotosSuspenseQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiWingerActivityPhotos>>
+>;
+export type GetApiWingerActivityPhotosSuspenseQueryError = void;
+
+export function useGetApiWingerActivityPhotosSuspense<
+  TData = Awaited<ReturnType<typeof getApiWingerActivityPhotos>>,
+  TError = void,
+>(
+  params: undefined | GetApiWingerActivityPhotosParams,
+  options: {
+    query: Partial<
+      UseSuspenseQueryOptions<Awaited<ReturnType<typeof getApiWingerActivityPhotos>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof pearFetch>;
+  },
+  queryClient?: QueryClient
+): UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetApiWingerActivityPhotosSuspense<
+  TData = Awaited<ReturnType<typeof getApiWingerActivityPhotos>>,
+  TError = void,
+>(
+  params?: GetApiWingerActivityPhotosParams,
+  options?: {
+    query?: Partial<
+      UseSuspenseQueryOptions<Awaited<ReturnType<typeof getApiWingerActivityPhotos>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof pearFetch>;
+  },
+  queryClient?: QueryClient
+): UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetApiWingerActivityPhotosSuspense<
+  TData = Awaited<ReturnType<typeof getApiWingerActivityPhotos>>,
+  TError = void,
+>(
+  params?: GetApiWingerActivityPhotosParams,
+  options?: {
+    query?: Partial<
+      UseSuspenseQueryOptions<Awaited<ReturnType<typeof getApiWingerActivityPhotos>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof pearFetch>;
+  },
+  queryClient?: QueryClient
+): UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+export function useGetApiWingerActivityPhotosSuspense<
+  TData = Awaited<ReturnType<typeof getApiWingerActivityPhotos>>,
+  TError = void,
+>(
+  params?: GetApiWingerActivityPhotosParams,
+  options?: {
+    query?: Partial<
+      UseSuspenseQueryOptions<Awaited<ReturnType<typeof getApiWingerActivityPhotos>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof pearFetch>;
+  },
+  queryClient?: QueryClient
+): UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetApiWingerActivityPhotosSuspenseQueryOptions(params, options);
+
+  const query = useSuspenseQuery(queryOptions, queryClient) as UseSuspenseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getGetApiWingerActivityPromptsUrl = (params?: GetApiWingerActivityPromptsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/winger-activity/prompts?${stringifiedParams}`
+    : `/api/winger-activity/prompts`;
+};
+
+export const getApiWingerActivityPrompts = async (
+  params?: GetApiWingerActivityPromptsParams,
+  options?: RequestInit
+): Promise<WingerPromptsActivityResponse> => {
+  return pearFetch<WingerPromptsActivityResponse>(getGetApiWingerActivityPromptsUrl(params), {
+    ...options,
+    method: 'GET',
+  });
+};
+
+export const getGetApiWingerActivityPromptsQueryKey = (
+  params?: GetApiWingerActivityPromptsParams
+) => {
+  return [`/api/winger-activity/prompts`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetApiWingerActivityPromptsSuspenseQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiWingerActivityPrompts>>,
+  TError = void,
+>(
+  params?: GetApiWingerActivityPromptsParams,
+  options?: {
+    query?: Partial<
+      UseSuspenseQueryOptions<
+        Awaited<ReturnType<typeof getApiWingerActivityPrompts>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof pearFetch>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetApiWingerActivityPromptsQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiWingerActivityPrompts>>> = ({
+    signal,
+  }) => getApiWingerActivityPrompts(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseSuspenseQueryOptions<
+    Awaited<ReturnType<typeof getApiWingerActivityPrompts>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetApiWingerActivityPromptsSuspenseQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiWingerActivityPrompts>>
+>;
+export type GetApiWingerActivityPromptsSuspenseQueryError = void;
+
+export function useGetApiWingerActivityPromptsSuspense<
+  TData = Awaited<ReturnType<typeof getApiWingerActivityPrompts>>,
+  TError = void,
+>(
+  params: undefined | GetApiWingerActivityPromptsParams,
+  options: {
+    query: Partial<
+      UseSuspenseQueryOptions<
+        Awaited<ReturnType<typeof getApiWingerActivityPrompts>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof pearFetch>;
+  },
+  queryClient?: QueryClient
+): UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetApiWingerActivityPromptsSuspense<
+  TData = Awaited<ReturnType<typeof getApiWingerActivityPrompts>>,
+  TError = void,
+>(
+  params?: GetApiWingerActivityPromptsParams,
+  options?: {
+    query?: Partial<
+      UseSuspenseQueryOptions<
+        Awaited<ReturnType<typeof getApiWingerActivityPrompts>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof pearFetch>;
+  },
+  queryClient?: QueryClient
+): UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetApiWingerActivityPromptsSuspense<
+  TData = Awaited<ReturnType<typeof getApiWingerActivityPrompts>>,
+  TError = void,
+>(
+  params?: GetApiWingerActivityPromptsParams,
+  options?: {
+    query?: Partial<
+      UseSuspenseQueryOptions<
+        Awaited<ReturnType<typeof getApiWingerActivityPrompts>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof pearFetch>;
+  },
+  queryClient?: QueryClient
+): UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+export function useGetApiWingerActivityPromptsSuspense<
+  TData = Awaited<ReturnType<typeof getApiWingerActivityPrompts>>,
+  TError = void,
+>(
+  params?: GetApiWingerActivityPromptsParams,
+  options?: {
+    query?: Partial<
+      UseSuspenseQueryOptions<
+        Awaited<ReturnType<typeof getApiWingerActivityPrompts>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof pearFetch>;
+  },
+  queryClient?: QueryClient
+): UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetApiWingerActivityPromptsSuspenseQueryOptions(params, options);
 
   const query = useSuspenseQuery(queryOptions, queryClient) as UseSuspenseQueryResult<
     TData,

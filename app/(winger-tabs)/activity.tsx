@@ -1,10 +1,24 @@
+import { useState } from 'react';
 import { StyleSheet } from 'react-native';
+import { Image } from 'expo-image';
 
 import { colors } from '@/constants/theme';
 import { View, Text, ScrollView, SafeAreaView } from '@/lib/tw';
+import { TextTabBar } from '@/components/ui/TextTabBar';
+import { FaceAvatar } from '@/components/ui/FaceAvatar';
 import ScreenSuspense from '@/components/ui/ScreenSuspense';
-import { useGetApiWingerActivitySuspense } from '@/lib/api/generated/winger-activity/winger-activity';
-import type { ActivityRow } from '@/lib/api/generated/model';
+import { cn } from '@/lib/cn';
+import { getPhotoUrl } from '@/lib/photos';
+import {
+  useGetApiWingerActivityPeopleSuspense,
+  useGetApiWingerActivityPhotosSuspense,
+  useGetApiWingerActivityPromptsSuspense,
+} from '@/lib/api/generated/winger-activity/winger-activity';
+import type {
+  PeopleActivityRow,
+  PhotoActivityRow,
+  PromptActivityRow,
+} from '@/lib/api/generated/model';
 
 function formatRelativeTime(iso: string): string {
   const then = new Date(iso.replace(' ', 'T')).getTime();
@@ -17,102 +31,279 @@ function formatRelativeTime(iso: string): string {
   if (hours < 24) return `${hours}h`;
   const days = Math.round(hours / 24);
   if (days === 1) return 'yesterday';
-  if (days < 7) return `${days} days`;
-  if (days < 14) return 'last week';
+  if (days < 7) return `${days}d`;
+  if (days < 14) return '1w';
   const weeks = Math.round(days / 7);
-  if (weeks < 5) return `${weeks} weeks`;
-  const months = Math.round(days / 30);
-  return `${months}mo`;
+  if (weeks < 5) return `${weeks}w`;
+  return `${Math.round(days / 30)}mo`;
 }
 
-function rowText(row: ActivityRow): string {
-  switch (row.kind) {
-    case 'match':
-      return 'Your pick became a match.';
-    case 'pass':
-      return `Passed on your suggestion${row.recipientName ? ` of ${row.recipientName}` : ''}.`;
-    case 'sent':
-      return `You suggested ${row.recipientName ?? 'someone'} — pending review.`;
-    case 'reply':
-      return row.message ?? 'You replied to a prompt.';
+type PillVariant = 'positive' | 'neutral' | 'muted';
+
+function StatusPill({ label, variant }: { label: string; variant: PillVariant }) {
+  return (
+    <View
+      className={cn(
+        'self-start rounded-full px-2.5 py-0.5 mt-2',
+        variant === 'positive' ? 'bg-primary-soft' : 'bg-surface-muted'
+      )}
+    >
+      <Text
+        className={cn(
+          'text-xs font-medium',
+          variant === 'positive' ? 'text-primary' : 'text-fg-muted'
+        )}
+      >
+        {label}
+      </Text>
+    </View>
+  );
+}
+
+type ActivityMeta = { label: string; variant: PillVariant; message: string };
+
+function peopleMeta(item: PeopleActivityRow): ActivityMeta {
+  switch (item.status) {
+    case 'matched':
+      return { label: 'Matched', variant: 'positive', message: 'Your pick became a match.' };
+    case 'not_accepted':
+      return {
+        label: 'Not accepted',
+        variant: 'muted',
+        message: `${item.daterName} passed on ${item.suggestedName}.`,
+      };
+    case 'pending':
+      return {
+        label: 'Pending',
+        variant: 'neutral',
+        message: `You suggested ${item.suggestedName} — pending review.`,
+      };
   }
 }
 
-function ActivityRowItem({ row }: { row: ActivityRow }) {
-  const muted = row.kind === 'pass';
+function photoMeta(item: PhotoActivityRow): ActivityMeta {
+  switch (item.status) {
+    case 'approved':
+      return { label: 'Approved', variant: 'positive', message: 'Photo suggestion was approved.' };
+    case 'not_accepted':
+      return {
+        label: 'Not accepted',
+        variant: 'muted',
+        message: 'Photo suggestion was not accepted.',
+      };
+    case 'pending':
+      return {
+        label: 'Pending',
+        variant: 'neutral',
+        message: 'Photo suggestion pending approval.',
+      };
+  }
+}
+
+function promptPill(status: PromptActivityRow['status']): { label: string; variant: PillVariant } {
+  switch (status) {
+    case 'accepted':
+      return { label: 'Accepted', variant: 'positive' };
+    case 'not_accepted':
+      return { label: 'Not accepted', variant: 'muted' };
+    case 'pending':
+      return { label: 'Pending', variant: 'neutral' };
+  }
+}
+
+function Card({ children, muted }: { children: React.ReactNode; muted?: boolean }) {
   return (
     <View
       className="bg-white rounded-2xl px-3.5 py-3"
       style={{
         borderWidth: StyleSheet.hairlineWidth,
         borderColor: colors.divider,
-        opacity: muted ? 0.7 : 1,
+        opacity: muted ? 0.55 : 1,
       }}
     >
-      <Text className="text-sm text-ink" style={{ lineHeight: 20 }}>
-        <Text className="font-semibold text-ink">{row.daterName}</Text>
-        {row.recipientName ? (
-          <Text className="text-ink-mid">{` · ${row.recipientName}`}</Text>
-        ) : null}
-        {row.kind === 'reply' && row.promptQuestion ? (
-          <Text className="text-ink-mid">{` · ${row.promptQuestion}`}</Text>
-        ) : null}
+      {children}
+    </View>
+  );
+}
+
+function EmptyState({ message }: { message: string }) {
+  return (
+    <View
+      className="mt-2 p-5 rounded-2xl bg-accent-muted"
+      style={{ borderWidth: 1, borderColor: 'rgba(90,140,58,0.13)' }}
+    >
+      <Text className="text-xs uppercase mb-2 text-primary" style={{ letterSpacing: 1.4 }}>
+        Nothing yet
       </Text>
-      <Text className="text-sm mt-1 text-ink-mid" style={{ lineHeight: 20 }}>
-        {rowText(row)}
+      <Text
+        className="font-serif text-fg"
+        style={{ fontSize: 20, lineHeight: 26, letterSpacing: -0.3 }}
+      >
+        {message}
       </Text>
-      <Text className="text-xs mt-1.5 text-ink-dim">{formatRelativeTime(row.createdAt)}</Text>
+    </View>
+  );
+}
+
+function PeopleTab() {
+  const { data } = useGetApiWingerActivityPeopleSuspense();
+
+  if (data.length === 0) {
+    return <EmptyState message="Profiles you suggest as matches will appear here." />;
+  }
+
+  return (
+    <View style={{ gap: 8 }}>
+      {data.map((item: PeopleActivityRow) => {
+        const meta = peopleMeta(item);
+        return (
+          <Card key={item.id} muted={item.status === 'not_accepted'}>
+            <View className="flex-row gap-3 items-start">
+              <FaceAvatar name={item.daterName} size={40} />
+              <View className="flex-1">
+                <View className="flex-row justify-between items-start">
+                  <Text className="text-sm text-fg flex-1">
+                    <Text className="font-semibold">{item.daterName}</Text>
+                    <Text className="text-fg-muted">{` · ${item.suggestedName}`}</Text>
+                  </Text>
+                  <Text className="text-xs text-fg-subtle ml-3">
+                    {formatRelativeTime(item.createdAt)}
+                  </Text>
+                </View>
+                <Text className="text-sm mt-0.5 text-fg-muted">{meta.message}</Text>
+                <StatusPill label={meta.label} variant={meta.variant} />
+              </View>
+            </View>
+          </Card>
+        );
+      })}
+    </View>
+  );
+}
+
+function PhotosTab() {
+  const { data } = useGetApiWingerActivityPhotosSuspense();
+
+  if (data.length === 0) {
+    return <EmptyState message="Photos you suggest for a dater's profile will appear here." />;
+  }
+
+  return (
+    <View style={{ gap: 8 }}>
+      {data.map((item: PhotoActivityRow) => {
+        const meta = photoMeta(item);
+        const photoUrl = getPhotoUrl(item.storageUrl);
+        return (
+          <Card key={item.id} muted={item.status === 'not_accepted'}>
+            <View className="flex-row gap-3 items-start">
+              {photoUrl ? (
+                <Image
+                  source={{ uri: photoUrl }}
+                  style={{ width: 56, height: 72, borderRadius: 10 }}
+                  contentFit="cover"
+                />
+              ) : (
+                <View className="rounded-xl bg-surface-muted" style={{ width: 56, height: 72 }} />
+              )}
+              <View className="flex-1">
+                <View className="flex-row justify-between items-start">
+                  <View className="flex-row items-center gap-2">
+                    <FaceAvatar name={item.daterName} size={22} />
+                    <Text className="text-sm text-fg">
+                      <Text className="font-semibold">{item.daterName}</Text>
+                      <Text className="text-fg-muted">&apos;s profile</Text>
+                    </Text>
+                  </View>
+                  <Text className="text-xs text-fg-subtle ml-3">
+                    {formatRelativeTime(item.createdAt)}
+                  </Text>
+                </View>
+                <Text className="text-sm mt-0.5 text-fg-muted">{meta.message}</Text>
+                <StatusPill label={meta.label} variant={meta.variant} />
+              </View>
+            </View>
+          </Card>
+        );
+      })}
+    </View>
+  );
+}
+
+function PromptsTab() {
+  const { data } = useGetApiWingerActivityPromptsSuspense();
+
+  if (data.length === 0) {
+    return <EmptyState message="Prompt responses you write for daters will appear here." />;
+  }
+
+  return (
+    <View style={{ gap: 8 }}>
+      {data.map((item: PromptActivityRow) => {
+        const pill = promptPill(item.status);
+        return (
+          <Card key={item.id} muted={item.status === 'not_accepted'}>
+            <View className="flex-row gap-3 items-start">
+              <FaceAvatar name={item.daterName} size={40} />
+              <View className="flex-row justify-between items-start flex-1">
+                <View className="flex-1">
+                  <Text className="text-sm text-fg">
+                    <Text className="font-semibold">{item.daterName}</Text>
+                    <Text className="text-fg-muted">{` · ${item.promptQuestion}`}</Text>
+                  </Text>
+                  <Text className="text-sm mt-1.5 text-fg italic" style={{ lineHeight: 20 }}>
+                    &ldquo;{item.message}&rdquo;
+                  </Text>
+                  <StatusPill {...pill} />
+                </View>
+                <Text className="text-xs text-fg-subtle ml-3 mt-0.5">
+                  {formatRelativeTime(item.createdAt)}
+                </Text>
+              </View>
+            </View>
+          </Card>
+        );
+      })}
     </View>
   );
 }
 
 function ActivityContent() {
-  const { data } = useGetApiWingerActivitySuspense();
+  const [tab, setTab] = useState(0);
 
   return (
-    <ScrollView contentContainerClassName="pb-32">
+    <>
       <View className="px-4 pt-2 pb-1">
-        <Text className="font-serif text-ink" style={{ fontSize: 28, letterSpacing: -0.5 }}>
+        <Text className="font-serif text-fg" style={{ fontSize: 28, letterSpacing: -0.5 }}>
           Activity
         </Text>
       </View>
-      <Text className="px-4 pb-3 text-sm text-ink-dim">What came of your picks.</Text>
-
-      {data.length === 0 ? (
-        <View
-          className="mx-4 mt-2 p-5 rounded-2xl bg-accent-muted"
-          style={{ borderWidth: 1, borderColor: 'rgba(90,140,58,0.13)' }}
-        >
-          <Text className="text-xs uppercase mb-2 text-primary" style={{ letterSpacing: 1.4 }}>
-            Nothing yet
-          </Text>
-          <Text
-            className="font-serif text-ink"
-            style={{ fontSize: 22, lineHeight: 28, letterSpacing: -0.3 }}
-          >
-            Your picks, replies, and matches will land here.
-          </Text>
-          <Text className="text-sm mt-2 text-ink-mid" style={{ lineHeight: 20 }}>
-            Head to Scout to send a pick or jump into Friends to add a prompt reply.
-          </Text>
-        </View>
-      ) : (
-        <View className="px-4" style={{ gap: 8 }}>
-          {data.map((row) => (
-            <ActivityRowItem key={row.id} row={row} />
-          ))}
-        </View>
-      )}
-    </ScrollView>
+      <Text className="px-4 pb-3 text-sm text-fg-muted">Track your contributions.</Text>
+      <TextTabBar tabs={['People', 'Photos', 'Prompts']} active={tab} setActive={setTab} />
+      <ScrollView contentContainerClassName="px-4 pt-4 pb-32">
+        {tab === 0 && (
+          <ScreenSuspense>
+            <PeopleTab />
+          </ScreenSuspense>
+        )}
+        {tab === 1 && (
+          <ScreenSuspense>
+            <PhotosTab />
+          </ScreenSuspense>
+        )}
+        {tab === 2 && (
+          <ScreenSuspense>
+            <PromptsTab />
+          </ScreenSuspense>
+        )}
+      </ScrollView>
+    </>
   );
 }
 
 export default function ActivityScreen() {
   return (
-    <SafeAreaView className="flex-1 bg-page" edges={['top']}>
-      <ScreenSuspense>
-        <ActivityContent />
-      </ScreenSuspense>
+    <SafeAreaView className="flex-1 bg-background" edges={['top']}>
+      <ActivityContent />
     </SafeAreaView>
   );
 }

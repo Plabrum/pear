@@ -266,6 +266,7 @@ export type Database = {
           dating_profile_id: string;
           display_order: number;
           id: string;
+          rejected_at: string | null;
           storage_url: string;
           suggester_id: string | null;
         };
@@ -275,6 +276,7 @@ export type Database = {
           dating_profile_id: string;
           display_order: number;
           id?: string;
+          rejected_at?: string | null;
           storage_url: string;
           suggester_id?: string | null;
         };
@@ -284,6 +286,7 @@ export type Database = {
           dating_profile_id?: string;
           display_order?: number;
           id?: string;
+          rejected_at?: string | null;
           storage_url?: string;
           suggester_id?: string | null;
         };
@@ -343,6 +346,30 @@ export type Database = {
           },
         ];
       };
+      profile_reports: {
+        Row: {
+          created_at: string;
+          id: string;
+          reason: string;
+          reported_id: string;
+          reporter_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          reason: string;
+          reported_id: string;
+          reporter_id: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          reason?: string;
+          reported_id?: string;
+          reporter_id?: string;
+        };
+        Relationships: [];
+      };
       profiles: {
         Row: {
           avatar_url: string | null;
@@ -399,6 +426,7 @@ export type Database = {
           created_at: string;
           id: string;
           is_approved: boolean;
+          is_rejected: boolean;
           message: string;
           profile_prompt_id: string;
           user_id: string;
@@ -407,6 +435,7 @@ export type Database = {
           created_at?: string;
           id?: string;
           is_approved?: boolean;
+          is_rejected?: boolean;
           message: string;
           profile_prompt_id: string;
           user_id: string;
@@ -415,6 +444,7 @@ export type Database = {
           created_at?: string;
           id?: string;
           is_approved?: boolean;
+          is_rejected?: boolean;
           message?: string;
           profile_prompt_id?: string;
           user_id?: string;

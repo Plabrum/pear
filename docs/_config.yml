@@ -6,3 +6,7 @@ url: "https://plabrum.github.io"
 
 minima:
   skin: classic
+
+# Internal engineering docs — kept out of the public legal site.
+exclude:
+  - migration/
