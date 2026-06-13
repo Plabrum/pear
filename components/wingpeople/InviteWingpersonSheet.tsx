@@ -5,7 +5,6 @@ import { Controller, useForm } from 'react-hook-form';
 import { toast } from 'sonner-native';
 import * as SMS from 'expo-sms';
 import * as Contacts from 'expo-contacts';
-import { Ionicons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { View, Text, TextInput, Pressable } from '@/lib/tw';
@@ -18,9 +17,7 @@ import { useGetApiProfilesMeSuspense } from '@/lib/api/generated/profiles/profil
 import { formatPhoneInput, toE164 } from '@/lib/phoneUtils';
 import { ContactsPicker, type ContactEntry } from '@/components/wingpeople/ContactsPicker';
 
-const INK = '#1F1B16';
 const INK3 = '#8B8170';
-const PAPER = '#FBF8F1';
 const LINE = 'rgba(31,27,22,0.10)';
 
 type InviteForm = { phone: string };
