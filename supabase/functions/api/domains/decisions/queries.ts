@@ -57,8 +57,8 @@ export async function insertWingSuggestion(
   wingerId: string,
   note: string | null,
   decision: 'declined' | null,
-): Promise<void> {
-  await db
+): Promise<{ inserted: boolean }> {
+  const rows = await db
     .insert(decisions)
     .values({
       actorId: daterId,
@@ -67,7 +67,9 @@ export async function insertWingSuggestion(
       decision,
       note,
     })
-    .onConflictDoNothing();
+    .onConflictDoNothing()
+    .returning({ id: decisions.id });
+  return { inserted: rows.length > 0 };
 }
 
 // Look up the matches row for a pair, regardless of who is user_a vs user_b.

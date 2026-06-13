@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Modal, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { toast } from 'sonner-native';
 import { postApiDecisionsSuggestions } from '@/lib/api/generated/decisions/decisions';
 import type { WingingForRow } from '@/lib/api/generated/model';
 import { View, Text, Pressable } from '@/lib/tw';
@@ -39,18 +40,18 @@ export function ForwardSheet({
 
   async function handleNoteSend(note: string | null) {
     if (!pendingDater) return;
-    try {
-      await postApiDecisionsSuggestions({
-        daterId: pendingDater.id,
-        recipientId,
-        note,
-        decision: null,
-      });
-      setPendingDater(null);
-      onClose();
-    } catch {
-      // silently ignore
+    const result = await postApiDecisionsSuggestions({
+      daterId: pendingDater.id,
+      recipientId,
+      note,
+      decision: null,
+    }).catch(() => null);
+    if (result == null) {
+      toast.error("Couldn't forward this profile. Try again.");
+      return;
     }
+    setPendingDater(null);
+    onClose();
   }
 
   function handleClose() {

@@ -165,9 +165,19 @@ export function mountDecisions(app: OpenAPIHono<AppEnv>) {
       throw new HTTPException(403, { message: 'No active wingperson relationship' });
     }
 
-    await insertWingSuggestion(db, daterId, recipientId, wingerId, note ?? null, decision);
+    const { inserted } = await insertWingSuggestion(
+      db,
+      daterId,
+      recipientId,
+      wingerId,
+      note ?? null,
+      decision,
+    );
 
-    if (decision == null) {
+    // Only notify on a genuinely new suggestion — a no-op conflict (the dater
+    // already decided on, or was already suggested, this recipient) must not
+    // fire a push or imply a write happened.
+    if (inserted && decision == null) {
       const { daterToken, wingerName } = await getDaterPushAndWingerName(db, daterId, wingerId);
       await push.send(
         daterToken,
