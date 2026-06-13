@@ -67,3 +67,4 @@ docs/superpowers/specs
 design/screens/
 .playwright-mcp
 .claude/worktrees
+docs/migration
