@@ -536,6 +536,7 @@ function DiscoverCard({
           visible={forwardOpen}
           recipientId={card.userId}
           recipientName={card.chosenName}
+          recipientGender={card.gender}
           wingingFor={wingingFor}
           onClose={() => setForwardOpen(false)}
         />

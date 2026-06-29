@@ -27,6 +27,7 @@ export const WingingForDater = z
     avatarUrl: z.string().nullable(),
     interests: z.array(z.enum(interestValues)).nullable(),
     bio: z.string().nullable(),
+    interestedGender: z.array(z.enum(genderValues)).nullable(),
   })
   .openapi('WingingForDater');
 

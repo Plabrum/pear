@@ -18,6 +18,7 @@ type Props = {
   visible: boolean;
   recipientId: string;
   recipientName?: string;
+  recipientGender?: string | null;
   wingingFor: WingingForRow[];
   excludeDaterId?: string;
   onClose: () => void;
@@ -27,6 +28,7 @@ export function ForwardSheet({
   visible,
   recipientId,
   recipientName,
+  recipientGender,
   wingingFor,
   excludeDaterId,
   onClose,
@@ -34,9 +36,13 @@ export function ForwardSheet({
   const insets = useSafeAreaInsets();
   const [pendingDater, setPendingDater] = useState<{ id: string; name: string } | null>(null);
 
-  const targets = wingingFor.filter(
-    (r) => r.dater?.id !== excludeDaterId && r.dater?.id !== recipientId
-  );
+  const targets = wingingFor.filter((r) => {
+    if (r.dater?.id === excludeDaterId || r.dater?.id === recipientId) return false;
+    if (recipientGender && r.dater?.interestedGender) {
+      return r.dater.interestedGender.includes(recipientGender as 'Male' | 'Female' | 'Non-Binary');
+    }
+    return true;
+  });
 
   async function handleNoteSend(note: string | null) {
     if (!pendingDater) return;

@@ -274,8 +274,66 @@ async function ensureDevUser(): Promise<string> {
 
   const existing = listData.users.find((u) => u.email === DEV_EMAIL);
   if (existing) {
-    console.log(`  dev user already exists (${existing.id}), skipping creation`);
-    return existing.id;
+    console.log(`  dev user already exists (${existing.id}), ensuring dating profile…`);
+    const userId = existing.id;
+
+    // Ensure profile fields are set
+    await supabase
+      .from('profiles')
+      .update({
+        chosen_name: 'Dev',
+        last_name: 'User',
+        gender: 'Male',
+        date_of_birth: '1993-01-01',
+        role: 'dater',
+        phone_number: '+15550000000',
+      })
+      .eq('id', userId);
+
+    // Upsert dating_profile so re-runs are safe
+    const { data: existingDp } = await supabase
+      .from('dating_profiles')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (!existingDp) {
+      const { data: dp, error: dpError } = await supabase
+        .from('dating_profiles')
+        .insert({
+          user_id: userId,
+          bio: 'Local dev user. Here to test the app.',
+          interested_gender: ['Female', 'Male'],
+          age_from: 22,
+          age_to: 40,
+          religion: 'Agnostic',
+          interests: ['Travel', 'Technology', 'Food'],
+          city: 'New York',
+          is_active: true,
+          dating_status: 'open',
+        })
+        .select('id')
+        .single();
+      if (dpError) throw new Error(`dev user dating_profile error: ${dpError.message}`);
+
+      // Add 3 prompts
+      const { data: templates } = await supabase.from('prompt_templates').select('id, question');
+      if (templates && templates.length > 0 && dp) {
+        const picked = pickN(templates, 3);
+        await supabase.from('profile_prompts').insert(
+          picked.map((t) => ({
+            dating_profile_id: dp.id,
+            prompt_template_id: t.id,
+            answer: pick(PROMPT_ANSWERS[t.question] ?? ['Something interesting about me.']),
+          }))
+        );
+      }
+      console.log(`  dating_profile created for existing dev user`);
+    } else {
+      console.log(`  dating_profile already exists`);
+    }
+
+    return userId;
   }
 
   const { data: authData, error: authError } = await supabase.auth.admin.createUser({

@@ -37,4 +37,6 @@ export type WingingForDater = {
     | null;
   /** @nullable */
   bio: string | null;
+  /** @nullable */
+  interestedGender: ('Male' | 'Female' | 'Non-Binary')[] | null;
 } | null;
