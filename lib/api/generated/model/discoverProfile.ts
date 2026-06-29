@@ -8,6 +8,7 @@ import type { DiscoverProfileCity } from './discoverProfileCity';
 import type { DiscoverProfileDatingStatus } from './discoverProfileDatingStatus';
 import type { DiscoverProfileGender } from './discoverProfileGender';
 import type { DiscoverProfileInterestsItem } from './discoverProfileInterestsItem';
+import type { WingSuggestion } from './wingSuggestion';
 
 export interface DiscoverProfile {
   profileId: string;
@@ -22,10 +23,5 @@ export interface DiscoverProfile {
   datingStatus: DiscoverProfileDatingStatus;
   interests: DiscoverProfileInterestsItem[];
   photos: string[];
-  /** @nullable */
-  wingNote: string | null;
-  /** @nullable */
-  suggestedBy: string | null;
-  /** @nullable */
-  suggesterName: string | null;
+  suggestions: WingSuggestion[];
 }

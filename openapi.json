@@ -13,6 +13,23 @@
       }
     },
     "schemas": {
+      "WingSuggestion": {
+        "type": "object",
+        "properties": {
+          "wingerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "wingerName": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": ["wingerId", "wingerName", "note"]
+      },
       "DiscoverProfile": {
         "type": "object",
         "properties": {
@@ -77,18 +94,11 @@
               "type": "string"
             }
           },
-          "wingNote": {
-            "type": "string",
-            "nullable": true
-          },
-          "suggestedBy": {
-            "type": "string",
-            "nullable": true,
-            "format": "uuid"
-          },
-          "suggesterName": {
-            "type": "string",
-            "nullable": true
+          "suggestions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WingSuggestion"
+            }
           }
         },
         "required": [
@@ -102,9 +112,7 @@
           "datingStatus",
           "interests",
           "photos",
-          "wingNote",
-          "suggestedBy",
-          "suggesterName"
+          "suggestions"
         ]
       },
       "DiscoverResponse": {

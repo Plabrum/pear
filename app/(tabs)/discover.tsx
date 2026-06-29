@@ -221,47 +221,101 @@ function DiscoverFilters({
   );
 }
 
-// ── WingCredential ────────────────────────────────────────────────────────────
+// ── WingPickSection ───────────────────────────────────────────────────────────
 
-function WingCredential({ suggesterName, note }: { suggesterName: string; note: string | null }) {
+type WingSuggestion = { wingerId: string; wingerName: string; note: string | null };
+
+function WingPickSection({
+  suggestions,
+  recipientName,
+}: {
+  suggestions: WingSuggestion[];
+  recipientName: string;
+}) {
+  const [cardIndex, setCardIndex] = useState(0);
+  const [cardWidth, setCardWidth] = useState(0);
+  const count = suggestions.length;
+  const label =
+    count === 1
+      ? `1 friend suggests ${recipientName}`
+      : `${count} friends suggest ${recipientName}`;
+
+  const wingerItems = suggestions.map((s) => ({ name: s.wingerName }));
+
   return (
-    <View
-      style={{
-        backgroundColor: LEAF_SOFT,
-        borderWidth: 1,
-        borderColor: 'rgba(90,140,58,0.15)',
-        borderRadius: 14,
-        padding: 12,
-      }}
-      className="flex-row gap-3 items-start"
-    >
-      <WingStack items={[{ name: suggesterName }]} size={30} />
-      <View className="flex-1 min-w-0">
-        <Text
-          className="text-primary"
-          style={{
-            fontSize: 10.5,
-            fontWeight: '700',
-            letterSpacing: 1.2,
-            textTransform: 'uppercase',
-            marginBottom: 3,
-          }}
-        >
+    <View style={{ gap: 8 }}>
+      {/* Header line */}
+      <View className="flex-row items-center gap-2">
+        <WingStack items={wingerItems} size={22} />
+        <Text style={{ fontSize: 12.5, color: LEAF, fontWeight: '600' }}>
           Hand-picked
+          {'  ·  '}
+          <Text style={{ fontWeight: '400', color: INK_MUTED }}>{label}</Text>
         </Text>
-        {note != null ? (
-          <Text className="text-ink" style={{ fontSize: 13, lineHeight: 18 }}>
-            “{note}”{' '}
-            <Text className="text-ink-dim" style={{ fontStyle: 'italic' }}>
-              — {suggesterName}
-            </Text>
-          </Text>
-        ) : (
-          <Text className="text-ink" style={{ fontSize: 13, lineHeight: 18 }}>
-            <Text style={{ fontWeight: '700' }}>Hand-picked</Text> by {suggesterName}
-          </Text>
-        )}
       </View>
+
+      {/* Swipeable winger cards */}
+      <ScrollView
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        onLayout={(e) => setCardWidth(e.nativeEvent.layout.width)}
+        onMomentumScrollEnd={(e) => {
+          const pageWidth = e.nativeEvent.layoutMeasurement.width;
+          const idx = Math.round(e.nativeEvent.contentOffset.x / pageWidth);
+          setCardIndex(idx);
+        }}
+      >
+        {suggestions.map((s, i) => (
+          <View key={s.wingerId} style={{ width: cardWidth || undefined }}>
+            <View
+              style={{
+                backgroundColor: LEAF_SOFT,
+                borderWidth: 1,
+                borderColor: 'rgba(90,140,58,0.18)',
+                borderRadius: 12,
+                padding: 12,
+                flexDirection: 'row',
+                gap: 10,
+                alignItems: 'flex-start',
+              }}
+            >
+              <WingStack items={[{ name: s.wingerName }]} size={28} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 12, fontWeight: '600', color: LEAF, marginBottom: 3 }}>
+                  {s.wingerName}
+                </Text>
+                {s.note != null ? (
+                  <Text style={{ fontSize: 13, color: INK_MUTED, lineHeight: 18 }}>
+                    &ldquo;{s.note}&rdquo;
+                  </Text>
+                ) : (
+                  <Text style={{ fontSize: 13, color: INK_SUBTLE, fontStyle: 'italic' }}>
+                    No note added
+                  </Text>
+                )}
+              </View>
+            </View>
+          </View>
+        ))}
+      </ScrollView>
+
+      {/* Page dots — only shown when more than one */}
+      {count > 1 && (
+        <View style={{ flexDirection: 'row', gap: 4, justifyContent: 'center' }}>
+          {suggestions.map((_, i) => (
+            <View
+              key={i}
+              style={{
+                width: i === cardIndex ? 12 : 5,
+                height: 5,
+                borderRadius: 3,
+                backgroundColor: i === cardIndex ? LEAF : 'rgba(90,140,58,0.25)',
+              }}
+            />
+          ))}
+        </View>
+      )}
     </View>
   );
 }
@@ -704,8 +758,8 @@ function DiscoverCard({
               contentContainerStyle={{ padding: 16, paddingBottom: 84, gap: 10 }}
               showsVerticalScrollIndicator={false}
             >
-              {card.wingNote != null && card.suggesterName != null && (
-                <WingCredential suggesterName={card.suggesterName} note={card.wingNote} />
+              {card.suggestions.length > 0 && (
+                <WingPickSection suggestions={card.suggestions} recipientName={card.chosenName} />
               )}
               {card.bio != null && (
                 <Text className="text-ink-mid" style={{ fontSize: 14, lineHeight: 20 }}>
@@ -843,7 +897,7 @@ function MatchOverlay({
           textAlign: 'center',
         }}
       >
-        It’s a{' '}
+        It&apos;s a{' '}
         <Text className="text-primary" style={{ fontStyle: 'italic' }}>
           pear
         </Text>
@@ -900,7 +954,7 @@ function MatchOverlay({
         }}
       >
         You and {card.chosenName} both swiped right.
-        {card.suggesterName != null ? ` ${card.suggesterName} called it.` : ''}
+        {card.suggestions.length > 0 ? ` ${card.suggestions[0].wingerName} called it.` : ''}
       </Text>
 
       <View style={{ width: '100%', maxWidth: 320, gap: 10 }}>
@@ -1094,7 +1148,7 @@ function PoolView({
   function invalidatePools(decidedCard: DiscoverProfile) {
     queryClient.invalidateQueries({ queryKey: ['/api/likes-you'], refetchType: 'none' });
     queryClient.invalidateQueries({ queryKey: ['/api/discover'], refetchType: 'none' });
-    if (decidedCard.suggestedBy != null) {
+    if (decidedCard.suggestions.length > 0) {
       queryClient.invalidateQueries({ queryKey: ['/api/winger-tabs'], refetchType: 'none' });
     }
   }
