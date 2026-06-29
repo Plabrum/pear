@@ -8,6 +8,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { FaceAvatar } from '@/components/ui/FaceAvatar';
 import { Sprout } from '@/components/ui/Sprout';
+import { TextTabBar } from '@/components/ui/TextTabBar';
+import { WingerActivityFeed } from '@/components/wingpeople/WingerActivityFeed';
 import { View, Text, ScrollView, SafeAreaView, Pressable } from '@/lib/tw';
 import {
   getGetApiWingpeopleQueryKey,
@@ -343,6 +345,7 @@ function WingpeopleContent({ onOpenInvite }: ContentProps) {
 export default function WingpeopleScreen() {
   const router = useRouter();
   const [inviteVisible, setInviteVisible] = useState(false);
+  const [tab, setTab] = useState(0);
 
   return (
     <SafeAreaView className="flex-1 bg-canvas" edges={['top']}>
@@ -363,18 +366,26 @@ export default function WingpeopleScreen() {
         >
           Wingpeople
         </Text>
-        <Sprout
-          size="sm"
-          icon={<Ionicons name="add" size={14} color={PAPER} />}
-          onPress={() => setInviteVisible(true)}
-        >
-          Invite
-        </Sprout>
+        {tab === 0 && (
+          <Sprout
+            size="sm"
+            icon={<Ionicons name="add" size={14} color={PAPER} />}
+            onPress={() => setInviteVisible(true)}
+          >
+            Invite
+          </Sprout>
+        )}
       </View>
 
-      <Suspense fallback={<Splash variant="spinner" />}>
-        <WingpeopleContent onOpenInvite={() => setInviteVisible(true)} />
-      </Suspense>
+      <TextTabBar tabs={['Wingpeople', 'Winging Activity']} active={tab} setActive={setTab} />
+
+      {tab === 0 ? (
+        <Suspense fallback={<Splash variant="spinner" />}>
+          <WingpeopleContent onOpenInvite={() => setInviteVisible(true)} />
+        </Suspense>
+      ) : (
+        <WingerActivityFeed />
+      )}
 
       <InviteWingpersonSheet visible={inviteVisible} onClose={() => setInviteVisible(false)} />
     </SafeAreaView>
