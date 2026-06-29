@@ -43,7 +43,7 @@ export function useDiscover(
     decision: DirectDecisionRequestDecision
   ): Promise<{ matched: boolean } | { error: true }> {
     try {
-      if (card.suggestedBy) {
+      if (card.suggestions.length > 0) {
         const res = await postApiDecisionsSuggestionsAct({
           recipientId: card.userId,
           decision,

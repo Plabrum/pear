@@ -33,35 +33,18 @@ export async function fetchDiscoverPool(
       and ${profilePhotos.approvedAt} is not null
   )`;
 
-  const wingNoteExpr = sql<string | null>`(
-    select ${decisions.note}
-    from ${decisions}
-    where ${decisions.actorId} = ${viewerId}
-      and ${decisions.recipientId} = ${datingProfiles.userId}
-      and ${decisions.decision} is null
-      and ${decisions.suggestedBy} is not null
-    limit 1
-  )`;
-
-  const suggestedByExpr = sql<string | null>`(
-    select ${decisions.suggestedBy}
-    from ${decisions}
-    where ${decisions.actorId} = ${viewerId}
-      and ${decisions.recipientId} = ${datingProfiles.userId}
-      and ${decisions.decision} is null
-      and ${decisions.suggestedBy} is not null
-    limit 1
-  )`;
-
-  const suggesterNameExpr = sql<string | null>`(
-    select ${profiles.chosenName}
-    from ${decisions}
-    join ${profiles} on ${profiles.id} = ${decisions.suggestedBy}
-    where ${decisions.actorId} = ${viewerId}
-      and ${decisions.recipientId} = ${datingProfiles.userId}
-      and ${decisions.decision} is null
-      and ${decisions.suggestedBy} is not null
-    limit 1
+  const suggestionsExpr = sql<{ wingerId: string; wingerName: string; note: string | null }[]>`(
+    select coalesce(json_agg(json_build_object(
+      'wingerId', d.suggested_by,
+      'wingerName', p.chosen_name,
+      'note', d.note
+    ) order by d.created_at), '[]'::json)
+    from ${decisions} d
+    join ${profiles} p on p.id = d.suggested_by
+    where d.actor_id = ${viewerId}
+      and d.recipient_id = ${datingProfiles.userId}
+      and d.decision is null
+      and d.suggested_by is not null
   )`;
 
   const filters: Parameters<typeof and>[0][] = [
@@ -169,15 +152,13 @@ export async function fetchDiscoverPool(
       dating_status: datingProfiles.datingStatus,
       interests: datingProfiles.interests,
       photos: photosExpr.as('photos'),
-      wing_note: wingNoteExpr.as('wing_note'),
-      suggested_by: suggestedByExpr.as('suggested_by'),
-      suggester_name: suggesterNameExpr.as('suggester_name'),
+      suggestions: suggestionsExpr.as('suggestions'),
     })
     .from(datingProfiles)
     .innerJoin(profiles, eq(profiles.id, datingProfiles.userId))
     .innerJoin(vdp, eq(vdp.userId, viewerId))
     .where(and(...filters))
-    .orderBy(desc(sql`(${suggestedByExpr} is not null)`), desc(datingProfiles.createdAt))
+    .orderBy(desc(sql`jsonb_array_length((${suggestionsExpr})::jsonb) > 0`), desc(datingProfiles.createdAt))
     .limit(pageSize)
     .offset(pageOffset);
 

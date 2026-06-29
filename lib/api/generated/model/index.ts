@@ -136,3 +136,4 @@ export * from './wingProfileCity';
 export * from './wingProfileDatingStatus';
 export * from './wingProfileGender';
 export * from './wingProfileInterestsItem';
+export * from './wingSuggestion';

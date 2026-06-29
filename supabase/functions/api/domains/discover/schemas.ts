@@ -14,6 +14,12 @@ export const DiscoverQuery = z.object({
   likesYouOnly: z.coerce.boolean().optional(),
 }).openapi('DiscoverQuery');
 
+export const WingSuggestion = z.object({
+  wingerId: z.string().uuid(),
+  wingerName: z.string(),
+  note: z.string().nullable(),
+}).openapi('WingSuggestion');
+
 export const DiscoverProfile = z.object({
   profileId: z.string().uuid(),
   userId: z.string().uuid(),
@@ -25,9 +31,7 @@ export const DiscoverProfile = z.object({
   datingStatus: z.enum(datingStatusValues),
   interests: z.array(z.enum(interestValues)),
   photos: z.array(z.string()),
-  wingNote: z.string().nullable(),
-  suggestedBy: z.string().uuid().nullable(),
-  suggesterName: z.string().nullable(),
+  suggestions: z.array(WingSuggestion),
 }).openapi('DiscoverProfile');
 
 export const DiscoverResponse = z.array(DiscoverProfile).openapi('DiscoverResponse');
