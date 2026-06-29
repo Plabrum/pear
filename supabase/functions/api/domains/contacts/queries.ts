@@ -93,6 +93,7 @@ export async function fetchWingingFor(
       dater_avatar_url: profiles.avatarUrl,
       dater_interests: datingProfiles.interests,
       dater_bio: datingProfiles.bio,
+      dater_interested_gender: datingProfiles.interestedGender,
     })
     .from(contacts)
     .leftJoin(profiles, eq(profiles.id, contacts.userId))

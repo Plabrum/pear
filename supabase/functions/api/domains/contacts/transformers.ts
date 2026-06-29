@@ -7,6 +7,7 @@ import type {
 
 type GenderValue = NonNullable<Wingperson['winger']>['gender'];
 type InterestList = NonNullable<WingingForRow['dater']>['interests'];
+type GenderList = NonNullable<WingingForRow['dater']>['interestedGender'];
 
 export type WingpersonRow = {
   id: string;
@@ -32,6 +33,7 @@ export type WingingForDaterRow = {
   dater_avatar_url: string | null;
   dater_interests: InterestList;
   dater_bio: string | null;
+  dater_interested_gender: GenderList;
 };
 
 export type SentInvitationRow = {
@@ -81,6 +83,7 @@ export function rowToWingingFor(row: WingingForDaterRow): WingingForRow {
             avatarUrl: row.dater_avatar_url,
             interests: row.dater_interests,
             bio: row.dater_bio,
+            interestedGender: row.dater_interested_gender,
           }
         : null,
   };

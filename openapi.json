@@ -1945,9 +1945,17 @@
           "bio": {
             "type": "string",
             "nullable": true
+          },
+          "interestedGender": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string",
+              "enum": ["Male", "Female", "Non-Binary"]
+            }
           }
         },
-        "required": ["id", "chosenName", "avatarUrl", "interests", "bio"]
+        "required": ["id", "chosenName", "avatarUrl", "interests", "bio", "interestedGender"]
       },
       "WingingForRow": {
         "type": "object",

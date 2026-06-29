@@ -10,20 +10,42 @@ import { NavHeader } from '@/components/ui/NavHeader';
 import { PhotoRect } from '@/components/ui/PhotoRect';
 import { Pill } from '@/components/ui/Pill';
 import { Sprout } from '@/components/ui/Sprout';
+import { ForwardSheet } from '@/components/ui/ForwardSheet';
 import { useGetApiProfilesUserIdSuspense } from '@/lib/api/generated/profiles/profiles';
 import type { WingProfile } from '@/lib/api/generated/model';
 import { useGetApiWingPoolSuspense } from '@/lib/api/generated/wing-pool/wing-pool';
+import { useGetApiWingpeopleSuspense } from '@/lib/api/generated/contacts/contacts';
 import ScreenSuspense from '@/components/ui/ScreenSuspense';
 import { cardButtonShadow } from '@/lib/styles';
+import { Ionicons } from '@expo/vector-icons';
 
 const PAGE_SIZE = 20;
 
 // ── WingCardView ──────────────────────────────────────────────────────────────
 
-function WingCardView({ card }: { card: WingProfile }) {
+function WingCardView({ card, onForward }: { card: WingProfile; onForward: () => void }) {
   return (
     <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-      <PhotoRect uri={card.firstPhoto} ratio={4 / 5} />
+      <View style={{ position: 'relative' }}>
+        <PhotoRect uri={card.firstPhoto} ratio={4 / 5} />
+        <Pressable
+          onPress={onForward}
+          hitSlop={8}
+          style={{
+            position: 'absolute',
+            top: 14,
+            left: 14,
+            width: 30,
+            height: 30,
+            borderRadius: 15,
+            backgroundColor: 'rgba(0,0,0,0.35)',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Ionicons name="arrow-redo-outline" size={16} color="rgba(255,255,255,0.9)" />
+        </Pressable>
+      </View>
       <View className="p-4">
         <Text className="text-3xl font-serif text-fg font-bold">
           {card.chosenName}, {card.age}
@@ -130,6 +152,7 @@ function WingSwipeContent() {
     pageSize: PAGE_SIZE,
     pageOffset: 0,
   });
+  const { data: wingpeopleData } = useGetApiWingpeopleSuspense();
 
   const { pool, index, suggest, decline } = useWingSwipe(daterId, initialPool);
   const card = pool[index] ?? null;
@@ -138,6 +161,9 @@ function WingSwipeContent() {
   const firstName = daterName.split(' ')[0] || daterName;
 
   const [noteVisible, setNoteVisible] = useState(false);
+  const [forwardOpen, setForwardOpen] = useState(false);
+
+  const wingingFor = wingpeopleData.wingingFor;
 
   async function handleSuggest(note: string | null) {
     setNoteVisible(false);
@@ -154,7 +180,7 @@ function WingSwipeContent() {
 
       <View className="flex-1">
         {card != null ? (
-          <WingCardView card={card} />
+          <WingCardView card={card} onForward={() => setForwardOpen(true)} />
         ) : (
           <EmptyState daterName={firstName || 'them'} />
         )}
@@ -184,6 +210,17 @@ function WingSwipeContent() {
         onSend={handleSuggest}
         onDismiss={() => setNoteVisible(false)}
       />
+      {card != null && wingingFor.length > 0 && (
+        <ForwardSheet
+          visible={forwardOpen}
+          recipientId={card.userId}
+          recipientName={card.chosenName}
+          recipientGender={card.gender}
+          wingingFor={wingingFor}
+          excludeDaterId={daterId}
+          onClose={() => setForwardOpen(false)}
+        />
+      )}
     </>
   );
 }
