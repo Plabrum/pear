@@ -10,8 +10,9 @@ export type DiscoverRow = {
   bio: string | null;
   dating_status: DiscoverProfile['datingStatus'];
   interests: DiscoverProfile['interests'];
-  photos: string[];
+  photos: DiscoverProfile['photos'];
   suggestions: DiscoverProfile['suggestions'];
+  prompts: DiscoverProfile['prompts'];
 };
 
 export function rowToDiscoverProfile(row: DiscoverRow): DiscoverProfile {
@@ -25,7 +26,8 @@ export function rowToDiscoverProfile(row: DiscoverRow): DiscoverProfile {
     bio: row.bio,
     datingStatus: row.dating_status,
     interests: row.interests,
-    photos: row.photos ?? [],
+    photos: (row.photos ?? []).map((p) => ({ url: p.url, pickedByName: p.pickedByName ?? null })),
     suggestions: row.suggestions ?? [],
+    prompts: row.prompts ?? [],
   };
 }

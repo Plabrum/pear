@@ -320,6 +320,145 @@ function WingPickSection({
   );
 }
 
+// ── PromptCard ────────────────────────────────────────────────────────────────
+
+type DiscoverPromptResponse = { wingerName: string; message: string };
+type DiscoverPrompt = { question: string; answer: string; responses: DiscoverPromptResponse[] };
+
+function PromptCard({ prompt }: { prompt: DiscoverPrompt }) {
+  const [pageIndex, setPageIndex] = useState(0);
+  const [cardWidth, setCardWidth] = useState(0);
+  const responses = prompt.responses;
+  const totalPages = 1 + responses.length;
+
+  return (
+    <View onLayout={(e) => setCardWidth(e.nativeEvent.layout.width)}>
+      {/* Front card */}
+      <View
+        style={{
+          borderWidth: 1,
+          borderColor: LINE,
+          borderRadius: 14,
+          overflow: 'hidden',
+          zIndex: 1,
+        }}
+      >
+        <ScrollView
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          onMomentumScrollEnd={(e) => {
+            const pw = e.nativeEvent.layoutMeasurement.width;
+            setPageIndex(Math.round(e.nativeEvent.contentOffset.x / pw));
+          }}
+        >
+          {/* Page 0: question + answer */}
+          <View
+            style={{
+              width: cardWidth || undefined,
+              backgroundColor: PAPER,
+              paddingHorizontal: 14,
+              paddingTop: 12,
+              paddingBottom: 12,
+            }}
+          >
+            <Text
+              style={{
+                fontSize: 10.5,
+                fontWeight: '700',
+                color: INK_SUBTLE,
+                letterSpacing: 0.8,
+                textTransform: 'uppercase',
+                marginBottom: 5,
+              }}
+            >
+              {prompt.question}
+            </Text>
+            <Text style={{ fontSize: 14, color: INK, lineHeight: 20 }}>{prompt.answer}</Text>
+          </View>
+          {/* Response pages */}
+          {responses.map((r, i) => (
+            <View
+              key={i}
+              style={{
+                width: cardWidth || undefined,
+                backgroundColor: LEAF_SOFT,
+                paddingHorizontal: 14,
+                paddingTop: 12,
+                paddingBottom: 12,
+                flexDirection: 'row',
+                gap: 10,
+                alignItems: 'flex-start',
+              }}
+            >
+              <WingStack items={[{ name: r.wingerName }]} size={26} />
+              <View style={{ flex: 1 }}>
+                <Text
+                  style={{
+                    fontSize: 10.5,
+                    fontWeight: '700',
+                    color: INK_SUBTLE,
+                    letterSpacing: 0.8,
+                    textTransform: 'uppercase',
+                    marginBottom: 5,
+                  }}
+                >
+                  {prompt.question}
+                </Text>
+                <Text style={{ fontSize: 13, color: INK_MUTED, lineHeight: 18 }}>{r.message}</Text>
+              </View>
+            </View>
+          ))}
+        </ScrollView>
+
+        {/* Page dots */}
+        {totalPages > 1 && (
+          <View
+            style={{
+              flexDirection: 'row',
+              gap: 4,
+              justifyContent: 'center',
+              paddingVertical: 7,
+              backgroundColor: pageIndex === 0 ? PAPER : LEAF_SOFT,
+            }}
+          >
+            {Array.from({ length: totalPages }).map((_, i) => (
+              <View
+                key={i}
+                style={{
+                  width: i === pageIndex ? 12 : 5,
+                  height: 5,
+                  borderRadius: 3,
+                  backgroundColor:
+                    i === pageIndex ? (pageIndex === 0 ? INK_SUBTLE : LEAF) : 'rgba(90,140,58,0.3)',
+                }}
+              />
+            ))}
+          </View>
+        )}
+      </View>
+
+      {/* Stacked peek strips — one per response, each inset more than the last */}
+      {responses.map((_, i) => (
+        <View
+          key={i}
+          style={{
+            height: 10,
+            marginTop: -4,
+            marginHorizontal: (i + 1) * 5,
+            backgroundColor: LEAF_SOFT,
+            borderBottomLeftRadius: 12,
+            borderBottomRightRadius: 12,
+            borderWidth: 1,
+            borderTopWidth: 0,
+            borderColor: 'rgba(90,140,58,0.25)',
+          }}
+        />
+      ))}
+    </View>
+  );
+}
+
 // ── Stamp ─────────────────────────────────────────────────────────────────────
 
 function PassStamp({ swipeX }: { swipeX: SharedValue<number> }) {
@@ -621,7 +760,7 @@ function DiscoverCard({
           <View style={{ flex: 6, position: 'relative' }}>
             {photos.length > 0 ? (
               <Image
-                source={{ uri: photos[photoIndex] }}
+                source={{ uri: photos[photoIndex].url }}
                 style={StyleSheet.absoluteFillObject}
                 contentFit="cover"
                 transition={200}
@@ -647,6 +786,51 @@ function DiscoverCard({
 
             <PassStamp swipeX={swipeX} />
             <LikeStamp swipeX={swipeX} />
+
+            {/* Wing pick badge */}
+            {photos[photoIndex]?.pickedByName != null && (
+              <View
+                pointerEvents="none"
+                style={{
+                  position: 'absolute',
+                  top: 46,
+                  right: 52,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 5,
+                  backgroundColor: 'rgba(0,0,0,0.32)',
+                  borderRadius: 20,
+                  paddingLeft: 3,
+                  paddingRight: 8,
+                  paddingVertical: 3,
+                }}
+              >
+                <View
+                  style={{
+                    width: 20,
+                    height: 20,
+                    borderRadius: 10,
+                    backgroundColor: 'rgba(255,255,255,0.2)',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: 'rgba(255,255,255,0.9)' }}>
+                    {photos[photoIndex].pickedByName![0].toUpperCase()}
+                  </Text>
+                </View>
+                <Text
+                  style={{
+                    fontSize: 11,
+                    fontWeight: '600',
+                    color: 'rgba(255,255,255,0.9)',
+                    letterSpacing: 0.2,
+                  }}
+                >
+                  &apos;s pick
+                </Text>
+              </View>
+            )}
 
             {/* Photo indicator bars */}
             {photos.length > 1 && (
@@ -773,6 +957,9 @@ function DiscoverCard({
                   ))}
                 </View>
               )}
+              {card.prompts.map((prompt, i) => (
+                <PromptCard key={i} prompt={prompt} />
+              ))}
             </ScrollView>
 
             {/* Action buttons */}
@@ -933,7 +1120,7 @@ function MatchOverlay({
         >
           {card.photos[0] ? (
             <Image
-              source={{ uri: card.photos[0] }}
+              source={{ uri: card.photos[0].url }}
               style={StyleSheet.absoluteFillObject}
               contentFit="cover"
             />

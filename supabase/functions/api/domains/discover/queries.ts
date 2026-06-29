@@ -1,7 +1,7 @@
 import { and, desc, eq, exists, isNotNull, isNull, ne, notExists, or, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import type { DBOrTx } from '../../db/client.ts';
-import { datingProfiles, decisions, matches, profiles, profilePhotos } from '../../db/schema.ts';
+import { datingProfiles, decisions, matches, profiles, profilePhotos, profilePrompts, promptResponses, promptTemplates } from '../../db/schema.ts';
 import type { DiscoverRow } from './transformers.ts';
 
 export type FetchDiscoverPoolParams = {
@@ -26,11 +26,18 @@ export async function fetchDiscoverPool(
 
   const ageExpr = sql<number>`extract(year from age(${profiles.dateOfBirth}))::int`;
 
-  const photosExpr = sql<string[]>`(
-    select coalesce(array_agg(${profilePhotos.storageUrl} order by ${profilePhotos.displayOrder}), '{}')
-    from ${profilePhotos}
-    where ${profilePhotos.datingProfileId} = ${datingProfiles.id}
-      and ${profilePhotos.approvedAt} is not null
+  const photosExpr = sql<{ url: string; pickedByName: string | null }[]>`(
+    select coalesce(json_agg(json_build_object(
+      'url', pp.storage_url,
+      'pickedByName', (
+        select p.chosen_name
+        from ${profiles} p
+        where p.id = pp.suggester_id
+      )
+    ) order by pp.display_order), '[]'::json)
+    from ${profilePhotos} pp
+    where pp.dating_profile_id = ${datingProfiles.id}
+      and pp.approved_at is not null
   )`;
 
   const suggestionsExpr = sql<{ wingerId: string; wingerName: string; note: string | null }[]>`(
@@ -45,6 +52,26 @@ export async function fetchDiscoverPool(
       and d.recipient_id = ${datingProfiles.userId}
       and d.decision is null
       and d.suggested_by is not null
+  )`;
+
+  const promptsExpr = sql<{ question: string; answer: string; responses: { wingerName: string; message: string }[] }[]>`(
+    select coalesce(json_agg(json_build_object(
+      'question', pt.question,
+      'answer', pp.answer,
+      'responses', (
+        select coalesce(json_agg(json_build_object(
+          'wingerName', pw.chosen_name,
+          'message', pr.message
+        ) order by pr.created_at), '[]'::json)
+        from ${promptResponses} pr
+        join ${profiles} pw on pw.id = pr.user_id
+        where pr.profile_prompt_id = pp.id
+          and pr.is_approved = true
+      )
+    ) order by pp.created_at), '[]'::json)
+    from ${profilePrompts} pp
+    join ${promptTemplates} pt on pt.id = pp.prompt_template_id
+    where pp.dating_profile_id = ${datingProfiles.id}
   )`;
 
   const filters: Parameters<typeof and>[0][] = [
@@ -153,6 +180,7 @@ export async function fetchDiscoverPool(
       interests: datingProfiles.interests,
       photos: photosExpr.as('photos'),
       suggestions: suggestionsExpr.as('suggestions'),
+      prompts: promptsExpr.as('prompts'),
     })
     .from(datingProfiles)
     .innerJoin(profiles, eq(profiles.id, datingProfiles.userId))

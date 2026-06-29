@@ -20,6 +20,22 @@ export const WingSuggestion = z.object({
   note: z.string().nullable(),
 }).openapi('WingSuggestion');
 
+export const PromptResponse = z.object({
+  wingerName: z.string(),
+  message: z.string(),
+}).openapi('DiscoverPromptResponse');
+
+export const DiscoverPrompt = z.object({
+  question: z.string(),
+  answer: z.string(),
+  responses: z.array(PromptResponse),
+}).openapi('DiscoverPrompt');
+
+export const DiscoverPhoto = z.object({
+  url: z.string(),
+  pickedByName: z.string().nullable(),
+}).openapi('DiscoverPhoto');
+
 export const DiscoverProfile = z.object({
   profileId: z.string().uuid(),
   userId: z.string().uuid(),
@@ -30,8 +46,9 @@ export const DiscoverProfile = z.object({
   bio: z.string().nullable(),
   datingStatus: z.enum(datingStatusValues),
   interests: z.array(z.enum(interestValues)),
-  photos: z.array(z.string()),
+  photos: z.array(DiscoverPhoto),
   suggestions: z.array(WingSuggestion),
+  prompts: z.array(DiscoverPrompt),
 }).openapi('DiscoverProfile');
 
 export const DiscoverResponse = z.array(DiscoverProfile).openapi('DiscoverResponse');

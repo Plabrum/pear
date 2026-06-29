@@ -4,10 +4,12 @@
  * Pear API
  * OpenAPI spec version: 1.0.0
  */
+import type { DiscoverPhoto } from './discoverPhoto';
 import type { DiscoverProfileCity } from './discoverProfileCity';
 import type { DiscoverProfileDatingStatus } from './discoverProfileDatingStatus';
 import type { DiscoverProfileGender } from './discoverProfileGender';
 import type { DiscoverProfileInterestsItem } from './discoverProfileInterestsItem';
+import type { DiscoverPrompt } from './discoverPrompt';
 import type { WingSuggestion } from './wingSuggestion';
 
 export interface DiscoverProfile {
@@ -22,6 +24,7 @@ export interface DiscoverProfile {
   bio: string | null;
   datingStatus: DiscoverProfileDatingStatus;
   interests: DiscoverProfileInterestsItem[];
-  photos: string[];
+  photos: DiscoverPhoto[];
   suggestions: WingSuggestion[];
+  prompts: DiscoverPrompt[];
 }

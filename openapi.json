@@ -13,6 +13,19 @@
       }
     },
     "schemas": {
+      "DiscoverPhoto": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "pickedByName": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": ["url", "pickedByName"]
+      },
       "WingSuggestion": {
         "type": "object",
         "properties": {
@@ -29,6 +42,36 @@
           }
         },
         "required": ["wingerId", "wingerName", "note"]
+      },
+      "DiscoverPromptResponse": {
+        "type": "object",
+        "properties": {
+          "wingerName": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": ["wingerName", "message"]
+      },
+      "DiscoverPrompt": {
+        "type": "object",
+        "properties": {
+          "question": {
+            "type": "string"
+          },
+          "answer": {
+            "type": "string"
+          },
+          "responses": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DiscoverPromptResponse"
+            }
+          }
+        },
+        "required": ["question", "answer", "responses"]
       },
       "DiscoverProfile": {
         "type": "object",
@@ -91,13 +134,19 @@
           "photos": {
             "type": "array",
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/DiscoverPhoto"
             }
           },
           "suggestions": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/WingSuggestion"
+            }
+          },
+          "prompts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DiscoverPrompt"
             }
           }
         },
@@ -112,7 +161,8 @@
           "datingStatus",
           "interests",
           "photos",
-          "suggestions"
+          "suggestions",
+          "prompts"
         ]
       },
       "DiscoverResponse": {
