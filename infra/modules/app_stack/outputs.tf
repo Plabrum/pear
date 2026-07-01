@@ -59,3 +59,8 @@ output "private_subnet_ids" {
 output "ses_configuration_set" {
   value = aws_ses_configuration_set.main.name
 }
+
+output "updates_signing_certificate_pem" {
+  description = "Public OTA code-signing certificate (PEM) - copy into app/certs/updates-signing.pem"
+  value       = tls_self_signed_cert.updates_signing.cert_pem
+}

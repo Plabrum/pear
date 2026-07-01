@@ -12,18 +12,20 @@ name: OTA Publish
 #
 # AUTH: assumes the GitHub OIDC role `secrets.OIDC_ROLE_ARN` (same convention as
 # build-test-deploy.yml) — no long-lived AWS keys. That role must additionally
-# allow s3:PutObject/s3:List on the updates/ prefix of the media bucket and
-# cloudfront:CreateInvalidation on the CDN distribution in front of it.
+# allow s3:PutObject/s3:List on the updates/ prefix of the media bucket,
+# cloudfront:CreateInvalidation on the CDN distribution in front of it, and
+# ssm:GetParameter(s)/secretsmanager:GetSecretValue on the OTA SSM params and
+# secret (infra/modules/ec2_stack/ssm_params.tf's `github_oidc_ota_ci_read`
+# policy grants this by role name — see that file for how the role is targeted
+# without Terraform owning its lifecycle).
 #
-# REQUIRED repo config (Settings → Actions → Variables/Secrets) — this job fails
-# closed if any of these are missing, except CLOUDFRONT_DOMAIN/_DISTRIBUTION_ID
-# which degrade to a warning until infra/ grows a CloudFront distribution:
-#   vars.S3_MEDIA_BUCKET          — the Phase 06 media bucket name (Terraform-generated).
-#   vars.API_BASE_URL             — e.g. https://api.pear.app (no trailing slash).
-#   vars.NATIVE_BUILD_FINGERPRINT — written by Xcode Cloud after each native archive.
-#   vars.CLOUDFRONT_DOMAIN        — CDN domain in front of the media bucket (optional today).
-#   vars.CLOUDFRONT_DISTRIBUTION_ID — for cache invalidation (optional today).
-#   secrets.UPDATES_PUBLISH_TOKEN  — must equal the backend's UPDATES_PUBLISH_TOKEN.
+# REQUIRED repo config (Settings → Actions → Secrets): only
+#   secrets.OIDC_ROLE_ARN
+# remains. Everything else — media bucket, API base URL, CloudFront domain/
+# distribution ID, the OTA secrets ARN, and the publish token + code-signing key
+# inside it — is fetched at runtime from SSM Parameter Store + Secrets Manager;
+# see infra/modules/ec2_stack/ssm_params.tf. Nothing here needs copy-pasting
+# after a `terraform apply`.
 
 on:
   push:
@@ -34,17 +36,7 @@ on:
 
 env:
   AWS_REGION: us-east-1
-  # Reuses the Phase 06 media bucket (infra/modules/app_stack/main.tf `module
-  # "media"`, same bucket the backend reads as S3_MEDIA_BUCKET) under a distinct
-  # `updates/` prefix — not a new bucket. The bucket name is generated with a
-  # random suffix in Terraform, so it can't be hardcoded here; it must be set as
-  # a repo/environment variable (Settings → Actions → Variables) mirroring the
-  # backend's S3_MEDIA_BUCKET value.
-  S3_MEDIA_BUCKET: ${{ vars.S3_MEDIA_BUCKET }}
-  # The backend's own base URL — same value the app embeds as EXPO_PUBLIC_API_URL
-  # (app.config.js `updates.url` = `${API_BASE_URL}/updates/manifest`) so the
-  # exported bundle's baked-in manifest URL matches where this job publishes to.
-  API_BASE_URL: ${{ vars.API_BASE_URL }}
+  SSM_PREFIX: /pear/production/ota
 
 jobs:
   export-and-publish:
@@ -70,19 +62,43 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.OIDC_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Fetch dynamic config (SSM + Secrets Manager)
+        # Terraform owns every one of these values (infra/modules/ec2_stack/
+        # ssm_params.tf) — nothing here is a repo var that could drift from a
+        # `terraform apply`. The OTA secret's ARN is itself an SSM param, so this
+        # job never needs to know the secret's name ahead of time.
+        run: |
+          S3_MEDIA_BUCKET=$(aws ssm get-parameter --name "${SSM_PREFIX}/s3_media_bucket" --query Parameter.Value --output text)
+          API_BASE_URL=$(aws ssm get-parameter --name "${SSM_PREFIX}/api_base_url" --query Parameter.Value --output text)
+          CLOUDFRONT_DOMAIN=$(aws ssm get-parameter --name "${SSM_PREFIX}/cloudfront_domain" --query Parameter.Value --output text)
+          CLOUDFRONT_DISTRIBUTION_ID=$(aws ssm get-parameter --name "${SSM_PREFIX}/cloudfront_distribution_id" --query Parameter.Value --output text)
+          OTA_SECRETS_ARN=$(aws ssm get-parameter --name "${SSM_PREFIX}/ota_secrets_arn" --query Parameter.Value --output text)
+
+          UPDATES_PUBLISH_TOKEN=$(aws secretsmanager get-secret-value --secret-id "$OTA_SECRETS_ARN" --query SecretString --output text \
+            | node -e 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>process.stdout.write(JSON.parse(d).UPDATES_PUBLISH_TOKEN))')
+
+          echo "::add-mask::${UPDATES_PUBLISH_TOKEN}"
+
+          echo "S3_MEDIA_BUCKET=${S3_MEDIA_BUCKET}" >> "$GITHUB_ENV"
+          echo "API_BASE_URL=${API_BASE_URL}" >> "$GITHUB_ENV"
+          echo "CLOUDFRONT_DOMAIN=${CLOUDFRONT_DOMAIN}" >> "$GITHUB_ENV"
+          echo "CLOUDFRONT_DISTRIBUTION_ID=${CLOUDFRONT_DISTRIBUTION_ID}" >> "$GITHUB_ENV"
+          echo "UPDATES_PUBLISH_TOKEN=${UPDATES_PUBLISH_TOKEN}" >> "$GITHUB_ENV"
+
       - name: Fingerprint guardrail
         # The load-bearing invariant of 9b: an OTA update only applies to an
         # installed build whose runtimeVersion fingerprint matches. Compute the
         # fingerprint the same way the client/runtimeVersion policy does and
         # compare it against the fingerprint of the latest Xcode Cloud native
-        # build, so we never publish an update that can't apply to anything.
-        #
-        # TODO(xcode-cloud): NATIVE_BUILD_FINGERPRINT must be written by an Xcode
-        # Cloud post-build script (ci_post_xcodebuild.sh) after every successful
-        # native archive — e.g. `gh variable set NATIVE_BUILD_FINGERPRINT` (or an
-        # SSM param, per the doc's alternative) using the same `@expo/fingerprint`
-        # computation. Until that write-back exists, this variable is stale/unset
-        # and this step should be treated as non-authoritative.
+        # build (recorded by app/ios/ci_scripts/ci_post_xcodebuild.sh via
+        # `POST /updates/native-build-fingerprint`), so we never publish an
+        # update that can't apply to anything.
         run: |
           FINGERPRINT=$(npx expo-updates fingerprint:generate --platform ios | node -e '
             let data = "";
@@ -96,9 +112,14 @@ jobs:
           echo "Computed fingerprint: ${FINGERPRINT}"
           echo "FINGERPRINT=${FINGERPRINT}" >> "$GITHUB_ENV"
 
-          EXPECTED="${{ vars.NATIVE_BUILD_FINGERPRINT }}"
+          EXPECTED=$(curl -sS "${API_BASE_URL}/updates/native-build-fingerprint?platform=ios" | node -e '
+            let data = "";
+            process.stdin.on("data", (chunk) => (data += chunk));
+            process.stdin.on("end", () => process.stdout.write(JSON.parse(data).fingerprint ?? ""));
+          ')
+
           if [ -z "$EXPECTED" ]; then
-            echo "::error::vars.NATIVE_BUILD_FINGERPRINT is unset — no native-build fingerprint to compare against. Refusing to publish an OTA update that may never apply to any installed build. See the TODO above this step."
+            echo "::error::No native-build fingerprint on record at ${API_BASE_URL}/updates/native-build-fingerprint?platform=ios — no Xcode Cloud archive has reported one yet. Refusing to publish an OTA update that may never apply to any installed build."
             exit 1
           fi
 
@@ -114,12 +135,6 @@ jobs:
           EXPO_PUBLIC_API_URL: ${{ env.API_BASE_URL }}
         run: npm run export:ota
 
-      - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.OIDC_ROLE_ARN }}
-          aws-region: ${{ env.AWS_REGION }}
-
       - name: Upload bundle to S3
         run: |
           aws s3 sync dist/ "s3://${S3_MEDIA_BUCKET}/updates/${UPDATE_ID}/"
@@ -128,25 +143,15 @@ jobs:
         # `POST /updates/publish` (backend/app/platform/updates/routes.py) — bearer-
         # token guarded (`requires_updates_publish_token`), inserts the app_updates
         # row directly (no RLS on that table, no task/worker indirection — see the
-        # model's docstring). Asset URLs point at CloudFront when
-        # vars.CLOUDFRONT_DOMAIN is set, otherwise the direct S3 virtual-hosted URL
-        # (which requires the updates/ prefix to itself be publicly readable, since
-        # `expo-updates` on the client fetches asset URLs directly — no CDN yet is
-        # a real gap, not just a cache-miss inconvenience, until infra/ grows a
-        # `aws_cloudfront_distribution` in front of this bucket).
+        # model's docstring).
         run: |
-          if [ -n "${{ vars.CLOUDFRONT_DOMAIN }}" ]; then
-            ASSET_BASE_URL="https://${{ vars.CLOUDFRONT_DOMAIN }}/updates/${UPDATE_ID}"
-          else
-            echo "::warning::vars.CLOUDFRONT_DOMAIN is unset — publishing asset URLs straight at S3. This only works if the updates/ prefix is public; see the TODO in infra/ for the missing CloudFront distribution."
-            ASSET_BASE_URL="https://${S3_MEDIA_BUCKET}.s3.${AWS_REGION}.amazonaws.com/updates/${UPDATE_ID}"
-          fi
+          ASSET_BASE_URL="https://${CLOUDFRONT_DOMAIN}/updates/${UPDATE_ID}"
 
           PAYLOAD=$(node scripts/build-ota-payload.js dist "$ASSET_BASE_URL" "$FINGERPRINT" production ios)
 
           HTTP_STATUS=$(curl -sS -o response.json -w '%{http_code}' \
             -X POST "${API_BASE_URL}/updates/publish" \
-            -H "Authorization: Bearer ${{ secrets.UPDATES_PUBLISH_TOKEN }}" \
+            -H "Authorization: Bearer ${UPDATES_PUBLISH_TOKEN}" \
             -H "Content-Type: application/json" \
             -d "$PAYLOAD")
 
@@ -157,19 +162,9 @@ jobs:
           fi
 
       - name: Invalidate CloudFront cache
-        # TODO(infra): no aws_cloudfront_distribution resource exists yet in
-        # infra/ for the media bucket (grepped infra/modules — only s3_bucket +
-        # app_stack's module "media", no CDN in front of it). vars.
-        # CLOUDFRONT_DISTRIBUTION_ID must be set once that distribution is
-        # provisioned; until then this step is a no-op guard rather than a hard
-        # failure, since publishing can still proceed without a CDN fronting the
-        # bucket (assets just serve from S3 directly).
+        # CloudFront is always provisioned (infra/modules/cloudfront_media, wired
+        # into both ec2_stack and app_stack) — no unset-var no-op branch needed.
         run: |
-          if [ -z "${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}" ]; then
-            echo "::warning::vars.CLOUDFRONT_DISTRIBUTION_ID is unset — no CloudFront distribution configured in front of the media bucket yet. Skipping invalidation."
-            exit 0
-          fi
-
           aws cloudfront create-invalidation \
-            --distribution-id "${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}" \
+            --distribution-id "${CLOUDFRONT_DISTRIBUTION_ID}" \
             --paths "/updates/${UPDATE_ID}/*"

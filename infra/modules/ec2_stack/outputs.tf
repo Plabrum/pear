@@ -31,3 +31,8 @@ output "cloudfront_distribution_id" {
   description = "CloudFront distribution ID - set as ota.yml's vars.CLOUDFRONT_DISTRIBUTION_ID"
   value       = module.media_cdn.distribution_id
 }
+
+output "updates_signing_certificate_pem" {
+  description = "Public OTA code-signing certificate (PEM) - copy into app/certs/updates-signing.pem"
+  value       = tls_self_signed_cert.updates_signing.cert_pem
+}

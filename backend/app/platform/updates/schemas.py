@@ -84,3 +84,21 @@ class PublishUpdateResponse(BaseSchema):
 
     id: Sqid
     updateUuid: str
+
+
+# ─── Native build fingerprint (Xcode Cloud write-back, CI read) ────────────────
+
+
+class SetNativeBuildFingerprintRequest(BaseSchema):
+    """Body `ci_post_xcodebuild.sh` posts after a successful native archive."""
+
+    platform: UpdatePlatform
+    fingerprint: str
+
+
+class NativeBuildFingerprintResponse(BaseSchema):
+    platform: UpdatePlatform
+    fingerprint: str | None
+    """`None` when no native build has ever been recorded for this platform —
+    `ota.yml`'s fingerprint guardrail must treat that the same as a hard mismatch.
+    """

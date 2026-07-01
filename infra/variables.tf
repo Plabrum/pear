@@ -81,3 +81,9 @@ variable "extra_env" {
   type        = map(string)
   default     = {}
 }
+
+variable "github_oidc_role_name" {
+  description = "Name (not ARN) of the pre-existing GitHub Actions OIDC role that ota.yml assumes via secrets.OIDC_ROLE_ARN. That role isn't a Terraform resource anywhere in this repo - it's referenced purely as a secret - so this grants it a read-only policy by name without taking over its lifecycle. Derive it in CI from OIDC_ROLE_ARN's last path segment (an IAM role ARN's last segment is the role name); leave blank to skip the grant entirely."
+  type        = string
+  default     = ""
+}

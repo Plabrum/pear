@@ -2,21 +2,20 @@
 
 `updates-signing.pem` is the public self-signed X.509 certificate `expo-updates`
 verifies manifest signatures against (referenced by `updates.codeSigningCertificate`
-in `app.config.js`). **It is now committed** — generated via:
+in `app.config.js`). **It is now committed** — the keypair is Terraform-generated
+(`infra/modules/ec2_stack/main.tf`'s `tls_private_key.updates_signing` /
+`tls_self_signed_cert.updates_signing`, mirrored in `infra/modules/app_stack/main.tf`),
+not created by a local CLI step. The matching private key lives only in the
+Terraform-owned `<name>-ota-secrets` Secrets Manager secret
+(`UPDATES_SIGNING_PRIVATE_KEY`), never in this repo.
+
+Re-materialize the committed public cert after a Terraform apply changes it
+(first apply, or an intentional rotation) via:
 
 ```bash
-npx expo-updates codesigning:generate \
-  --key-output-directory <local, gitignored dir> \
-  --certificate-output-directory <local, gitignored dir> \
-  --certificate-validity-duration-years 10 \
-  --certificate-common-name "Pear Updates"
+terraform -chdir=infra output -raw updates_signing_certificate_pem > app/certs/updates-signing.pem
+git add app/certs/updates-signing.pem && git commit -m "Update OTA code-signing certificate"
 ```
-
-The matching **private key never touched this repo** — it lives only in:
-- `backend/.env.local` (gitignored) for local dev, as `UPDATES_SIGNING_PRIVATE_KEY`.
-- AWS Secrets Manager for prod, same key name, populated out-of-band exactly like
-  `SECRET_KEY`/`APPLE_CLIENT_ID`/`APNS_*` (see
-  `infra/modules/ec2_stack/main.tf`'s `aws_secretsmanager_secret.app`).
 
 `UPDATES_SIGNING_KEY_ID` (defaults to `"main"` — `backend/app/config.py`) must match
 `codeSigningMetadata.keyid` below it in `app.config.js`.

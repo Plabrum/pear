@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import config
 from app.factory import create_app
 from app.platform.updates.enums import RolloutStatus, UpdateChannel, UpdatePlatform
-from app.platform.updates.models import AppUpdate
+from app.platform.updates.models import AppUpdate, NativeBuildFingerprint
 
 # `asyncio_mode = "auto"` (pyproject.toml) runs `async def test_*` without a marker.
 
@@ -255,3 +255,109 @@ async def test_publish_inserts_app_update_row(
     assert row.rollout == RolloutStatus.LIVE
     assert row.launch_asset["url"] == "https://cdn.example.com/bundle.js"
     assert row.assets[0]["fileExtension"] == ".png"
+
+
+# ─── Native build fingerprint (POST guarded, GET unauthenticated) ──────────────
+
+
+async def test_set_fingerprint_rejects_missing_token(
+    updates_client: AsyncTestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(config, "UPDATES_PUBLISH_TOKEN", "the-real-token")
+    response = await updates_client.post(
+        "/updates/native-build-fingerprint", json={"platform": "ios", "fingerprint": "abc123"}
+    )
+    assert response.status_code == 401
+
+
+async def test_set_fingerprint_rejects_wrong_token(
+    updates_client: AsyncTestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(config, "UPDATES_PUBLISH_TOKEN", "the-real-token")
+    response = await updates_client.post(
+        "/updates/native-build-fingerprint",
+        json={"platform": "ios", "fingerprint": "abc123"},
+        headers={"authorization": "Bearer wrong-token"},
+    )
+    assert response.status_code == 401
+
+
+async def test_set_fingerprint_rejects_when_no_token_configured(
+    updates_client: AsyncTestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(config, "UPDATES_PUBLISH_TOKEN", "")
+    response = await updates_client.post(
+        "/updates/native-build-fingerprint",
+        json={"platform": "ios", "fingerprint": "abc123"},
+        headers={"authorization": "Bearer "},
+    )
+    assert response.status_code == 401
+
+
+async def test_set_fingerprint_inserts_row(
+    updates_client: AsyncTestClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(config, "UPDATES_PUBLISH_TOKEN", "the-real-token")
+
+    response = await updates_client.post(
+        "/updates/native-build-fingerprint",
+        json={"platform": "ios", "fingerprint": "abc123"},
+        headers={"authorization": "Bearer the-real-token"},
+    )
+
+    assert response.status_code == 201
+    assert response.json() == {"platform": "ios", "fingerprint": "abc123"}
+
+    row = (
+        await db_session.execute(
+            select(NativeBuildFingerprint).where(NativeBuildFingerprint.platform == UpdatePlatform.IOS)
+        )
+    ).scalar_one()
+    assert row.fingerprint == "abc123"
+
+
+async def test_set_fingerprint_upsert_overwrites_not_duplicates(
+    updates_client: AsyncTestClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(config, "UPDATES_PUBLISH_TOKEN", "the-real-token")
+    headers = {"authorization": "Bearer the-real-token"}
+
+    await updates_client.post(
+        "/updates/native-build-fingerprint", json={"platform": "ios", "fingerprint": "first"}, headers=headers
+    )
+    response = await updates_client.post(
+        "/updates/native-build-fingerprint", json={"platform": "ios", "fingerprint": "second"}, headers=headers
+    )
+
+    assert response.status_code == 201
+    assert response.json()["fingerprint"] == "second"
+
+    rows = (
+        (
+            await db_session.execute(
+                select(NativeBuildFingerprint).where(NativeBuildFingerprint.platform == UpdatePlatform.IOS)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(rows) == 1
+    assert rows[0].fingerprint == "second"
+
+
+async def test_get_fingerprint_no_row_returns_none(updates_client: AsyncTestClient) -> None:
+    response = await updates_client.get("/updates/native-build-fingerprint", params={"platform": "ios"})
+    assert response.status_code == 200
+    assert response.json() == {"platform": "ios", "fingerprint": None}
+
+
+async def test_get_fingerprint_with_row_is_unauthenticated(
+    updates_client: AsyncTestClient, db_session: AsyncSession
+) -> None:
+    db_session.add(NativeBuildFingerprint(platform=UpdatePlatform.IOS, fingerprint="xyz789"))
+    await db_session.flush()
+
+    response = await updates_client.get("/updates/native-build-fingerprint", params={"platform": "ios"})
+
+    assert response.status_code == 200
+    assert response.json() == {"platform": "ios", "fingerprint": "xyz789"}

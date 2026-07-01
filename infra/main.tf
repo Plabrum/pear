@@ -10,6 +10,10 @@ terraform {
       source  = "hashicorp/random"
       version = "~> 3.0"
     }
+    tls = {
+      source  = "hashicorp/tls"
+      version = "~> 4.0"
+    }
   }
 
   # Backend config is passed via -backend-config flags in CI (terraform.yml).
@@ -51,6 +55,8 @@ module "ec2" {
   instance_type     = var.instance_type
   key_pair_name     = var.key_pair_name
   ssh_allowed_cidrs = var.ssh_allowed_cidrs
+
+  github_oidc_role_name = var.github_oidc_role_name
 }
 
 # -- ECS stack (deploy_target = "ecs") -----------------------------------------
@@ -71,6 +77,8 @@ module "ecs" {
   image_tag   = var.image_tag
   db_password = var.db_password
   extra_env   = var.extra_env
+
+  github_oidc_role_name = var.github_oidc_role_name
 }
 
 # NOTE: Pear is iOS-only - there is no web frontend, so no Vercel provider,

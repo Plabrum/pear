@@ -186,6 +186,49 @@ resource "aws_secretsmanager_secret_version" "app" {
   }
 }
 
+# Separate secret for the OTA publish token + code-signing private key - kept
+# apart from aws_secretsmanager_secret.app (which has ignore_changes = [secret_string]
+# above) so Terraform can fully own its contents, generated fresh, no manual sync.
+
+resource "random_password" "updates_publish_token" {
+  length  = 48
+  special = false # bearer token in an Authorization header - keep header-safe
+}
+
+resource "tls_private_key" "updates_signing" {
+  algorithm = "RSA"
+  rsa_bits  = 2048
+}
+
+resource "tls_self_signed_cert" "updates_signing" {
+  private_key_pem = tls_private_key.updates_signing.private_key_pem
+
+  subject {
+    common_name = "Pear Updates"
+  }
+
+  validity_period_hours = 24 * 365 * 10
+  allowed_uses          = ["digital_signature", "key_encipherment"]
+  is_ca_certificate     = false
+}
+
+resource "aws_secretsmanager_secret" "updates" {
+  name                    = "${local.name}-ota-secrets"
+  description             = "Terraform-owned OTA publish token + code-signing private key - fully managed, no manual sync"
+  recovery_window_in_days = var.environment == "production" ? 7 : 0
+  tags                    = { Name = "${local.name}-ota-secrets" }
+}
+
+resource "aws_secretsmanager_secret_version" "updates" {
+  secret_id = aws_secretsmanager_secret.updates.id
+
+  # No ignore_changes - Terraform is the sole owner of this secret's contents.
+  secret_string = jsonencode({
+    UPDATES_PUBLISH_TOKEN       = random_password.updates_publish_token.result
+    UPDATES_SIGNING_PRIVATE_KEY = tls_private_key.updates_signing.private_key_pem
+  })
+}
+
 # -
 # IAM
 # -
@@ -217,7 +260,7 @@ resource "aws_iam_role_policy" "ecs_task_execution_secrets" {
     Statement = [{
       Effect   = "Allow"
       Action   = ["secretsmanager:GetSecretValue"]
-      Resource = [aws_secretsmanager_secret.app.arn]
+      Resource = [aws_secretsmanager_secret.app.arn, aws_secretsmanager_secret.updates.arn]
     }]
   })
 }
@@ -462,6 +505,11 @@ module "api_service" {
     { name = "API_BASE_URL", value = "https://${var.api_subdomain}.${var.domain}" },
   ], [for k, v in var.extra_env : { name = k, value = v }])
 
+  secrets = [
+    { name = "UPDATES_PUBLISH_TOKEN", valueFrom = "${aws_secretsmanager_secret.updates.arn}:UPDATES_PUBLISH_TOKEN::" },
+    { name = "UPDATES_SIGNING_PRIVATE_KEY", valueFrom = "${aws_secretsmanager_secret.updates.arn}:UPDATES_SIGNING_PRIVATE_KEY::" },
+  ]
+
   target_group_arn = aws_lb_target_group.api.arn
 
   autoscaling_enabled    = true
@@ -510,6 +558,11 @@ module "worker_service" {
     { name = "APP_SECRETS_ARN", value = aws_secretsmanager_secret.app.arn },
     { name = "DOMAIN", value = var.domain },
   ], [for k, v in var.extra_env : { name = k, value = v }])
+
+  secrets = [
+    { name = "UPDATES_PUBLISH_TOKEN", valueFrom = "${aws_secretsmanager_secret.updates.arn}:UPDATES_PUBLISH_TOKEN::" },
+    { name = "UPDATES_SIGNING_PRIVATE_KEY", valueFrom = "${aws_secretsmanager_secret.updates.arn}:UPDATES_SIGNING_PRIVATE_KEY::" },
+  ]
 
   tags = local.common_tags
 }

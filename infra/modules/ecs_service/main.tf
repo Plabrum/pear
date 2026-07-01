@@ -34,12 +34,15 @@ locals {
     }
   } : {}
 
+  secrets_config = length(var.secrets) > 0 ? { secrets = var.secrets } : {}
+
   container_definition = merge(
     local.base_container,
     local.port_config,
     local.command_config,
     local.stop_timeout_config,
     local.health_check_config,
+    local.secrets_config,
   )
 }
 

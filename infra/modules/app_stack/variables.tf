@@ -132,3 +132,9 @@ variable "extra_env" {
   type    = map(string)
   default = {}
 }
+
+variable "github_oidc_role_name" {
+  description = "Name (not ARN) of the pre-existing GitHub Actions OIDC role. Leave blank to skip the read-only SSM/Secrets Manager grant (see ssm_params.tf)."
+  type        = string
+  default     = ""
+}

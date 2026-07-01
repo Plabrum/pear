@@ -17,6 +17,12 @@ variable "environment_vars" {
   default     = []
 }
 
+variable "secrets" {
+  description = "List of {name, valueFrom} maps - ECS injects these from Secrets Manager as container env vars at task start (requires execution_role_arn to have secretsmanager:GetSecretValue on valueFrom)"
+  type        = list(map(string))
+  default     = []
+}
+
 variable "command" {
   description = "Override container entrypoint command. Empty list = use image default."
   type        = list(string)

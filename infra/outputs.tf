@@ -64,6 +64,11 @@ output "cloudfront_distribution_id" {
   value       = try(module.ec2[0].cloudfront_distribution_id, try(module.ecs[0].cloudfront_distribution_id, ""))
 }
 
+output "updates_signing_certificate_pem" {
+  description = "Public OTA code-signing certificate (PEM) - copy into app/certs/updates-signing.pem via: terraform -chdir=infra output -raw updates_signing_certificate_pem > app/certs/updates-signing.pem"
+  value       = try(module.ec2[0].updates_signing_certificate_pem, try(module.ecs[0].updates_signing_certificate_pem, ""))
+}
+
 output "database_endpoint" {
   description = "Aurora write endpoint (ecs only)"
   value       = try(module.ecs[0].database_endpoint, "")

@@ -113,6 +113,52 @@ resource "aws_secretsmanager_secret_version" "app" {
   }
 }
 
+# -- Secrets Manager (OTA publish token + code-signing key) --------------------
+# Kept in a SEPARATE secret from aws_secretsmanager_secret.app above: that one has
+# `lifecycle { ignore_changes = [secret_string] }`, so Terraform never touches its
+# contents after first apply. This secret has no such lifecycle block — Terraform
+# is the sole owner of its contents, generated fresh, no manual sync required.
+
+resource "random_password" "updates_publish_token" {
+  length  = 48
+  special = false # bearer token in an Authorization header - keep header-safe
+}
+
+resource "tls_private_key" "updates_signing" {
+  algorithm = "RSA"
+  rsa_bits  = 2048
+}
+
+resource "tls_self_signed_cert" "updates_signing" {
+  private_key_pem = tls_private_key.updates_signing.private_key_pem
+
+  subject {
+    common_name = "Pear Updates"
+  }
+
+  validity_period_hours = 24 * 365 * 10
+  allowed_uses          = ["digital_signature", "key_encipherment"]
+  is_ca_certificate     = false
+}
+
+resource "aws_secretsmanager_secret" "updates" {
+  name                    = "${local.name}-ota-secrets"
+  description             = "Terraform-owned OTA publish token + code-signing private key - fully managed, no manual sync"
+  recovery_window_in_days = var.environment == "production" ? 7 : 0
+
+  tags = { Name = "${local.name}-ota-secrets" }
+}
+
+resource "aws_secretsmanager_secret_version" "updates" {
+  secret_id = aws_secretsmanager_secret.updates.id
+
+  # No ignore_changes - Terraform is the sole owner of this secret's contents.
+  secret_string = jsonencode({
+    UPDATES_PUBLISH_TOKEN       = random_password.updates_publish_token.result
+    UPDATES_SIGNING_PRIVATE_KEY = tls_private_key.updates_signing.private_key_pem
+  })
+}
+
 # -- SES -----------------------------------------------------------------------
 
 resource "aws_ses_configuration_set" "main" {
@@ -204,7 +250,7 @@ resource "aws_iam_role_policy" "app" {
       {
         Effect   = "Allow"
         Action   = ["secretsmanager:GetSecretValue"]
-        Resource = [aws_secretsmanager_secret.app.arn]
+        Resource = [aws_secretsmanager_secret.app.arn, aws_secretsmanager_secret.updates.arn]
       },
       {
         Effect   = "Allow"
@@ -246,22 +292,23 @@ resource "aws_instance" "app" {
   vpc_security_group_ids = [aws_security_group.app.id]
 
   user_data = base64encode(templatefile("${path.module}/user_data.sh", {
-    compose_content   = file("${path.module}/docker-compose.yml")
-    caddyfile_content = file("${path.module}/Caddyfile")
-    aws_region        = var.aws_region
-    ecr_repo_url      = var.ecr_repository_url
-    image_tag         = var.image_tag
-    domain            = var.domain
-    api_subdomain     = var.api_subdomain
-    db_name           = var.db_name
-    db_user           = var.db_username
-    db_password       = var.db_password
-    secrets_arn       = aws_secretsmanager_secret.app.arn
-    ses_config_set    = aws_ses_configuration_set.main.name
-    s3_media_bucket   = module.media.bucket_name
-    frontend_origin   = "https://app.${var.domain}"
-    api_base_url      = "https://${var.api_subdomain}.${var.domain}"
-    extra_env         = var.extra_env
+    compose_content     = file("${path.module}/docker-compose.yml")
+    caddyfile_content   = file("${path.module}/Caddyfile")
+    aws_region          = var.aws_region
+    ecr_repo_url        = var.ecr_repository_url
+    image_tag           = var.image_tag
+    domain              = var.domain
+    api_subdomain       = var.api_subdomain
+    db_name             = var.db_name
+    db_user             = var.db_username
+    db_password         = var.db_password
+    secrets_arn         = aws_secretsmanager_secret.app.arn
+    updates_secrets_arn = aws_secretsmanager_secret.updates.arn
+    ses_config_set      = aws_ses_configuration_set.main.name
+    s3_media_bucket     = module.media.bucket_name
+    frontend_origin     = "https://app.${var.domain}"
+    api_base_url        = "https://${var.api_subdomain}.${var.domain}"
+    extra_env           = var.extra_env
   }))
 
   root_block_device {
