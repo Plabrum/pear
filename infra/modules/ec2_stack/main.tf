@@ -10,6 +10,13 @@ locals {
 
 # -- AMI -----------------------------------------------------------------------
 # Amazon Linux 2023 x86_64 - matches the linux/amd64 CI build target
+#
+# "al2023-ami-*-x86_64" also matches the "minimal" variant
+# (al2023-ami-minimal-2023...), which doesn't ship amazon-ssm-agent
+# preinstalled - user_data.sh's `systemctl start amazon-ssm-agent` then
+# aborts the whole boot script under set -e, and the instance never
+# registers with SSM. Standard AMI names start with the date
+# (al2023-ami-2023...), so anchoring on a digit excludes "minimal".
 
 data "aws_ami" "al2023" {
   most_recent = true
@@ -17,7 +24,7 @@ data "aws_ami" "al2023" {
 
   filter {
     name   = "name"
-    values = ["al2023-ami-*-x86_64"]
+    values = ["al2023-ami-2*-x86_64"]
   }
 
   filter {
