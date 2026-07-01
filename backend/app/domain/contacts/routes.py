@@ -9,13 +9,15 @@ from app.domain.contacts.queries import (
     fetch_sent_invitations,
     fetch_weekly_counts,
     fetch_winging_for,
+    fetch_winging_for_tabs,
 )
-from app.domain.contacts.schemas import WingpeopleResponse
+from app.domain.contacts.schemas import WingingForTabsResponse, WingpeopleResponse
 from app.domain.contacts.transformers import (
     row_to_incoming_invitation,
     row_to_sent_invitation,
     row_to_winging_for,
     row_to_wingperson,
+    rows_to_winging_for_tabs,
 )
 from app.platform.auth.guards import requires_session
 from app.platform.auth.principal import User
@@ -44,9 +46,21 @@ class WingpeopleController(Controller):
         )
 
 
+class WingerTabsController(Controller):
+    """GET /winger-tabs — the daters the caller actively wings for."""
+
+    path = "/winger-tabs"
+
+    @get("/", operation_id="getApiWingerTabs")
+    async def get_winger_tabs(self, user: User, transaction: AsyncSession) -> WingingForTabsResponse:
+        """My active winger-side edges, collapsed to a distinct `{id, name}` dater list."""
+        rows = await fetch_winging_for_tabs(transaction, user.id)
+        return rows_to_winging_for_tabs(rows)
+
+
 contacts_router = Router(
     path="",
-    route_handlers=[WingpeopleController],
+    route_handlers=[WingpeopleController, WingerTabsController],
     tags=["contacts"],
     guards=[requires_session],
 )

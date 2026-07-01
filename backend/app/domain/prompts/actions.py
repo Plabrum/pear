@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from enum import StrEnum
+from typing import ClassVar
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.prompts.enums import ApprovalState
@@ -14,7 +17,6 @@ from app.domain.prompts.queries import (
     fetch_profile_prompt_owner,
     is_active_wingperson,
     is_matched_with,
-    is_response_profile_owner,
 )
 from app.domain.prompts.schemas import (
     CreateProfilePromptData,
@@ -34,6 +36,18 @@ from app.platform.state_machine.roles import Role
 
 # ── Action groups ───────────────────────────────────────────────────────────────
 
+
+class ProfilePromptActionKey(StrEnum):
+    CREATE = "create"
+    DELETE = "delete"
+
+
+class PromptResponseActionKey(StrEnum):
+    CREATE = "create"
+    APPROVE = "approve"
+    DELETE = "delete"
+
+
 profile_prompt_actions = action_group_factory(
     ActionGroupType.PROFILE_PROMPT_ACTIONS,
     default_invalidation="profile_prompts",
@@ -52,7 +66,7 @@ prompt_response_actions = action_group_factory(
 
 @profile_prompt_actions
 class CreateProfilePrompt(BaseTopLevelAction[CreateProfilePromptData]):
-    action_key = "create"
+    action_key: ClassVar[ProfilePromptActionKey] = ProfilePromptActionKey.CREATE
     label = "Add Prompt"
     icon = ActionIcon.ADD
 
@@ -69,6 +83,7 @@ class CreateProfilePrompt(BaseTopLevelAction[CreateProfilePromptData]):
 
         prompt = ProfilePrompt(
             dating_profile_id=dating_profile_id,
+            owner_id=deps.user.id,
             prompt_template_id=data.promptTemplateId,
             answer=data.answer,
         )
@@ -86,15 +101,14 @@ class CreateProfilePrompt(BaseTopLevelAction[CreateProfilePromptData]):
 
 @profile_prompt_actions
 class DeleteProfilePrompt(BaseObjectAction[ProfilePrompt, EmptyActionData]):
-    action_key = "delete"
+    action_key: ClassVar[ProfilePromptActionKey] = ProfilePromptActionKey.DELETE
     label = "Delete Prompt"
     icon = ActionIcon.TRASH
 
     @classmethod
     def is_available(cls, obj: ProfilePrompt, deps: ActionDeps) -> bool:
-        # Only a dater may delete a prompt; the precise owner predicate (does this
-        # dater own the prompt's dating profile) is verified in execute via a join.
-        return deps.user.role is Role.DATER
+        # Only the owning dater may delete a prompt — flat column compare on owner_id.
+        return deps.user.role is Role.DATER and obj.owner_id == deps.user.id
 
     @classmethod
     async def execute(
@@ -104,11 +118,6 @@ class DeleteProfilePrompt(BaseObjectAction[ProfilePrompt, EmptyActionData]):
         transaction: AsyncSession,
         deps: ActionDeps,
     ) -> ActionExecutionResponse:
-        owner_id = await fetch_profile_prompt_owner(transaction, obj.id)
-        if owner_id != deps.user.id:
-            # "Profile prompt not found for this caller" (404).
-            raise ProfilePromptNotFoundError()
-
         # Soft delete (the codebase hides `deleted_at IS NOT NULL` from every SELECT)
         # — the observable contract (the row disappears) is preserved.
         obj.soft_delete()
@@ -124,7 +133,7 @@ class DeleteProfilePrompt(BaseObjectAction[ProfilePrompt, EmptyActionData]):
 
 @prompt_response_actions
 class CreatePromptResponse(BaseTopLevelAction[CreatePromptResponseData]):
-    action_key = "create"
+    action_key: ClassVar[PromptResponseActionKey] = PromptResponseActionKey.CREATE
     label = "Add Comment"
     icon = ActionIcon.MESSAGE
 
@@ -148,6 +157,7 @@ class CreatePromptResponse(BaseTopLevelAction[CreatePromptResponseData]):
 
         response = PromptResponse(
             user_id=caller_id,
+            profile_owner_id=owner_id,
             profile_prompt_id=data.profilePromptId,
             message=data.message,
         )
@@ -165,16 +175,21 @@ class CreatePromptResponse(BaseTopLevelAction[CreatePromptResponseData]):
 
 @prompt_response_actions
 class ApprovePromptResponse(BaseObjectAction[PromptResponse, EmptyActionData]):
-    action_key = "approve"
+    action_key: ClassVar[PromptResponseActionKey] = PromptResponseActionKey.APPROVE
     label = "Approve Comment"
     icon = ActionIcon.CHECK
     target_state = ApprovalState.APPROVED
 
     @classmethod
     def is_available(cls, obj: PromptResponse, deps: ActionDeps) -> bool:
-        # Only a dater (the profile owner) may approve, and only while pending.
-        # The exact owner predicate is verified in execute (async join).
-        return deps.user.role is Role.DATER and not obj.is_approved and not obj.is_rejected
+        # Only the profile-owning dater may approve, and only while pending —
+        # ownership is a flat column compare on profile_owner_id.
+        return (
+            deps.user.role is Role.DATER
+            and not obj.is_approved
+            and not obj.is_rejected
+            and obj.profile_owner_id == deps.user.id
+        )
 
     @classmethod
     async def execute(
@@ -184,10 +199,6 @@ class ApprovePromptResponse(BaseObjectAction[PromptResponse, EmptyActionData]):
         transaction: AsyncSession,
         deps: ActionDeps,
     ) -> ActionExecutionResponse:
-        if not await is_response_profile_owner(transaction, obj, deps.user.id):
-            # "Prompt response not found for this caller" (404).
-            raise ProfilePromptNotFoundError()
-
         # Drive the approval through the state machine (logs + emits an event)
         # rather than assigning is_approved directly. The adapter projects the
         # booleans onto ApprovalState and writes them back on transition.
@@ -209,15 +220,15 @@ class ApprovePromptResponse(BaseObjectAction[PromptResponse, EmptyActionData]):
 
 @prompt_response_actions
 class DeletePromptResponse(BaseObjectAction[PromptResponse, EmptyActionData]):
-    action_key = "delete"
+    action_key: ClassVar[PromptResponseActionKey] = PromptResponseActionKey.DELETE
     label = "Delete Comment"
     icon = ActionIcon.TRASH
 
     @classmethod
     def is_available(cls, obj: PromptResponse, deps: ActionDeps) -> bool:
-        # The author may always delete their own comment. A dater may delete a
-        # comment on their own profile (the owner predicate is verified in execute).
-        return obj.user_id == deps.user.id or deps.user.role is Role.DATER
+        # The author may delete their own comment; the profile owner may delete a
+        # comment on their profile — both flat column compares on the row.
+        return obj.user_id == deps.user.id or obj.profile_owner_id == deps.user.id
 
     @classmethod
     async def execute(
@@ -227,13 +238,6 @@ class DeletePromptResponse(BaseObjectAction[PromptResponse, EmptyActionData]):
         transaction: AsyncSession,
         deps: ActionDeps,
     ) -> ActionExecutionResponse:
-        caller_id = deps.user.id
-        is_author = obj.user_id == caller_id
-        is_owner = is_author or await is_response_profile_owner(transaction, obj, caller_id)
-        if not is_owner:
-            # "Prompt response not found for this caller" (404).
-            raise ProfilePromptNotFoundError()
-
         # Soft delete — the soft-delete SELECT filter hides the row afterward,
         # preserving the observable contract (the row disappears).
         obj.soft_delete()

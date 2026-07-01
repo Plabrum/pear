@@ -1,16 +1,22 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from app.domain.profiles.models import Profile
 from app.domain.prompts.models import ProfilePrompt, PromptResponse, PromptTemplate
 from app.domain.prompts.schemas import (
+    AuthoredPromptResponse,
+    AuthoredResponseStatus,
     ProfilePrompt as ProfilePromptSchema,
     PromptResponse as PromptResponseSchema,
     PromptResponseAuthor,
     PromptTemplate as PromptTemplateSchema,
 )
+
+if TYPE_CHECKING:
+    from app.domain.prompts.queries import AuthoredResponseRow
 
 # `url_by_media` maps a Media id -> its resolved URL; the route batches one
 # MediaService resolve over every response-author avatar, then hands it down.
@@ -81,4 +87,25 @@ def row_to_profile_prompt(
         createdAt=_iso(prompt.created_at),
         template=PromptTemplateSchema(id=prompt.prompt_template_id, question=question),
         responses=[row_to_prompt_response(r, author, url_by_media) for r, author in responses],
+    )
+
+
+def _authored_status(row: AuthoredResponseRow) -> AuthoredResponseStatus:
+    if row.is_rejected:
+        return "not_accepted"
+    if row.is_approved:
+        return "accepted"
+    return "pending"
+
+
+def authored_response_to_dto(row: AuthoredResponseRow) -> AuthoredPromptResponse:
+    """Map a response the caller authored to its wire DTO with a folded status."""
+    return AuthoredPromptResponse(
+        id=row.id,
+        daterId=row.dater_id,
+        daterName=row.dater_name or "",
+        promptQuestion=row.prompt_question,
+        message=row.message,
+        status=_authored_status(row),
+        createdAt=row.created_at.isoformat() if row.created_at is not None else "",
     )

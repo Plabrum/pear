@@ -278,6 +278,70 @@ async def test_prompt_response_unapproved_owner_and_suggester_only(graph: Domain
         assert graph.prompt_response.id not in await _ids(s, PromptResponse)
 
 
+async def test_photo_write_denied_off_floor(graph: DomainGraph, acting_as: ActingAs) -> None:
+    """profile_photos floor (WingpersonScopedMixin): INSERT WITH CHECK owner_id = me
+    OR is_active_wingperson(owner_id). An unrelated dater (dater_c) inserting a photo
+    owned by dater_a is off the floor -> denied."""
+    async with acting_as(graph.dater_c.id) as s:
+        await _assert_rls_denies_insert(
+            s,
+            "profile_photos",
+            {
+                "id": uuid4(),
+                "dating_profile_id": graph.dating_profile_a.id,
+                "owner_id": graph.dater_a.id,
+                "media_id": graph.pending_media.id,
+                "display_order": 7,
+            },
+        )
+
+
+async def test_winger_floor_allows_photo_write(graph: DomainGraph, acting_as: ActingAs) -> None:
+    """The widened floor: an ACTIVE wingperson reaches the dater's photo rows for
+    write (the coarse floor; the precise approve/reject gating is Python-side). The
+    winger UPDATEs dater_a's approved photo display_order under their own scope."""
+    async with acting_as(graph.winger.id) as s:
+        photo = (await s.execute(select(ProfilePhoto).where(ProfilePhoto.id == graph.approved_photo.id))).scalar_one()
+        photo.display_order = 42
+        await s.flush()  # floor permits the write -> no error.
+
+
+async def test_prompt_write_denied_off_floor(graph: DomainGraph, acting_as: ActingAs) -> None:
+    """profile_prompts floor (UserScopedMixin): INSERT WITH CHECK owner_id = me. An
+    unrelated dater inserting a prompt owned by dater_a is off the floor -> denied."""
+    async with acting_as(graph.dater_a.id) as s:
+        template_id = (await s.execute(select(ProfilePrompt.prompt_template_id).limit(1))).scalar_one()
+    async with acting_as(graph.dater_c.id) as s:
+        await _assert_rls_denies_insert(
+            s,
+            "profile_prompts",
+            {
+                "id": uuid4(),
+                "dating_profile_id": graph.dating_profile_a.id,
+                "owner_id": graph.dater_a.id,
+                "prompt_template_id": template_id,
+                "answer": "intruder",
+            },
+        )
+
+
+async def test_prompt_response_insert_must_be_self_authored(graph: DomainGraph, acting_as: ActingAs) -> None:
+    """prompt_responses INSERT WITH CHECK: user_id = me. dater_c cannot forge a
+    response authored as dater_a (even pinning profile_owner_id to themselves)."""
+    async with acting_as(graph.dater_c.id) as s:
+        await _assert_rls_denies_insert(
+            s,
+            "prompt_responses",
+            {
+                "id": uuid4(),
+                "user_id": graph.dater_a.id,  # not the actor -> WITH CHECK fails
+                "profile_owner_id": graph.dater_c.id,
+                "profile_prompt_id": graph.profile_prompt.id,
+                "message": "forged",
+            },
+        )
+
+
 async def test_profile_prompt_visible_when_profile_active(graph: DomainGraph, acting_as: ActingAs) -> None:
     """profile_prompts SELECT: profile active OR owner.
 

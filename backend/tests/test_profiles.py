@@ -80,7 +80,7 @@ async def test_get_own_dating_profile_bundle(graph: DomainGraph, db_session: Asy
     bundle = await fetch_own_dating_profile(db_session, graph.dater_a.id)
     assert bundle is not None
     base, photos, prompts = bundle
-    url_by_media = await MediaService(db_session, local_media()).resolve_urls_system(own_media_ids(photos, prompts))
+    url_by_media = await MediaService(db_session, local_media()).resolve_urls(own_media_ids(photos, prompts))
     dto = dating_profile_to_own(base, photos, prompts, url_by_media)
 
     assert dto.userId == graph.dater_a.id
@@ -118,7 +118,7 @@ async def test_get_public_profile(graph: DomainGraph, db_session: AsyncSession) 
     bundle = await fetch_public_profile(db_session, graph.dater_b.id)
     assert bundle is not None
     profile, base, photos, prompts = bundle
-    url_by_media = await MediaService(db_session, local_media()).resolve_urls_system(public_media_ids(profile, photos))
+    url_by_media = await MediaService(db_session, local_media()).resolve_urls(public_media_ids(profile, photos))
     dto = bundle_to_public_profile(profile, base, photos, prompts, url_by_media)
 
     assert dto.id == graph.dater_b.id
@@ -143,7 +143,7 @@ async def test_public_profile_only_serves_approved_photos(graph: DomainGraph, db
     # The query already dropped the pending photo (approved-only).
     assert all(photo.approved_at is not None for photo, _ in photos)
 
-    url_by_media = await MediaService(db_session, local_media()).resolve_urls_system(public_media_ids(profile, photos))
+    url_by_media = await MediaService(db_session, local_media()).resolve_urls(public_media_ids(profile, photos))
     dto = bundle_to_public_profile(profile, base, photos, prompts, url_by_media)
     assert dto.datingProfile is not None
     # Exactly the one approved photo is visible, with a resolved URL.
@@ -154,7 +154,7 @@ async def test_public_profile_only_serves_approved_photos(graph: DomainGraph, db
 
 async def test_avatar_media_id_resolves_to_url_on_own_profile(graph: DomainGraph, db_session: AsyncSession) -> None:
     # Point the profile's avatar at a READY media; the own-profile read resolves it
-    # to its processed (WebP) URL via the batched system-mode resolve.
+    # to its processed (WebP) URL under the viewer's own scope.
     avatar = Media(
         owner_id=graph.dater_a.id,
         file_key=f"{graph.dater_a.id}/a.jpg",
@@ -171,7 +171,7 @@ async def test_avatar_media_id_resolves_to_url_on_own_profile(graph: DomainGraph
     row.avatar_media_id = avatar.id
     await db_session.flush()
 
-    url_by_media = await MediaService(db_session, local_media()).resolve_urls_system([avatar.id])
+    url_by_media = await MediaService(db_session, local_media()).resolve_urls([avatar.id])
     dto = row_to_profile(row, url_by_media)
     assert dto.avatarUrl is not None
     assert dto.avatarUrl.startswith("http")

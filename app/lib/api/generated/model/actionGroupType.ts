@@ -19,11 +19,10 @@ export const ActionGroupType = {
   sample_widget_actions: 'sample_widget_actions',
   profile_actions: 'profile_actions',
   dating_profile_actions: 'dating_profile_actions',
+  dating_profile_swipe_actions: 'dating_profile_swipe_actions',
   contact_actions: 'contact_actions',
   photo_actions: 'photo_actions',
   profile_prompt_actions: 'profile_prompt_actions',
   prompt_response_actions: 'prompt_response_actions',
-  decision_actions: 'decision_actions',
   message_actions: 'message_actions',
-  report_actions: 'report_actions',
 } as const;

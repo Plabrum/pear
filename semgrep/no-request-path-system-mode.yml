@@ -1,0 +1,131 @@
+# Request-path system-mode guard: keep the RLS-bypass tasks-only.
+#
+# GOVERNING RULE: a user request/action may only create/read/update what the
+# caller can reach UNDER THEIR OWN RLS SCOPE. System mode — the trusted RLS
+# escape — is ONLY allowed in the worker/task layer and tests. It must NEVER be
+# reached from a request handler / action / domain query.
+#
+# These rules fail CI (severity: ERROR) when request-path source uses any of the
+# four system-mode entry points:
+#
+#   * `SET LOCAL app.is_system_mode = true` — the GUC that opens the escape.
+#   * `_enter_system_mode(...)`              — a helper that opens the escape.
+#   * `.system_transition(...)`             — the state-machine system edge.
+#   * `resolve_urls_system(...)`            — the media resolver's system variant.
+#
+# ALLOWED locations (excluded from every rule below):
+#   * app/platform/queue/**  — the queue/worker transaction layer. This is where
+#     `task_transaction` legitimately pins `app.is_system_mode = true`.
+#   * **/tasks.py            — the worker task layer. Tasks run as the trusted
+#     system actor and may drive system transitions / system resolves.
+#   * tests/**               — tests assert the escape's behavior directly.
+#
+# EXEMPT DEFINITIONS (not request-path uses — they only DEFINE the primitives):
+#   * app/platform/state_machine/machine.py — defines `system_transition` itself.
+#   * app/platform/base/rls_functions.py     — defines the SQL `is_system_mode()`
+#     function body (the CREATE FUNCTION text, not a SET/call site).
+#
+# Patterns target the SET statement and the CALL sites, not the definitions, and
+# the `= true` literal specifically — `SET LOCAL app.is_system_mode = false`
+# (the request path defensively pinning the escape OFF) is intentionally allowed.
+#
+# Scope: invoke against `backend/ app/` from the repo root, alongside the other
+# convention guards in this directory.
+
+rules:
+  - id: no-request-path-system-mode-set-local
+    languages: [python]
+    severity: ERROR
+    message: >-
+      `SET LOCAL app.is_system_mode = true` opens the trusted RLS-bypass and is
+      only allowed in the worker/task layer (app/platform/queue/** or a tasks.py)
+      and tests. A request handler / action / domain query must operate under the
+      caller's own RLS scope — never system mode. Move this work into a task.
+    patterns:
+      # Require the SET LOCAL verb so prose in comments/docstrings that merely
+      # *describes* the escape (e.g. "the worker sets app.is_system_mode = true")
+      # does not trip the rule — only the executable statement does.
+      - pattern-regex: (?i)set\s+local\s+app\.is_system_mode\s*=\s*true
+    paths:
+      include:
+        - "**/backend/**"
+      exclude:
+        - "**/app/platform/queue/**"
+        - "**/tasks.py"
+        - "**/backend/tests/**"
+        - "**/node_modules/**"
+        - "**/.venv/**"
+        - "**/__pycache__/**"
+        - "**/backend/alembic/versions/**"
+        # The convention checker names these tokens to guard against them.
+        - "**/backend/scripts/check_conventions.py"
+
+  - id: no-request-path-enter-system-mode
+    languages: [python]
+    severity: ERROR
+    message: >-
+      `_enter_system_mode(...)` opens the trusted RLS-bypass and is only allowed
+      in the worker/task layer (app/platform/queue/** or a tasks.py) and tests. A
+      request handler / action / domain query must operate under the caller's own
+      RLS scope — never system mode. Move this work into a task.
+    patterns:
+      - pattern: _enter_system_mode(...)
+    paths:
+      exclude:
+        - "**/app/platform/queue/**"
+        - "**/tasks.py"
+        - "**/backend/tests/**"
+        - "**/node_modules/**"
+        - "**/.venv/**"
+        - "**/__pycache__/**"
+        - "**/backend/alembic/versions/**"
+        # The convention checker names these tokens to guard against them.
+        - "**/backend/scripts/check_conventions.py"
+
+  - id: no-request-path-system-transition
+    languages: [python]
+    severity: ERROR
+    message: >-
+      `.system_transition(...)` drives a Role.SYSTEM state-machine edge and is
+      only allowed in the worker/task layer (app/platform/queue/** or a tasks.py)
+      and tests. A request handler / action / domain query must use the
+      actor-validated `transition(...)` under the caller's own RLS scope. Move
+      this work into a task.
+    patterns:
+      - pattern: $X.system_transition(...)
+    paths:
+      exclude:
+        # The state-machine module DEFINES system_transition — not a call site.
+        - "**/app/platform/state_machine/machine.py"
+        - "**/app/platform/queue/**"
+        - "**/tasks.py"
+        - "**/backend/tests/**"
+        - "**/node_modules/**"
+        - "**/.venv/**"
+        - "**/__pycache__/**"
+        - "**/backend/alembic/versions/**"
+        # The convention checker names these tokens to guard against them.
+        - "**/backend/scripts/check_conventions.py"
+
+  - id: no-request-path-resolve-urls-system
+    languages: [python]
+    severity: ERROR
+    message: >-
+      `resolve_urls_system(...)` resolves media URLs bypassing the caller's RLS
+      scope and is only allowed in the worker/task layer (app/platform/queue/**
+      or a tasks.py) and tests. A request handler / action / domain query must
+      use `resolve_urls(...)` under the caller's own RLS scope. Move this work
+      into a task.
+    patterns:
+      - pattern-regex: \bresolve_urls_system\b
+    paths:
+      exclude:
+        - "**/app/platform/queue/**"
+        - "**/tasks.py"
+        - "**/backend/tests/**"
+        - "**/node_modules/**"
+        - "**/.venv/**"
+        - "**/__pycache__/**"
+        - "**/backend/alembic/versions/**"
+        # The convention checker names these tokens to guard against them.
+        - "**/backend/scripts/check_conventions.py"

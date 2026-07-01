@@ -5,15 +5,24 @@ import sqlalchemy as sa
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.platform.base.models import BaseDBModel
+from app.platform.base.rls_mixins import WingpersonScopedMixin
 
 
-class ProfilePhoto(BaseDBModel):
+class ProfilePhoto(BaseDBModel, WingpersonScopedMixin, owner_column="owner_id"):
     __tablename__ = "profile_photos"
 
     # SQL: not null references dating_profiles(id) on delete cascade
     dating_profile_id: Mapped[UUID] = mapped_column(
         sa.ForeignKey("dating_profiles.id", ondelete="CASCADE"),
         nullable=False,
+    )
+    # Denormalized owner (the dating profile's dater) carried on the row: the RLS
+    # floor + every action's ownership check compare it directly instead of joining
+    # through dating_profiles. Immutable — a photo's owning dater never changes.
+    owner_id: Mapped[UUID] = mapped_column(
+        sa.ForeignKey("profiles.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     # SQL: references profiles(id) on delete set null -- null = self-uploaded
     suggester_id: Mapped[UUID | None] = mapped_column(

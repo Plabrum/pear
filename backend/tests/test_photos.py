@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import cast
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.photos.actions import (
@@ -19,13 +20,12 @@ from app.domain.photos.enums import PhotoApprovalState
 from app.domain.photos.exceptions import (
     DatingProfileNotFoundError,
     NotDaterOrWingpersonError,
-    PhotoNotFoundError,
 )
 from app.domain.photos.models import ProfilePhoto
-from app.domain.photos.queries import fetch_own_photos
+from app.domain.photos.queries import SuggestedPhotoRow, fetch_own_photos, fetch_suggested_photos
 from app.domain.photos.schemas import CreatePhotoData, ReorderPhotoData
 from app.domain.photos.state_machine import derive_state
-from app.domain.photos.transformers import photos_to_dtos
+from app.domain.photos.transformers import photos_to_dtos, suggested_photo_to_dto
 from app.platform.actions.base import EmptyActionData
 from app.platform.actions.deps import ActionDeps
 from app.platform.auth.principal import User
@@ -65,10 +65,9 @@ async def _get_photo(session: AsyncSession, photo_id) -> ProfilePhoto | None:
 
 async def test_list_own_photos_ordered_with_suggester(graph: DomainGraph, db_session: AsyncSession) -> None:
     rows = await fetch_own_photos(db_session, graph.dater_a.id)
-    # The route resolves every photo's media_id in one batched system-mode pass.
-    url_by_media = await MediaService(db_session, local_media()).resolve_urls_system(
-        [photo.media_id for photo, _ in rows]
-    )
+    # The route resolves every photo's media_id in one batched pass under the
+    # caller's own scope (ownership satisfies the media SELECT policy).
+    url_by_media = await MediaService(db_session, local_media()).resolve_urls([photo.media_id for photo, _ in rows])
     dtos = photos_to_dtos(rows, url_by_media)
 
     # graph seeds 1 approved (self) + 1 pending (winger-suggested) photo.
@@ -94,6 +93,78 @@ async def test_list_own_photos_ordered_with_suggester(graph: DomainGraph, db_ses
 async def test_list_own_photos_empty_for_unrelated_dater(graph: DomainGraph, db_session: AsyncSession) -> None:
     # dater_b's profile has no seeded photos.
     assert await fetch_own_photos(db_session, graph.dater_b.id) == []
+
+
+# ── Reads: photos I suggested (suggester_id = me) ────────────────────────────────
+
+
+async def test_fetch_suggested_photos(graph: DomainGraph, db_session: AsyncSession) -> None:
+    # The graph seeds one winger-suggested pending photo for dater_a.
+    rows = await fetch_suggested_photos(db_session, graph.winger.id, 50)
+    assert len(rows) == 1
+    row = rows[0]
+    assert row.id == graph.pending_photo.id
+    assert row.dater_id == graph.dater_a.id
+    assert row.dater_name == graph.dater_a.chosen_name
+    assert row.approved_at is None
+    assert row.rejected_at is None
+
+    dto = await suggested_photo_to_dto(row, local_media())
+    assert dto.daterId == graph.dater_a.id
+    # storageUrl presigns the media's servable key; the pending media is READY, so its
+    # processed (WebP) key is the servable one.
+    assert dto.storageUrl.startswith("http")
+    processed_key = graph.pending_media.processed_key
+    assert processed_key is not None and processed_key in dto.storageUrl
+    assert dto.status == "pending"
+
+
+async def test_fetch_suggested_photos_scoped_to_suggester(graph: DomainGraph, db_session: AsyncSession) -> None:
+    # The approved photo was self-uploaded (suggester_id is None), so it must NOT
+    # appear in the winger's suggested feed.
+    rows = await fetch_suggested_photos(db_session, graph.winger.id, 50)
+    assert all(r.id != graph.approved_photo.id for r in rows)
+    # A user who suggested nothing sees an empty list.
+    assert await fetch_suggested_photos(db_session, graph.dater_c.id, 50) == []
+
+
+async def test_suggested_photos_honors_limit(graph: DomainGraph, db_session: AsyncSession) -> None:
+    # Seed a second winger-suggested photo so the feed has > 1 row, then assert limit trims it.
+    media = await _seed_media(db_session, graph.dater_a.id)
+    db_session.add(
+        ProfilePhoto(
+            dating_profile_id=graph.dating_profile_a.id,
+            owner_id=graph.dater_a.id,
+            suggester_id=graph.winger.id,
+            media_id=media.id,
+            display_order=9,
+            approved_at=None,
+        )
+    )
+    await db_session.flush()
+    assert len(await fetch_suggested_photos(db_session, graph.winger.id, 50)) == 2
+    assert len(await fetch_suggested_photos(db_session, graph.winger.id, 1)) == 1
+
+
+async def test_suggested_photo_status_matrix(graph: DomainGraph, db_session: AsyncSession) -> None:
+    # Fold approval timestamps to the wire status (rejected wins over approved).
+    def _row(approved: datetime | None, rejected: datetime | None) -> SuggestedPhotoRow:
+        return SuggestedPhotoRow(
+            id=graph.pending_photo.id,
+            dater_id=graph.dater_a.id,
+            dater_name="Dana",
+            storage_url="some/key.webp",
+            approved_at=approved,
+            rejected_at=rejected,
+            created_at=datetime(2026, 1, 1, tzinfo=UTC),
+        )
+
+    now = datetime(2026, 1, 2, tzinfo=UTC)
+    media = local_media()
+    assert (await suggested_photo_to_dto(_row(now, now), media)).status == "not_accepted"
+    assert (await suggested_photo_to_dto(_row(None, now), media)).status == "not_accepted"
+    assert (await suggested_photo_to_dto(_row(now, None), media)).status == "approved"
+    assert (await suggested_photo_to_dto(_row(None, None), media)).status == "pending"
 
 
 # ── State derivation ─────────────────────────────────────────────────────────────
@@ -205,10 +276,11 @@ async def test_approve_photo_unavailable_when_already_approved(graph: DomainGrap
 
 
 async def test_approve_photo_denied_for_non_owner(graph: DomainGraph, db_session: AsyncSession) -> None:
-    # The winger (suggester) is not the owning dater; execute raises 404.
+    # The winger (suggester) is not the owning dater. Authorization now lives in
+    # is_available (owner_id compare), so the action is simply not offered — a
+    # request would surface as 403 from ActionGroup.trigger, never reach execute.
     deps = _deps(db_session, user_id=graph.winger.id, role=Role.WINGER)
-    with pytest.raises(PhotoNotFoundError):
-        await ApprovePhoto.execute(graph.pending_photo, EmptyActionData(), db_session, deps)
+    assert ApprovePhoto.is_available(graph.pending_photo, deps) is False
 
 
 async def test_reject_photo_happy_path(graph: DomainGraph, db_session: AsyncSession) -> None:
@@ -233,6 +305,7 @@ async def test_delete_photo_by_owner(graph: DomainGraph, db_session: AsyncSessio
     deps = _deps(db_session, user_id=graph.dater_a.id)
     photo_id = graph.approved_photo.id
 
+    assert DeletePhoto.is_available(graph.approved_photo, deps) is True
     result = await DeletePhoto.execute(graph.approved_photo, EmptyActionData(), db_session, deps)
     assert result.message == "Photo deleted"
     assert await _get_photo(db_session, photo_id) is None
@@ -243,14 +316,15 @@ async def test_delete_photo_by_suggester(graph: DomainGraph, db_session: AsyncSe
     deps = _deps(db_session, user_id=graph.winger.id, role=Role.WINGER)
     photo_id = graph.pending_photo.id
 
+    assert DeletePhoto.is_available(graph.pending_photo, deps) is True
     await DeletePhoto.execute(graph.pending_photo, EmptyActionData(), db_session, deps)
     assert await _get_photo(db_session, photo_id) is None
 
 
 async def test_delete_photo_denied_for_unrelated_user(graph: DomainGraph, db_session: AsyncSession) -> None:
+    # Neither owner nor suggester -> is_available denies (would be 403, not execute).
     deps = _deps(db_session, user_id=graph.dater_c.id)
-    with pytest.raises(PhotoNotFoundError):
-        await DeletePhoto.execute(graph.approved_photo, EmptyActionData(), db_session, deps)
+    assert DeletePhoto.is_available(graph.approved_photo, deps) is False
 
 
 # ── Actions: reorder ─────────────────────────────────────────────────────────────
@@ -260,6 +334,7 @@ async def test_reorder_photo_by_owner(graph: DomainGraph, db_session: AsyncSessi
     deps = _deps(db_session, user_id=graph.dater_a.id)
     data = ReorderPhotoData(displayOrder=5)
 
+    assert ReorderPhoto.is_available(graph.approved_photo, deps) is True
     result = await ReorderPhoto.execute(graph.approved_photo, data, db_session, deps)
     assert result.message == "Photo reordered"
     refreshed = await _get_photo(db_session, graph.approved_photo.id)
@@ -268,33 +343,47 @@ async def test_reorder_photo_by_owner(graph: DomainGraph, db_session: AsyncSessi
 
 
 async def test_reorder_photo_denied_for_non_owner(graph: DomainGraph, db_session: AsyncSession) -> None:
+    # Not the owner -> is_available denies (would be 403, never reaches execute).
     deps = _deps(db_session, user_id=graph.dater_c.id)
-    data = ReorderPhotoData(displayOrder=5)
-    with pytest.raises(PhotoNotFoundError):
-        await ReorderPhoto.execute(graph.pending_photo, data, db_session, deps)
+    assert ReorderPhoto.is_available(graph.pending_photo, deps) is False
 
 
-# ── Matched viewer: approved photo URL via system resolve, no direct media row ───
+# ── Matched viewer: approved photo URL under the viewer's OWN scope (no system) ──
 
 
 async def test_matched_viewer_resolves_approved_photo_url(
     graph: DomainGraph, db_session: AsyncSession, acting_as: ActingAs
 ) -> None:
-    # dater_b is matched with dater_a but is neither owner nor wingperson of dater_a,
-    # so media RLS hides dater_a's media rows from a direct SELECT. The photos read
-    # path authorizes the approved photo, then resolves its URL in system mode.
+    # dater_b is matched with dater_a but is neither owner nor wingperson of dater_a.
+    # The media SELECT policy mirrors profile_photos visibility, so dater_b can read
+    # the APPROVED photo's media row (dater_a's profile is active + the photo is
+    # approved) and presign its URL entirely under their OWN scope — no system mode.
     approved_media_id = graph.approved_photo.media_id
     async with acting_as(graph.dater_b.id) as s:
-        # Sanity: dater_b cannot directly read the owner's media row.
-        assert (await s.execute(select(func.count()).select_from(Media))).scalar_one() == 0
+        # The viewer can directly SELECT the approved photo's media row.
+        row = (await s.execute(select(Media).where(Media.id == approved_media_id))).scalar_one_or_none()
+        assert row is not None and row.id == approved_media_id
 
         service = MediaService(s, local_media())
-        urls = await service.resolve_urls_system([approved_media_id])
+        urls = await service.resolve_urls([approved_media_id])
         assert approved_media_id in urls
         assert urls[approved_media_id].startswith("http")
         # READY media resolves to its processed (WebP) key.
         processed_key = graph.approved_media.processed_key
         assert processed_key is not None and processed_key in urls[approved_media_id]
 
-        # System mode was restored: the media row is invisible again.
-        assert (await s.execute(select(func.count()).select_from(Media))).scalar_one() == 0
+
+async def test_matched_viewer_cannot_resolve_pending_photo_media(
+    graph: DomainGraph, db_session: AsyncSession, acting_as: ActingAs
+) -> None:
+    # The pending (winger-suggested, NOT approved) photo's media must stay hidden
+    # from a matched viewer: media_select only exposes APPROVED photos cross-user, so
+    # the row is unreadable and resolve_urls yields nothing for it.
+    pending_media_id = graph.pending_photo.media_id
+    async with acting_as(graph.dater_b.id) as s:
+        row = (await s.execute(select(Media).where(Media.id == pending_media_id))).scalar_one_or_none()
+        assert row is None
+
+        service = MediaService(s, local_media())
+        urls = await service.resolve_urls([pending_media_id])
+        assert urls == {}

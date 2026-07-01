@@ -5,35 +5,26 @@ from typing import cast
 from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID, uuid4
 
-import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import config
+from app.domain.dating_profiles.actions import Like
 from app.domain.dating_profiles.enums import City, Interest
-from app.domain.decisions.actions import (
-    ActOnSuggestion,
-    CreateSuggestion,
-    RecordDirectDecision,
-)
 from app.domain.decisions.enums import DecisionType
-from app.domain.decisions.exceptions import (
-    CannotDecideOnSelfError,
-    CannotSuggestSelfError,
-    NoPendingSuggestionError,
-    NotActiveWingpersonError,
-)
 from app.domain.decisions.models import Decision
 from app.domain.decisions.queries import (
+    fetch_my_suggestions,
     fetch_pending_suggestions,
     find_mutual_match,
-    is_active_wingperson,
 )
-from app.domain.decisions.schemas import (
-    ActSuggestionData,
-    DirectDecisionData,
-    SuggestData,
+from app.domain.decisions.tasks import form_match
+from app.domain.decisions.transformers import (
+    SuggestionRow,
+    row_to_pending_suggestion,
+    transform_my_suggestion,
 )
-from app.domain.decisions.transformers import row_to_pending_suggestion
+from app.domain.matches.models import Match
 from app.domain.matches.queries import (
     fetch_match_other_user_id,
     fetch_matches,
@@ -49,6 +40,7 @@ from app.domain.matches.transformers import (
     row_to_match_prompt,
     row_to_wing_note,
 )
+from app.platform.actions.base import EmptyActionData
 from app.platform.actions.deps import ActionDeps
 from app.platform.auth.principal import User
 from app.platform.state_machine.machine import StateMachineService
@@ -60,10 +52,7 @@ from tests.fixtures.media import local_media
 
 
 def _deps(session: AsyncSession, *, user_id, role: Role = Role.DATER) -> ActionDeps:
-    """ActionDeps backed by the test session and a given actor.
-
-    `push` is an AsyncMock so the (stub) match/suggestion pushes can be asserted.
-    """
+    """ActionDeps backed by the test session and a given actor."""
     push = MagicMock()
     push.send = AsyncMock()
     return ActionDeps(
@@ -78,7 +67,6 @@ def _deps(session: AsyncSession, *, user_id, role: Role = Role.DATER) -> ActionD
 
 
 def _push(deps: ActionDeps) -> AsyncMock:
-    """The mocked `push.send` coroutine — typed so mock assertions type-check."""
     return cast(AsyncMock, deps.push.send)
 
 
@@ -106,184 +94,150 @@ async def test_fetch_pending_suggestions(graph: DomainGraph, db_session: AsyncSe
     assert dto.wingerName == graph.winger.chosen_name
 
 
-# ── decisions actions: happy path ────────────────────────────────────────────
+async def test_fetch_my_suggestions(graph: DomainGraph, db_session: AsyncSession) -> None:
+    # The winger authored exactly one suggestion (dater_a -> dater_b, pending).
+    rows = await fetch_my_suggestions(db_session, graph.winger.id, limit=50)
+    assert len(rows) == 1
+    row = rows[0]
+    assert row.dater_id == graph.dater_a.id
+    assert row.dater_name == graph.dater_a.chosen_name
+    assert row.recipient_name == graph.dater_b.chosen_name
+
+    dto = transform_my_suggestion(row)
+    assert dto.id.startswith("suggestion:")
+    assert dto.daterId == graph.dater_a.id
+    assert dto.suggestedName == graph.dater_b.chosen_name
+    # Pending (decision IS NULL) and not yet matched between this pair -> "pending".
+    assert dto.status == "pending"
 
 
-async def test_record_direct_decision_no_match(graph: DomainGraph, db_session: AsyncSession) -> None:
-    # dater_a likes dater_c. dater_c has not approved back -> no match.
-    deps = _deps(db_session, user_id=graph.dater_a.id)
-    data = DirectDecisionData(recipientId=graph.dater_c.id, decision=DecisionType.APPROVED)
-
-    result = await RecordDirectDecision.execute(data, db_session, deps)
-    assert result.created_id is None
-    assert await find_mutual_match(db_session, graph.dater_a.id, graph.dater_c.id) is None
-
-    # The decision row was upserted.
-    row = (
-        await db_session.execute(
-            select(Decision).where(
-                Decision.actor_id == graph.dater_a.id,
-                Decision.recipient_id == graph.dater_c.id,
-            )
-        )
-    ).scalar_one()
-    assert row.decision == DecisionType.APPROVED
-    _push(deps).assert_not_called()
+async def test_fetch_my_suggestions_empty_for_non_suggester(graph: DomainGraph, db_session: AsyncSession) -> None:
+    # dater_a authored no winger suggestions.
+    assert await fetch_my_suggestions(db_session, graph.dater_a.id, limit=50) == []
 
 
-async def test_record_direct_decision_creates_match_on_mutual(graph: DomainGraph, db_session: AsyncSession) -> None:
-    # Seed dater_c -> dater_a as an existing approval, then dater_a approves dater_c
-    # back: the second approval drives match formation (legacy create_match_if_mutual).
-    db_session.add(
-        Decision(
-            actor_id=graph.dater_c.id,
-            recipient_id=graph.dater_a.id,
-            decision=DecisionType.APPROVED,
-        )
+def test_transform_my_suggestion_matched() -> None:
+    row = SuggestionRow(
+        id=uuid4(),
+        decision=DecisionType.APPROVED,
+        has_match=True,
+        dater_id=uuid4(),
+        dater_name="Alex",
+        recipient_name="Sam",
+        created_at=datetime(2026, 1, 1, tzinfo=UTC),
     )
-    await db_session.flush()
-
-    deps = _deps(db_session, user_id=graph.dater_a.id)
-    data = DirectDecisionData(recipientId=graph.dater_c.id, decision=DecisionType.APPROVED)
-    result = await RecordDirectDecision.execute(data, db_session, deps)
-
-    # A match was created (created_id surfaced; ids ordered to satisfy the CHECK).
-    assert result.created_id is not None
-    match = await find_mutual_match(db_session, graph.dater_a.id, graph.dater_c.id)
-    assert match is not None
-    assert match.id == result.created_id
-    lo, hi = sorted([graph.dater_a.id, graph.dater_c.id], key=str)
-    assert match.user_a_id == lo and match.user_b_id == hi
-    # Match push fired to both participants (both have a push_token? graph seeds
-    # none, so push_tokens_for returns [] — assert it at least didn't error and
-    # the match exists). When tokens exist the fan-out is exercised below.
-    # (No push tokens in the graph -> send not called.)
-    _push(deps).assert_not_called()
+    assert transform_my_suggestion(row).status == "matched"
 
 
-async def test_record_direct_decision_match_fires_push_when_tokens(
-    graph: DomainGraph, db_session: AsyncSession
-) -> None:
-    # Give both daters push tokens so the match fan-out is exercised.
-    graph.dater_a.push_token = "ExpoTokenA"
-    graph.dater_c.push_token = "ExpoTokenC"
-    db_session.add(
-        Decision(
-            actor_id=graph.dater_c.id,
-            recipient_id=graph.dater_a.id,
-            decision=DecisionType.APPROVED,
-        )
-    )
-    await db_session.flush()
-
-    deps = _deps(db_session, user_id=graph.dater_a.id)
-    data = DirectDecisionData(recipientId=graph.dater_c.id, decision=DecisionType.APPROVED)
-    await RecordDirectDecision.execute(data, db_session, deps)
-
-    assert _push(deps).await_count == 2
-    # push.send(token, title, body) — title is the second positional arg.
-    titles = {call.args[1] for call in _push(deps).await_args_list}
-    assert titles == {"It's a Match! 🎉"}
-    tokens = {call.args[0] for call in _push(deps).await_args_list}
-    assert tokens == {"ExpoTokenA", "ExpoTokenC"}
-
-
-async def test_record_direct_decision_self_denied(graph: DomainGraph, db_session: AsyncSession) -> None:
-    deps = _deps(db_session, user_id=graph.dater_a.id)
-    data = DirectDecisionData(recipientId=graph.dater_a.id, decision=DecisionType.APPROVED)
-    with pytest.raises(CannotDecideOnSelfError):
-        await RecordDirectDecision.execute(data, db_session, deps)
-
-
-async def test_act_on_suggestion_happy(graph: DomainGraph, db_session: AsyncSession) -> None:
-    # dater_a acts (approve) on the winger's pending suggestion of dater_b.
-    deps = _deps(db_session, user_id=graph.dater_a.id)
-    data = ActSuggestionData(recipientId=graph.dater_b.id, decision=DecisionType.APPROVED)
-
-    result = await ActOnSuggestion.execute(data, db_session, deps)
-    assert result.message  # recorded
-
-    # The pending suggestion is now finalised to 'approved'.
-    row = (
-        await db_session.execute(
-            select(Decision).where(
-                Decision.actor_id == graph.dater_a.id,
-                Decision.recipient_id == graph.dater_b.id,
-            )
-        )
-    ).scalar_one()
-    assert row.decision == DecisionType.APPROVED
-    # dater_b -> dater_a was already approved in the graph, so acting approve here
-    # makes it mutual -> a match is formed.
-    match = await find_mutual_match(db_session, graph.dater_a.id, graph.dater_b.id)
-    assert match is not None
-    assert result.created_id == match.id
-
-
-async def test_act_on_suggestion_none_pending_404(graph: DomainGraph, db_session: AsyncSession) -> None:
-    # No pending suggestion from dater_a to dater_c -> 404.
-    deps = _deps(db_session, user_id=graph.dater_a.id)
-    data = ActSuggestionData(recipientId=graph.dater_c.id, decision=DecisionType.APPROVED)
-    with pytest.raises(NoPendingSuggestionError):
-        await ActOnSuggestion.execute(data, db_session, deps)
-
-
-async def test_create_suggestion_happy(graph: DomainGraph, db_session: AsyncSession) -> None:
-    # winger (active for dater_a) suggests dater_c to dater_a, with a note.
-    graph.dater_a.push_token = "ExpoTokenA"
-    await db_session.flush()
-    deps = _deps(db_session, user_id=graph.winger.id, role=Role.WINGER)
-    data = SuggestData(daterId=graph.dater_a.id, recipientId=graph.dater_c.id, note="You two!")
-
-    assert await is_active_wingperson(db_session, graph.dater_a.id, graph.winger.id) is True
-    result = await CreateSuggestion.execute(data, db_session, deps)
-    assert result.message == "Suggestion created"
-
-    row = (
-        await db_session.execute(
-            select(Decision).where(
-                Decision.actor_id == graph.dater_a.id,
-                Decision.recipient_id == graph.dater_c.id,
-            )
-        )
-    ).scalar_one()
-    assert row.suggested_by == graph.winger.id
-    assert row.decision is None  # pending — the dater must act
-    assert row.note == "You two!"
-    # A new pending suggestion -> the dater gets a push.
-    _push(deps).assert_awaited_once()
-    call = _push(deps).await_args
-    assert call is not None
-    assert call.args[0] == "ExpoTokenA"
-
-
-async def test_create_suggestion_gate_denied_not_wingperson(graph: DomainGraph, db_session: AsyncSession) -> None:
-    # dater_c is NOT a wingperson for dater_a -> 403, no row written.
-    deps = _deps(db_session, user_id=graph.dater_c.id, role=Role.WINGER)
-    data = SuggestData(daterId=graph.dater_a.id, recipientId=graph.dater_b.id)
-    with pytest.raises(NotActiveWingpersonError):
-        await CreateSuggestion.execute(data, db_session, deps)
-
-
-async def test_create_suggestion_self_denied(graph: DomainGraph, db_session: AsyncSession) -> None:
-    deps = _deps(db_session, user_id=graph.winger.id, role=Role.WINGER)
-    data = SuggestData(daterId=graph.dater_a.id, recipientId=graph.dater_a.id)
-    with pytest.raises(CannotSuggestSelfError):
-        await CreateSuggestion.execute(data, db_session, deps)
-
-
-async def test_create_suggestion_declined_no_push(graph: DomainGraph, db_session: AsyncSession) -> None:
-    # A 'declined' suggestion bypasses the dater's feed -> no push.
-    graph.dater_a.push_token = "ExpoTokenA"
-    await db_session.flush()
-    deps = _deps(db_session, user_id=graph.winger.id, role=Role.WINGER)
-    data = SuggestData(
-        daterId=graph.dater_a.id,
-        recipientId=graph.dater_c.id,
+def test_transform_my_suggestion_not_accepted() -> None:
+    row = SuggestionRow(
+        id=uuid4(),
         decision=DecisionType.DECLINED,
+        has_match=False,
+        dater_id=uuid4(),
+        dater_name="Alex",
+        recipient_name="Sam",
+        created_at=None,
     )
-    await CreateSuggestion.execute(data, db_session, deps)
-    _push(deps).assert_not_called()
+    assert transform_my_suggestion(row).status == "not_accepted"
+
+
+# ── the merged Like flips a winger pending row (decisions side) ───────────────
+
+
+async def test_merged_like_flips_winger_pending_row(graph: DomainGraph, db_session: AsyncSession) -> None:
+    # The graph's pending winger suggestion (actor=dater_a, recipient=dater_b) is
+    # finalised — not duplicated — when dater_a likes dater_b's profile, and the
+    # winger's people-activity flips from pending to matched (dater_b already
+    # approved dater_a, so a match forms).
+    deps = _deps(db_session, user_id=graph.dater_a.id)
+    await Like.execute(graph.dating_profile_b, EmptyActionData(), db_session, deps)
+
+    rows = (
+        (
+            await db_session.execute(
+                select(Decision).where(
+                    Decision.actor_id == graph.dater_a.id,
+                    Decision.recipient_id == graph.dater_b.id,
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(rows) == 1
+    assert rows[0].decision == DecisionType.APPROVED
+    assert rows[0].suggested_by == graph.winger.id
+
+    # The winger's people-activity for this card now reports "matched".
+    my = await fetch_my_suggestions(db_session, graph.winger.id, limit=50)
+    card = next(r for r in my if r.recipient_name == graph.dater_b.chosen_name)
+    assert transform_my_suggestion(card).status == "matched"
+    assert await find_mutual_match(db_session, graph.dater_a.id, graph.dater_b.id) is not None
+
+
+# ── FORM_MATCH task (match formation moved off the request path) ──────────────
+
+
+def _ctx() -> dict[str, object]:
+    """Sync-dispatch ctx: just the config (no worker-injected push client)."""
+    return {"config": config}
+
+
+async def _count_matches(db_session: AsyncSession, a, b) -> int:
+    lo, hi = sorted([a, b], key=str)
+    rows = (await db_session.execute(select(Match).where(Match.user_a_id == lo, Match.user_b_id == hi))).scalars().all()
+    return len(rows)
+
+
+async def test_form_match_creates_on_mutual(graph: DomainGraph, db_session: AsyncSession) -> None:
+    # dater_a and dater_c mutually approve, with no match yet — the task forms it.
+    db_session.add_all(
+        [
+            Decision(actor_id=graph.dater_a.id, recipient_id=graph.dater_c.id, decision=DecisionType.APPROVED),
+            Decision(actor_id=graph.dater_c.id, recipient_id=graph.dater_a.id, decision=DecisionType.APPROVED),
+        ]
+    )
+    await db_session.flush()
+    assert await _count_matches(db_session, graph.dater_a.id, graph.dater_c.id) == 0
+
+    await form_match(
+        _ctx(),
+        transaction=db_session,
+        actor_id=str(graph.dater_a.id),
+        recipient_id=str(graph.dater_c.id),
+    )
+
+    assert await find_mutual_match(db_session, graph.dater_a.id, graph.dater_c.id) is not None
+    assert await _count_matches(db_session, graph.dater_a.id, graph.dater_c.id) == 1
+
+
+async def test_form_match_is_idempotent(graph: DomainGraph, db_session: AsyncSession) -> None:
+    # The graph already seeds the dater_a <-> dater_b match. Re-running the task must
+    # not insert a duplicate (it returns early on an existing match).
+    assert await _count_matches(db_session, graph.dater_a.id, graph.dater_b.id) == 1
+    await form_match(
+        _ctx(),
+        transaction=db_session,
+        actor_id=str(graph.dater_a.id),
+        recipient_id=str(graph.dater_b.id),
+    )
+    assert await _count_matches(db_session, graph.dater_a.id, graph.dater_b.id) == 1
+
+
+async def test_form_match_noop_when_not_mutual(graph: DomainGraph, db_session: AsyncSession) -> None:
+    # Only one side approved -> no match is formed (the second like will re-enqueue).
+    db_session.add(Decision(actor_id=graph.dater_a.id, recipient_id=graph.dater_c.id, decision=DecisionType.APPROVED))
+    await db_session.flush()
+
+    await form_match(
+        _ctx(),
+        transaction=db_session,
+        actor_id=str(graph.dater_a.id),
+        recipient_id=str(graph.dater_c.id),
+    )
+    assert await find_mutual_match(db_session, graph.dater_a.id, graph.dater_c.id) is None
+    assert await _count_matches(db_session, graph.dater_a.id, graph.dater_c.id) == 0
 
 
 # ── matches: reads ───────────────────────────────────────────────────────────
@@ -360,7 +314,6 @@ async def test_row_to_match_maps_all_fields() -> None:
     assert result.other.chosenName == "Alex"
     assert result.other.city == City.NEW_YORK
     assert result.other.interests == [Interest.OUTDOORS, Interest.COOKING]
-    # firstPhoto is now a presigned GET URL wrapping the stored key.
     assert result.other.firstPhoto is not None
     assert _BASE_MATCH_ROW.first_photo is not None
     assert _BASE_MATCH_ROW.first_photo in result.other.firstPhoto

@@ -11,8 +11,8 @@ import { PhotoRect } from '@/components/ui/PhotoRect';
 import { Pill } from '@/components/ui/Pill';
 import { Sprout } from '@/components/ui/Sprout';
 import { useGetApiProfilesUserIdSuspense } from '@/lib/api/generated/profiles/profiles';
-import type { WingProfile } from '@/lib/api/generated/model';
-import { useGetApiWingPoolSuspense } from '@/lib/api/generated/wing-pool/wing-pool';
+import type { SwipeProfile } from '@/lib/api/generated/model';
+import { useGetApiDatingProfilesSwipeSuspense } from '@/lib/api/generated/dating-profiles/dating-profiles';
 import ScreenSuspense from '@/components/ui/ScreenSuspense';
 import { cardButtonShadow } from '@/lib/styles';
 
@@ -20,7 +20,7 @@ const PAGE_SIZE = 20;
 
 // ── WingCardView ──────────────────────────────────────────────────────────────
 
-function WingCardView({ card }: { card: WingProfile }) {
+function WingCardView({ card }: { card: SwipeProfile }) {
   return (
     <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
       <PhotoRect uri={card.firstPhoto} ratio={4 / 5} />
@@ -125,7 +125,7 @@ function WingSwipeContent() {
   const { id: daterId } = useLocalSearchParams<{ id: string }>();
 
   const { data: daterContext } = useGetApiProfilesUserIdSuspense(daterId);
-  const { data: initialPool } = useGetApiWingPoolSuspense({
+  const { data: initialPool } = useGetApiDatingProfilesSwipeSuspense({
     daterId,
     pageSize: PAGE_SIZE,
     pageOffset: 0,

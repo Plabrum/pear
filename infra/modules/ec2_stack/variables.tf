@@ -6,7 +6,7 @@ variable "aws_region" { type = string }
 variable "domain" {
   description = "Root domain. Used for Route53 zone, CORS, SES. The API is served at api.<domain>."
   type        = string
-  default     = "pear.dev" # TODO: set to Pear's real domain before first apply
+  default     = "usepear.app"
 }
 
 variable "hosted_zone_id" {

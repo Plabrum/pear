@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from enum import StrEnum
+from typing import ClassVar
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.contacts.enums import WingpersonStatus
@@ -18,6 +21,14 @@ from app.platform.actions.enums import ActionGroupType, ActionIcon
 from app.platform.actions.schemas import ActionExecutionResponse
 from app.platform.state_machine.roles import Role
 
+
+class ContactActionKey(StrEnum):
+    INVITE = "invite"
+    ACCEPT = "accept"
+    DECLINE = "decline"
+    REMOVE = "remove"
+
+
 contact_actions = action_group_factory(
     ActionGroupType.CONTACT_ACTIONS,
     default_invalidation="contacts",
@@ -30,7 +41,7 @@ contact_actions = action_group_factory(
 
 @contact_actions
 class InviteWingperson(BaseTopLevelAction[InviteWingpersonData]):
-    action_key = "invite"
+    action_key: ClassVar[ContactActionKey] = ContactActionKey.INVITE
     label = "Invite Wingperson"
     icon = ActionIcon.ADD
 
@@ -80,7 +91,7 @@ class InviteWingperson(BaseTopLevelAction[InviteWingpersonData]):
 
 @contact_actions
 class AcceptInvite(BaseObjectAction[Contact, EmptyActionData]):
-    action_key = "accept"
+    action_key: ClassVar[ContactActionKey] = ContactActionKey.ACCEPT
     label = "Accept"
     icon = ActionIcon.CHECK
     target_state = WingpersonStatus.ACTIVE
@@ -119,7 +130,7 @@ class AcceptInvite(BaseObjectAction[Contact, EmptyActionData]):
 
 @contact_actions
 class DeclineInvite(BaseObjectAction[Contact, EmptyActionData]):
-    action_key = "decline"
+    action_key: ClassVar[ContactActionKey] = ContactActionKey.DECLINE
     label = "Decline"
     icon = ActionIcon.X
     target_state = WingpersonStatus.REMOVED
@@ -158,7 +169,7 @@ class DeclineInvite(BaseObjectAction[Contact, EmptyActionData]):
 
 @contact_actions
 class RemoveWingperson(BaseObjectAction[Contact, EmptyActionData]):
-    action_key = "remove"
+    action_key: ClassVar[ContactActionKey] = ContactActionKey.REMOVE
     label = "Remove"
     icon = ActionIcon.TRASH
     confirmation_message = "Remove this wingperson?"

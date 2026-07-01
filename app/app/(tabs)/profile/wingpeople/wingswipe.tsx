@@ -10,8 +10,8 @@ import { Pill } from '@/components/ui/Pill';
 import { ForwardSheet } from '@/components/ui/ForwardSheet';
 import { NoteModal } from '@/components/ui/NoteModal';
 import { useGetApiProfilesUserIdSuspense } from '@/lib/api/generated/profiles/profiles';
-import type { WingProfile } from '@/lib/api/generated/model';
-import { useGetApiWingPoolSuspense } from '@/lib/api/generated/wing-pool/wing-pool';
+import type { SwipeProfile } from '@/lib/api/generated/model';
+import { useGetApiDatingProfilesSwipeSuspense } from '@/lib/api/generated/dating-profiles/dating-profiles';
 import { useGetApiWingpeopleSuspense } from '@/lib/api/generated/contacts/contacts';
 import ScreenSuspense from '@/components/ui/ScreenSuspense';
 import { cardButtonShadow } from '@/lib/styles';
@@ -29,7 +29,7 @@ function WingCardEditorial({
   card,
   daterFirstName,
 }: {
-  card: WingProfile;
+  card: SwipeProfile;
   daterFirstName: string;
 }) {
   return (
@@ -194,7 +194,7 @@ function WingSwipeContent() {
   const { daterId } = useLocalSearchParams<{ daterId: string }>();
 
   const { data: daterContext } = useGetApiProfilesUserIdSuspense(daterId);
-  const { data: initialPool } = useGetApiWingPoolSuspense({
+  const { data: initialPool } = useGetApiDatingProfilesSwipeSuspense({
     daterId,
     pageSize: PAGE_SIZE,
     pageOffset: 0,
@@ -290,6 +290,7 @@ function WingSwipeContent() {
         <ForwardSheet
           visible={forwardOpen}
           recipientId={card.userId}
+          recipientProfileId={card.profileId}
           recipientName={card.chosenName}
           wingingFor={wingpeopleData.wingingFor}
           excludeDaterId={daterId}

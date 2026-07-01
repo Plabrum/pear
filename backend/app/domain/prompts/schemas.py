@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import Literal
 from uuid import UUID
 
 from app.platform.base.schemas import BaseSchema
@@ -29,6 +30,27 @@ class PromptResponse(BaseSchema):
     userId: UUID
     createdAt: str
     author: PromptResponseAuthor | None
+
+
+# ── Authored responses (responses the caller added) ──────────────────────────────
+
+AuthoredResponseStatus = Literal["accepted", "pending", "not_accepted"]
+
+
+class AuthoredPromptResponse(BaseSchema):
+    """A prompt response the caller wrote, with the dater + question + verdict."""
+
+    id: UUID
+    daterId: UUID
+    daterName: str
+    promptQuestion: str
+    message: str
+    status: AuthoredResponseStatus
+    createdAt: str
+
+
+# GET /prompt-responses/me returns a bare JSON array.
+AuthoredPromptResponsesResponse = list[AuthoredPromptResponse]
 
 
 # ── Profile prompts (a dater's chosen prompt + answer) ───────────────────────────

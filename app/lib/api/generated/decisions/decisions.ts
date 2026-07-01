@@ -14,11 +14,169 @@ import type {
   UseSuspenseQueryResult,
 } from '@tanstack/react-query';
 
-import type { PendingSuggestion } from '../model';
+import type {
+  GetApiDecisionsMySuggestions400,
+  GetApiDecisionsMySuggestionsParams,
+  MySuggestion,
+  PendingSuggestion,
+} from '../model';
 
 import { pearFetch } from '../../http';
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
+
+/**
+ * @summary GetMySuggestions
+ */
+export const getGetApiDecisionsMySuggestionsUrl = (params?: GetApiDecisionsMySuggestionsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/decisions/my-suggestions?${stringifiedParams}`
+    : `/api/decisions/my-suggestions`;
+};
+
+export const getApiDecisionsMySuggestions = async (
+  params?: GetApiDecisionsMySuggestionsParams,
+  options?: RequestInit
+): Promise<MySuggestion[]> => {
+  return pearFetch<MySuggestion[]>(getGetApiDecisionsMySuggestionsUrl(params), {
+    ...options,
+    method: 'GET',
+  });
+};
+
+export const getGetApiDecisionsMySuggestionsQueryKey = (
+  params?: GetApiDecisionsMySuggestionsParams
+) => {
+  return [`/api/decisions/my-suggestions`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetApiDecisionsMySuggestionsSuspenseQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiDecisionsMySuggestions>>,
+  TError = GetApiDecisionsMySuggestions400,
+>(
+  params?: GetApiDecisionsMySuggestionsParams,
+  options?: {
+    query?: Partial<
+      UseSuspenseQueryOptions<
+        Awaited<ReturnType<typeof getApiDecisionsMySuggestions>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof pearFetch>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetApiDecisionsMySuggestionsQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiDecisionsMySuggestions>>> = ({
+    signal,
+  }) => getApiDecisionsMySuggestions(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseSuspenseQueryOptions<
+    Awaited<ReturnType<typeof getApiDecisionsMySuggestions>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetApiDecisionsMySuggestionsSuspenseQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiDecisionsMySuggestions>>
+>;
+export type GetApiDecisionsMySuggestionsSuspenseQueryError = GetApiDecisionsMySuggestions400;
+
+export function useGetApiDecisionsMySuggestionsSuspense<
+  TData = Awaited<ReturnType<typeof getApiDecisionsMySuggestions>>,
+  TError = GetApiDecisionsMySuggestions400,
+>(
+  params: undefined | GetApiDecisionsMySuggestionsParams,
+  options: {
+    query: Partial<
+      UseSuspenseQueryOptions<
+        Awaited<ReturnType<typeof getApiDecisionsMySuggestions>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof pearFetch>;
+  },
+  queryClient?: QueryClient
+): UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetApiDecisionsMySuggestionsSuspense<
+  TData = Awaited<ReturnType<typeof getApiDecisionsMySuggestions>>,
+  TError = GetApiDecisionsMySuggestions400,
+>(
+  params?: GetApiDecisionsMySuggestionsParams,
+  options?: {
+    query?: Partial<
+      UseSuspenseQueryOptions<
+        Awaited<ReturnType<typeof getApiDecisionsMySuggestions>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof pearFetch>;
+  },
+  queryClient?: QueryClient
+): UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetApiDecisionsMySuggestionsSuspense<
+  TData = Awaited<ReturnType<typeof getApiDecisionsMySuggestions>>,
+  TError = GetApiDecisionsMySuggestions400,
+>(
+  params?: GetApiDecisionsMySuggestionsParams,
+  options?: {
+    query?: Partial<
+      UseSuspenseQueryOptions<
+        Awaited<ReturnType<typeof getApiDecisionsMySuggestions>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof pearFetch>;
+  },
+  queryClient?: QueryClient
+): UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary GetMySuggestions
+ */
+
+export function useGetApiDecisionsMySuggestionsSuspense<
+  TData = Awaited<ReturnType<typeof getApiDecisionsMySuggestions>>,
+  TError = GetApiDecisionsMySuggestions400,
+>(
+  params?: GetApiDecisionsMySuggestionsParams,
+  options?: {
+    query?: Partial<
+      UseSuspenseQueryOptions<
+        Awaited<ReturnType<typeof getApiDecisionsMySuggestions>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof pearFetch>;
+  },
+  queryClient?: QueryClient
+): UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetApiDecisionsMySuggestionsSuspenseQueryOptions(params, options);
+
+  const query = useSuspenseQuery(queryOptions, queryClient) as UseSuspenseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary GetPendingSuggestions

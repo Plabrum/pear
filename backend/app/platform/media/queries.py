@@ -66,8 +66,10 @@ async def fetch_media(db: AsyncSession, media_id: UUID) -> Media | None:
 async def fetch_media_by_ids(db: AsyncSession, media_ids: Sequence[UUID]) -> list[Media]:
     """Media rows for the given ids, subject to the caller's RLS scope.
 
-    Used by the system-mode resolve: the photos domain authorizes visibility, then
-    reads these rows under `app.is_system_mode = true` to presign their URLs.
+    The media SELECT policy lets a viewer read each row they may legitimately see
+    (their own, ones they wing, an approved photo's media on an active profile, or a
+    public avatar), so the URL resolve runs entirely under the viewer's own scope.
+    Ids outside the viewer's scope are simply absent from the result.
     """
     if not media_ids:
         return []

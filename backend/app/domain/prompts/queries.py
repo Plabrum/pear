@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import asc, func, or_, select
+from sqlalchemy import asc, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -97,6 +99,72 @@ async def fetch_profile_prompt_with_question(
 # ── Prompt responses ─────────────────────────────────────────────────────────
 
 
+@dataclass
+class AuthoredResponseRow:
+    """A response the caller authored, with the prompt's question + owning dater."""
+
+    id: UUID
+    dater_id: UUID
+    dater_name: str | None
+    prompt_question: str
+    message: str
+    is_approved: bool
+    is_rejected: bool
+    created_at: datetime | None
+
+
+async def fetch_authored_prompt_responses(db: AsyncSession, author_id: UUID, limit: int) -> list[AuthoredResponseRow]:
+    """Responses the caller authored (`user_id = me`) + their acceptance status, newest first.
+
+    Joins each response's prompt to its template (the question) and to the owning
+    dater's profile (the dater's name).
+    """
+    rows = (
+        await db.execute(
+            select(
+                PromptResponse.id,
+                DatingProfile.user_id,
+                Profile.chosen_name,
+                PromptTemplate.question,
+                PromptResponse.message,
+                PromptResponse.is_approved,
+                PromptResponse.is_rejected,
+                PromptResponse.created_at,
+            )
+            .join(ProfilePrompt, ProfilePrompt.id == PromptResponse.profile_prompt_id)
+            .join(PromptTemplate, PromptTemplate.id == ProfilePrompt.prompt_template_id)
+            .join(DatingProfile, DatingProfile.id == ProfilePrompt.dating_profile_id)
+            .join(Profile, Profile.id == DatingProfile.user_id)
+            .where(PromptResponse.user_id == author_id)
+            .order_by(desc(PromptResponse.created_at))
+            .limit(limit)
+        )
+    ).all()
+
+    return [
+        AuthoredResponseRow(
+            id=response_id,
+            dater_id=dater_id,
+            dater_name=dater_name,
+            prompt_question=prompt_question,
+            message=message,
+            is_approved=is_approved,
+            is_rejected=is_rejected,
+            created_at=created_at,
+        )
+        for (
+            response_id,
+            dater_id,
+            dater_name,
+            prompt_question,
+            message,
+            is_approved,
+            is_rejected,
+            created_at,
+        ) in rows
+    ]
+
+
 async def fetch_profile_prompt_owner(db: AsyncSession, profile_prompt_id: UUID) -> UUID | None:
     """The user_id of the dater who owns the dating profile this prompt belongs to."""
     return (
@@ -135,27 +203,6 @@ async def is_matched_with(db: AsyncSession, viewer_id: UUID, other_user_id: UUID
                     (Match.user_a_id == viewer_id) & (Match.user_b_id == other_user_id),
                     (Match.user_a_id == other_user_id) & (Match.user_b_id == viewer_id),
                 )
-            )
-            .limit(1)
-        )
-    ).first()
-    return row is not None
-
-
-async def fetch_prompt_response_author(db: AsyncSession, response: PromptResponse) -> Profile | None:
-    """The author profile of a response (LEFT JOIN onto profiles)."""
-    return (await db.execute(select(Profile).where(Profile.id == response.user_id).limit(1))).scalar_one_or_none()
-
-
-async def is_response_profile_owner(db: AsyncSession, response: PromptResponse, owner_id: UUID) -> bool:
-    """Whether `owner_id` owns the dating profile the response's prompt belongs to."""
-    row = (
-        await db.execute(
-            select(DatingProfile.id)
-            .join(ProfilePrompt, ProfilePrompt.dating_profile_id == DatingProfile.id)
-            .where(
-                ProfilePrompt.id == response.profile_prompt_id,
-                DatingProfile.user_id == owner_id,
             )
             .limit(1)
         )

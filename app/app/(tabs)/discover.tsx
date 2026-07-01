@@ -33,14 +33,17 @@ import {
 import { useAuth } from '@/context/auth';
 import { useDiscover, type PoolFetcher, type LikeResult } from '@/hooks/use-discover';
 import type { Enums } from '@/types/database';
-import { getApiDiscover, useGetApiDiscoverSuspense } from '@/lib/api/generated/discover/discover';
-import { useGetApiLikesYouCountSuspense } from '@/lib/api/generated/likes-you/likes-you';
-import type { DiscoverProfile, WingingForRow } from '@/lib/api/generated/model';
+import {
+  getApiDatingProfilesSwipe,
+  useGetApiDatingProfilesSwipeSuspense,
+  useGetApiDatingProfilesSwipeCountSuspense,
+} from '@/lib/api/generated/dating-profiles/dating-profiles';
+import type { SwipeProfile, WingingForRow } from '@/lib/api/generated/model';
 import {
   useGetApiDatingProfilesMeSuspense,
   getGetApiDatingProfilesMeQueryKey,
 } from '@/lib/api/generated/profiles/profiles';
-import { reportProfile, updateDatingProfile } from '@/lib/api/actions';
+import { report, updateDatingProfile } from '@/lib/api/actions';
 import { useGetApiWingpeopleSuspense } from '@/lib/api/generated/contacts/contacts';
 import { LargeHeader } from '@/components/ui/LargeHeader';
 import { Pill } from '@/components/ui/Pill';
@@ -338,7 +341,7 @@ function DiscoverCard({
   onReport,
   wingingFor,
 }: {
-  card: DiscoverProfile;
+  card: SwipeProfile;
   onLike: () => void;
   onPass: () => void;
   onReport: (reason: string) => Promise<void>;
@@ -536,6 +539,7 @@ function DiscoverCard({
         <ForwardSheet
           visible={forwardOpen}
           recipientId={card.userId}
+          recipientProfileId={card.profileId}
           recipientName={card.chosenName}
           wingingFor={wingingFor}
           onClose={() => setForwardOpen(false)}
@@ -785,7 +789,7 @@ function MatchOverlay({
   onClose,
   onMessage,
 }: {
-  card: DiscoverProfile;
+  card: SwipeProfile;
   onClose: () => void;
   onMessage: () => void;
 }) {
@@ -1072,7 +1076,7 @@ function NoMoreProfilesEmptyState() {
 
 type PoolViewProps = {
   userId: string;
-  initialPool: DiscoverProfile[];
+  initialPool: SwipeProfile[];
   fetchPool: PoolFetcher;
   emptyState: React.ReactNode;
   onDecrementLikes: ((recipientId: string) => void) | null;
@@ -1089,12 +1093,15 @@ function PoolView({
 }: PoolViewProps) {
   const queryClient = useQueryClient();
   const { pool, index, like, pass } = useDiscover(fetchPool, userId, initialPool);
-  const [matchCard, setMatchCard] = useState<DiscoverProfile | null>(null);
+  const [matchCard, setMatchCard] = useState<SwipeProfile | null>(null);
   const card = pool[index] ?? null;
 
-  function invalidatePools(decidedCard: DiscoverProfile) {
-    queryClient.invalidateQueries({ queryKey: ['/api/likes-you'], refetchType: 'none' });
-    queryClient.invalidateQueries({ queryKey: ['/api/discover'], refetchType: 'none' });
+  function invalidatePools(decidedCard: SwipeProfile) {
+    queryClient.invalidateQueries({ queryKey: ['/api/dating-profiles/swipe'], refetchType: 'none' });
+    queryClient.invalidateQueries({
+      queryKey: ['/api/dating-profiles/swipe/count'],
+      refetchType: 'none',
+    });
     if (decidedCard.suggestedBy != null) {
       queryClient.invalidateQueries({ queryKey: ['/api/winger-tabs'], refetchType: 'none' });
     }
@@ -1125,7 +1132,7 @@ function PoolView({
     if (!card) return;
     const reportedCard = card;
     onDecrementLikes?.(reportedCard.userId);
-    await reportProfile({ recipientId: reportedCard.userId, reason });
+    await report(reportedCard.profileId, { reason });
     await pass();
     invalidatePools(reportedCard);
   }
@@ -1171,7 +1178,7 @@ function LikesYouPool({
   handPickedOnly: boolean;
   wingingFor: WingingForRow[];
 }) {
-  const { data: initialPool } = useGetApiDiscoverSuspense({
+  const { data: initialPool } = useGetApiDatingProfilesSwipeSuspense({
     pageSize: PAGE_SIZE,
     pageOffset: 0,
     likesYouOnly: true,
@@ -1180,7 +1187,7 @@ function LikesYouPool({
 
   const fetchPool = useCallback<PoolFetcher>(
     (_uid, pageSize, offset) =>
-      getApiDiscover({
+      getApiDatingProfilesSwipe({
         pageSize,
         pageOffset: offset,
         likesYouOnly: true,
@@ -1212,7 +1219,7 @@ function DiscoverFeedPool({
   handPickedOnly: boolean;
   wingingFor: WingingForRow[];
 }) {
-  const { data: initialPool } = useGetApiDiscoverSuspense({
+  const { data: initialPool } = useGetApiDatingProfilesSwipeSuspense({
     pageSize: PAGE_SIZE,
     pageOffset: 0,
     ...(handPickedOnly && { wingerOnly: true }),
@@ -1220,7 +1227,11 @@ function DiscoverFeedPool({
 
   const fetchPool = useCallback<PoolFetcher>(
     (_uid, pageSize, offset) =>
-      getApiDiscover({ pageSize, pageOffset: offset, ...(handPickedOnly && { wingerOnly: true }) }),
+      getApiDatingProfilesSwipe({
+        pageSize,
+        pageOffset: offset,
+        ...(handPickedOnly && { wingerOnly: true }),
+      }),
     [handPickedOnly]
   );
 
@@ -1239,7 +1250,7 @@ function DiscoverFeedPool({
 // ── DiscoverContent ───────────────────────────────────────────────────────────
 
 function DiscoverContent({ userId }: { userId: string }) {
-  const { data: likesYouCountResponse } = useGetApiLikesYouCountSuspense();
+  const { data: likesYouCountResponse } = useGetApiDatingProfilesSwipeCountSuspense();
   const { data: wingpeopleData } = useGetApiWingpeopleSuspense();
   const initialLikesYouCount = likesYouCountResponse.count;
   const wingingFor = wingpeopleData.wingingFor;

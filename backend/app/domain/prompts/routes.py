@@ -1,15 +1,22 @@
 from __future__ import annotations
 
 from litestar import Controller, Router, get
+from litestar.params import Parameter
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.prompts.queries import (
+    fetch_authored_prompt_responses,
     fetch_onboarding_prompt_templates,
     fetch_own_profile_prompts,
     fetch_prompt_templates,
 )
-from app.domain.prompts.schemas import ProfilePrompt, PromptTemplate
+from app.domain.prompts.schemas import (
+    AuthoredPromptResponsesResponse,
+    ProfilePrompt,
+    PromptTemplate,
+)
 from app.domain.prompts.transformers import (
+    authored_response_to_dto,
     prompt_bundle_media_ids,
     row_to_profile_prompt,
     row_to_prompt_template,
@@ -47,15 +54,32 @@ class ProfilePromptsController(Controller):
         self, user: User, transaction: AsyncSession, media_service: MediaService
     ) -> list[ProfilePrompt]:
         bundles = await fetch_own_profile_prompts(transaction, user.id)
-        url_by_media = await media_service.resolve_urls_system(prompt_bundle_media_ids(bundles))
+        url_by_media = await media_service.resolve_urls(prompt_bundle_media_ids(bundles))
         return [
             row_to_profile_prompt(prompt, question, responses, url_by_media) for prompt, question, responses in bundles
         ]
 
 
+class PromptResponsesController(Controller):
+    """GET /prompt-responses/me — responses the caller authored."""
+
+    path = "/prompt-responses"
+
+    @get("/me", operation_id="getApiPromptResponsesMe")
+    async def authored_responses(
+        self,
+        user: User,
+        transaction: AsyncSession,
+        limit: int = Parameter(query="limit", default=50, ge=1, le=100),
+    ) -> AuthoredPromptResponsesResponse:
+        """The responses the caller wrote on daters' prompts (`user_id = me`), newest first."""
+        rows = await fetch_authored_prompt_responses(transaction, user.id, limit)
+        return [authored_response_to_dto(row) for row in rows]
+
+
 prompts_router = Router(
     path="",
-    route_handlers=[PromptTemplatesController, ProfilePromptsController],
+    route_handlers=[PromptTemplatesController, ProfilePromptsController, PromptResponsesController],
     tags=["prompts"],
     guards=[requires_session],
 )

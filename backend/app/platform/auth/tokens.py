@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 import jwt
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Config
@@ -40,17 +40,6 @@ class TokenService:
     def __init__(self, db: AsyncSession, config: Config):
         self.db = db
         self.config = config
-
-    async def _enter_system_mode(self) -> None:
-        """Bypass RLS for refresh-token bookkeeping.
-
-        Refresh rotation/revocation run on unauthenticated routes (`/auth/refresh`,
-        `/auth/logout` consumes a refresh token, login methods) where `app.user_id`
-        is not (yet) set, so RLS on `refresh_tokens` would fail closed. System mode
-        is the same escape hatch the auth bootstrap + test fixtures use; it is scoped
-        to the request transaction.
-        """
-        await self.db.execute(text("SET LOCAL app.is_system_mode = true"))
 
     # ── Access tokens (stateless ES256) ───────────────────────────────────────
 
@@ -85,8 +74,11 @@ class TokenService:
     # ── Refresh tokens (stateful, rotating, revocable) ────────────────────────
 
     async def mint_refresh_token(self, profile_id: UUID, *, device_info: str | None = None) -> str:
-        """Create + persist a new refresh token, returning the raw value (once)."""
-        await self._enter_system_mode()
+        """Create + persist a new refresh token, returning the raw value (once).
+
+        `refresh_tokens` has no RLS, so this runs without any escape on the
+        unauthenticated auth path (no `app.user_id` required).
+        """
         raw = secrets.token_urlsafe(48)
         record = RefreshToken(
             profile_id=profile_id,
@@ -122,8 +114,9 @@ class TokenService:
 
         REUSE DETECTION: a token that is already revoked (or expired) being
         presented means it was rotated/leaked — revoke the entire chain and fail.
+
+        `refresh_tokens` has no RLS, so rotation runs without any escape.
         """
-        await self._enter_system_mode()
         record = await self._load_refresh(raw)
         if record is None:
             raise TokenError("Refresh token not found")
@@ -155,8 +148,10 @@ class TokenService:
         return RotatedSession(access_token=access, refresh_token=new_raw, profile_id=record.profile_id)
 
     async def revoke_refresh(self, raw: str) -> None:
-        """Revoke a single refresh token (logout). No-op if unknown."""
-        await self._enter_system_mode()
+        """Revoke a single refresh token (logout). No-op if unknown.
+
+        `refresh_tokens` has no RLS, so revocation runs without any escape.
+        """
         record = await self._load_refresh(raw)
         if record is not None:
             record.revoked = True

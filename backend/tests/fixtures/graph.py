@@ -182,6 +182,7 @@ async def build_domain_graph(session: AsyncSession) -> DomainGraph:
     pending_media = await _make_media(session, owner=dater_a)
     approved_photo = ProfilePhoto(
         dating_profile_id=dating_profile_a.id,
+        owner_id=dater_a.id,
         suggester_id=None,  # self-uploaded
         media_id=approved_media.id,
         display_order=0,
@@ -190,6 +191,7 @@ async def build_domain_graph(session: AsyncSession) -> DomainGraph:
     # Winger-suggested, still pending approval.
     pending_photo = ProfilePhoto(
         dating_profile_id=dating_profile_a.id,
+        owner_id=dater_a.id,
         suggester_id=winger.id,
         media_id=pending_media.id,
         display_order=1,
@@ -201,6 +203,7 @@ async def build_domain_graph(session: AsyncSession) -> DomainGraph:
     template = (await session.execute(select(PromptTemplate).limit(1))).scalar_one()
     profile_prompt = ProfilePrompt(
         dating_profile_id=dating_profile_a.id,
+        owner_id=dater_a.id,
         prompt_template_id=template.id,
         answer=faker.sentence(nb_words=9),
     )
@@ -210,6 +213,7 @@ async def build_domain_graph(session: AsyncSession) -> DomainGraph:
     # A comment from the winger on dater_a's prompt, pending approval.
     prompt_response = PromptResponse(
         user_id=winger.id,
+        profile_owner_id=dater_a.id,
         profile_prompt_id=profile_prompt.id,
         message=faker.sentence(nb_words=7),
         is_approved=False,

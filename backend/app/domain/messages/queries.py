@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from sqlalchemy import asc, case, desc, func, or_, select
+from sqlalchemy import asc, case, desc, func, or_, select, true
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -76,23 +76,22 @@ async def fetch_conversations(db: AsyncSession, viewer_id: UUID) -> list[Convers
         else_=Match.user_a_id,
     )
 
-    # Correlated "last message in this match" subqueries (one column each):
-    # `(select ... order by created_at desc limit 1)`.
-    def _last(col):
-        return (
-            select(col)
-            .where(Message.match_id == Match.id)
-            .order_by(desc(Message.created_at))
-            .limit(1)
-            .correlate(Match)
-            .scalar_subquery()
+    # "Last message in this match" — all five columns from one LEFT JOIN LATERAL
+    # (`... where match_id = ? order by created_at desc limit 1`), backed by
+    # `ix_messages_match_id_created_at`. Replaces five identical correlated probes.
+    last_msg = (
+        select(
+            Message.id.label("last_message_id"),
+            Message.body.label("last_message_body"),
+            Message.sender_id.label("last_message_sender_id"),
+            Message.is_read.label("last_message_is_read"),
+            Message.created_at.label("last_message_created_at"),
         )
-
-    last_message_id = _last(Message.id)
-    last_message_body = _last(Message.body)
-    last_message_sender_id = _last(Message.sender_id)
-    last_message_is_read = _last(Message.is_read)
-    last_message_created_at = _last(Message.created_at)
+        .where(Message.match_id == Match.id)
+        .order_by(desc(Message.created_at))
+        .limit(1)
+        .lateral("last_message")
+    )
 
     unread_count = (
         select(func.count())
@@ -105,7 +104,7 @@ async def fetch_conversations(db: AsyncSession, viewer_id: UUID) -> list[Convers
         .scalar_subquery()
     )
 
-    order_expr = func.coalesce(last_message_created_at, Match.created_at)
+    order_expr = func.coalesce(last_msg.c.last_message_created_at, Match.created_at)
 
     other = aliased(Profile)
     other_join = case(
@@ -120,15 +119,16 @@ async def fetch_conversations(db: AsyncSession, viewer_id: UUID) -> list[Convers
                 Match.created_at.label("match_created_at"),
                 other_id_expr.label("other_user_id"),
                 other.chosen_name.label("other_chosen_name"),
-                last_message_id.label("last_message_id"),
-                last_message_body.label("last_message_body"),
-                last_message_sender_id.label("last_message_sender_id"),
-                last_message_is_read.label("last_message_is_read"),
-                last_message_created_at.label("last_message_created_at"),
+                last_msg.c.last_message_id.label("last_message_id"),
+                last_msg.c.last_message_body.label("last_message_body"),
+                last_msg.c.last_message_sender_id.label("last_message_sender_id"),
+                last_msg.c.last_message_is_read.label("last_message_is_read"),
+                last_msg.c.last_message_created_at.label("last_message_created_at"),
                 unread_count.label("unread_count"),
             )
             .select_from(Match)
             .outerjoin(other, other.id == other_join)
+            .outerjoin(last_msg, true())
             .where(or_(Match.user_a_id == viewer_id, Match.user_b_id == viewer_id))
             .order_by(desc(order_expr))
         )

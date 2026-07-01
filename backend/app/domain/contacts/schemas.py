@@ -69,6 +69,19 @@ class WingpeopleResponse(BaseSchema):
     weeklyCounts: dict[str, int]
 
 
+# ── GET /winger-tabs (the daters the caller wings for) ───────────────────────
+
+
+class WingingForTab(BaseSchema):
+    """The minimal `{id, name}` projection backing the winger-side dater tabs."""
+
+    id: UUID
+    name: str
+
+
+WingingForTabsResponse = list[WingingForTab]
+
+
 # ── Invite mutation (POST /wingpeople/invite) ────────────────────────────────
 
 

@@ -9,8 +9,3 @@ class DatingProfileNotFoundError(ApplicationError):
 class NotDaterOrWingpersonError(ApplicationError):
     status_code = 403
     detail = "Not the dater or an active wingperson"
-
-
-class PhotoNotFoundError(ApplicationError):
-    status_code = 404
-    detail = "Photo not found"

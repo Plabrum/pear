@@ -3,7 +3,7 @@ import { Modal, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { toast } from 'sonner-native';
-import { suggestDecision } from '@/lib/api/actions';
+import { suggest } from '@/lib/api/actions';
 import type { WingingForRow } from '@/lib/api/generated/model';
 import { View, Text, Pressable } from '@/lib/tw';
 import { FaceAvatar } from '@/components/ui/FaceAvatar';
@@ -16,7 +16,11 @@ const LINE = 'rgba(31,27,22,0.10)';
 
 type Props = {
   visible: boolean;
+  // User id of the profile being forwarded — used to keep a dater from being
+  // suggested to themselves.
   recipientId: string;
+  // Dating-profile id of the profile being forwarded — the suggest action target.
+  recipientProfileId: string;
   recipientName?: string;
   wingingFor: WingingForRow[];
   excludeDaterId?: string;
@@ -26,6 +30,7 @@ type Props = {
 export function ForwardSheet({
   visible,
   recipientId,
+  recipientProfileId,
   recipientName,
   wingingFor,
   excludeDaterId,
@@ -40,9 +45,8 @@ export function ForwardSheet({
 
   async function handleNoteSend(note: string | null) {
     if (!pendingDater) return;
-    const result = await suggestDecision({
+    const result = await suggest(recipientProfileId, {
       daterId: pendingDater.id,
-      recipientId,
       note,
       decision: null,
     }).catch(() => null);

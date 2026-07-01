@@ -31,6 +31,18 @@ def _quote_literal(value: str) -> str:
     return "'" + value.replace("'", "''") + "'"
 
 
+async def set_request_user(session: AsyncSession, user_id: object) -> None:
+    """Scope the session to a user by pinning the per-tx `app.user_id` GUC.
+
+    The sanctioned way to set `app.user_id` from request-path code: pins it to
+    `user_id` (stringified UUID) so `public.current_user_id()` reports that user
+    and RLS evaluates under their scope. `SET LOCAL` is transaction-scoped, so it
+    cannot leak across pooled connections. Raw `SET LOCAL` execution lives only
+    here in the infra layer; callers use this helper.
+    """
+    await session.execute(text(f"SET LOCAL app.user_id = {_quote_literal(str(user_id))}"))
+
+
 @dep("transaction")
 async def provide_transaction(db_session: AsyncSession, request: Request) -> AsyncGenerator[AsyncSession]:
     """Provide a request-scoped DB transaction with RLS session variables set.

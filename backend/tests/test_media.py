@@ -116,11 +116,13 @@ async def test_media_rls_active_wingperson_sees_row(
 async def test_media_rls_unrelated_user_denied(
     graph: DomainGraph, db_session: AsyncSession, acting_as: ActingAs
 ) -> None:
-    await _seed_media(db_session, graph.dater_a.id)
-    # dater_c is neither the owner nor an active wingperson of dater_a.
+    # A bare media owned by dater_a, backing NO photo and NO avatar.
+    media = await _seed_media(db_session, graph.dater_a.id)
+    # dater_c is neither the owner nor an active wingperson of dater_a, and the row
+    # backs no visible photo/avatar -> media_select denies it.
     async with acting_as(graph.dater_c.id) as s:
-        count = (await s.execute(select(func.count()).select_from(Media))).scalar_one()
-        assert count == 0
+        rows = set((await s.execute(select(Media.id))).scalars().all())
+        assert media.id not in rows
 
 
 async def test_media_rls_owner_can_update_and_delete(
@@ -153,24 +155,35 @@ async def test_media_rls_active_wingperson_can_insert_on_behalf(
         await s.flush()  # WITH CHECK passes for the active wingperson
 
 
-# ── system-mode resolve (the photos domain's authorized cross-user read) ─────
+# ── viewer-scope resolve (the media SELECT policy, no system mode) ────────────
 
 
-async def test_resolve_urls_system_presigns_under_system_mode(
+async def test_resolve_urls_resolves_under_viewer_own_scope(
     graph: DomainGraph, db_session: AsyncSession, acting_as: ActingAs
 ) -> None:
+    # The owner reads their own media row directly (owner branch of media_select)
+    # and presigns its URL under their own scope — no system mode.
     media = await _seed_media(db_session, graph.dater_a.id)
     client = local_media()
-    # dater_b is matched to dater_a but media RLS would NOT let them SELECT the row.
-    async with acting_as(graph.dater_b.id) as s:
-        # Sanity: ordinary scope cannot see it.
-        assert (await s.execute(select(func.count()).select_from(Media))).scalar_one() == 0
+    async with acting_as(graph.dater_a.id) as s:
         service = MediaService(s, client)
-        urls = await service.resolve_urls_system([media.id])
+        urls = await service.resolve_urls([media.id])
         assert media.id in urls
         assert urls[media.id].startswith("http")
-        # System mode was restored: the row is invisible again.
-        assert (await s.execute(select(func.count()).select_from(Media))).scalar_one() == 0
+
+
+async def test_resolve_urls_omits_media_outside_viewer_scope(
+    graph: DomainGraph, db_session: AsyncSession, acting_as: ActingAs
+) -> None:
+    # A bare media row not backing any photo (and not an avatar) is invisible to an
+    # unrelated viewer, so resolve_urls returns it nowhere — no row, no URL.
+    media = await _seed_media(db_session, graph.dater_a.id)
+    client = local_media()
+    async with acting_as(graph.dater_c.id) as s:
+        service = MediaService(s, client)
+        urls = await service.resolve_urls([media.id])
+        assert media.id not in urls
+        assert urls == {}
 
 
 # ── Routes: upload-url / uploaded / delete happy paths ───────────────────────

@@ -155,6 +155,25 @@ GUC (`SET LOCAL app.is_system_mode = true`), **not** a privileged connection. Pe
 the actor is set via `SET LOCAL app.user_id`. Never assign state columns directly —
 mutations flow through actions + the state machine.
 
+**System mode is tasks-only.** A user request/action may only create/read/update what
+the caller can reach **under their own RLS scope**. The trusted RLS bypass —
+`SET LOCAL app.is_system_mode = true`, `_enter_system_mode`, the state machine's
+`system_transition`, and `MediaService.resolve_urls_system` — is allowed **only** in the
+worker/task layer (`app/platform/queue/**` and any `tasks.py`) and tests. It must **never**
+appear in a request handler / action / domain query. CI enforces this two ways:
+`semgrep/no-request-path-system-mode.yml` and `backend/scripts/check_conventions.py` both
+fail (ERROR) on any of those four entry points outside the allowed locations. Need a
+system-scoped write from a request? Enqueue a task — don't reach for the escape inline.
+
+**Raw SQL & DB sessions are infra-only.** Raw statement execution (`.execute(text(...))`,
+`.execute("...")`, `.exec_driver_sql(...)`) and DB engine/session creation
+(`create_async_engine`, `async_sessionmaker`, `sessionmaker`) live **only** in the
+reviewed infra/task layer (engine/session wiring in `app/config.py` · `app/factory.py` ·
+`app/utils/deps.py` · `app/platform/queue/**`; raw SQL additionally in
+`app/platform/base/rls_*.py` and any `tasks.py`). Domains use the injected `transaction`
+dependency and build queries with `select()`/`insert()`/`update()`. CI enforces this via
+`semgrep/no-raw-sql.yml` and `backend/scripts/check_conventions.py`.
+
 ---
 
 ## Routing & Auth Gate

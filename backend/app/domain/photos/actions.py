@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from uuid import UUID
+from enum import StrEnum
+from typing import ClassVar
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,7 +10,6 @@ from app.domain.photos.enums import PhotoApprovalState
 from app.domain.photos.exceptions import (
     DatingProfileNotFoundError,
     NotDaterOrWingpersonError,
-    PhotoNotFoundError,
 )
 from app.domain.photos.models import ProfilePhoto
 from app.domain.photos.queries import (
@@ -29,13 +29,16 @@ from app.platform.actions.deps import ActionDeps
 from app.platform.actions.enums import ActionGroupType, ActionIcon
 from app.platform.actions.schemas import ActionExecutionResponse
 
-
-async def _photo_owner_id(transaction: AsyncSession, photo: ProfilePhoto) -> UUID | None:
-    """The dater user_id that owns the photo's dating profile (or None)."""
-    return await fetch_dating_profile_owner(transaction, photo.dating_profile_id)
-
-
 # ── Action group ───────────────────────────────────────────────────────────────
+
+
+class PhotoActionKey(StrEnum):
+    CREATE = "create"
+    APPROVE = "approve"
+    REJECT = "reject"
+    DELETE = "delete"
+    REORDER = "reorder"
+
 
 photo_actions = action_group_factory(
     ActionGroupType.PHOTO_ACTIONS,
@@ -49,7 +52,7 @@ photo_actions = action_group_factory(
 
 @photo_actions
 class CreatePhoto(BaseTopLevelAction[CreatePhotoData]):
-    action_key = "create"
+    action_key: ClassVar[PhotoActionKey] = PhotoActionKey.CREATE
     label = "Add Photo"
     icon = ActionIcon.ADD
 
@@ -70,6 +73,7 @@ class CreatePhoto(BaseTopLevelAction[CreatePhotoData]):
 
         photo = ProfilePhoto(
             dating_profile_id=data.datingProfileId,
+            owner_id=owner_id,
             media_id=data.mediaId,
             display_order=data.displayOrder,
             suggester_id=None if is_owner else deps.user.id,
@@ -100,7 +104,7 @@ class CreatePhoto(BaseTopLevelAction[CreatePhotoData]):
 
 @photo_actions
 class ApprovePhoto(BaseObjectAction[ProfilePhoto, EmptyActionData]):
-    action_key = "approve"
+    action_key: ClassVar[PhotoActionKey] = PhotoActionKey.APPROVE
     label = "Approve Photo"
     icon = ActionIcon.CHECK
     target_state = PhotoApprovalState.APPROVED
@@ -108,9 +112,8 @@ class ApprovePhoto(BaseObjectAction[ProfilePhoto, EmptyActionData]):
     @classmethod
     def is_available(cls, obj: ProfilePhoto, deps: ActionDeps) -> bool:
         # Owner (dater) only, and only while the photo is still pending. Ownership
-        # is verified against the dating profile in execute (no synchronous query
-        # available here); the pending precondition is derivable from the state.
-        return derive_state(obj) is PhotoApprovalState.PENDING
+        # is a flat column compare now that owner_id rides on the row.
+        return derive_state(obj) is PhotoApprovalState.PENDING and obj.owner_id == deps.user.id
 
     @classmethod
     async def execute(
@@ -120,11 +123,6 @@ class ApprovePhoto(BaseObjectAction[ProfilePhoto, EmptyActionData]):
         transaction: AsyncSession,
         deps: ActionDeps,
     ) -> ActionExecutionResponse:
-        owner_id = await _photo_owner_id(transaction, obj)
-        if owner_id != deps.user.id:
-            # 404 when the owner-scoped lookup matched no rows for this caller.
-            raise PhotoNotFoundError()
-
         await deps.state_machine_service.transition(
             photo_approval_machine,
             obj,
@@ -143,14 +141,15 @@ class ApprovePhoto(BaseObjectAction[ProfilePhoto, EmptyActionData]):
 
 @photo_actions
 class RejectPhoto(BaseObjectAction[ProfilePhoto, EmptyActionData]):
-    action_key = "reject"
+    action_key: ClassVar[PhotoActionKey] = PhotoActionKey.REJECT
     label = "Reject Photo"
     icon = ActionIcon.X
     target_state = PhotoApprovalState.REJECTED
 
     @classmethod
     def is_available(cls, obj: ProfilePhoto, deps: ActionDeps) -> bool:
-        return derive_state(obj) is PhotoApprovalState.PENDING
+        # Owner (dater) only, only while pending — flat column compare on owner_id.
+        return derive_state(obj) is PhotoApprovalState.PENDING and obj.owner_id == deps.user.id
 
     @classmethod
     async def execute(
@@ -160,10 +159,6 @@ class RejectPhoto(BaseObjectAction[ProfilePhoto, EmptyActionData]):
         transaction: AsyncSession,
         deps: ActionDeps,
     ) -> ActionExecutionResponse:
-        owner_id = await _photo_owner_id(transaction, obj)
-        if owner_id != deps.user.id:
-            raise PhotoNotFoundError()
-
         # The machine's RejectedState.on_enter sets rejected_at. We never assign the
         # timestamp column directly.
         await deps.state_machine_service.transition(
@@ -187,16 +182,16 @@ class RejectPhoto(BaseObjectAction[ProfilePhoto, EmptyActionData]):
 
 @photo_actions
 class DeletePhoto(BaseObjectAction[ProfilePhoto, EmptyActionData]):
-    action_key = "delete"
+    action_key: ClassVar[PhotoActionKey] = PhotoActionKey.DELETE
     label = "Delete Photo"
     icon = ActionIcon.TRASH
     confirmation_message = "Delete this photo?"
 
     @classmethod
     def is_available(cls, obj: ProfilePhoto, deps: ActionDeps) -> bool:
-        # The suggester may always delete their own suggestion; the dater-owner
-        # check is data-dependent and verified in execute.
-        return True
+        # Dater (owner) OR the wingperson who suggested it may delete the photo —
+        # both flat column compares now that owner_id rides on the row.
+        return obj.owner_id == deps.user.id or obj.suggester_id == deps.user.id
 
     @classmethod
     async def execute(
@@ -206,11 +201,6 @@ class DeletePhoto(BaseObjectAction[ProfilePhoto, EmptyActionData]):
         transaction: AsyncSession,
         deps: ActionDeps,
     ) -> ActionExecutionResponse:
-        owner_id = await _photo_owner_id(transaction, obj)
-        # Dater (owner) OR the wingperson who suggested it may delete the photo.
-        if owner_id != deps.user.id and obj.suggester_id != deps.user.id:
-            raise PhotoNotFoundError()
-
         await transaction.delete(obj)
         await transaction.flush()
         # Only the photo link is removed here; the platform Media row (the bytes) is
@@ -226,10 +216,15 @@ class DeletePhoto(BaseObjectAction[ProfilePhoto, EmptyActionData]):
 
 @photo_actions
 class ReorderPhoto(BaseObjectAction[ProfilePhoto, ReorderPhotoData]):
-    action_key = "reorder"
+    action_key: ClassVar[PhotoActionKey] = PhotoActionKey.REORDER
     label = "Reorder Photo"
     icon = ActionIcon.EDIT
     is_hidden = True  # mechanical drag-reorder, not a surfaced menu action
+
+    @classmethod
+    def is_available(cls, obj: ProfilePhoto, deps: ActionDeps) -> bool:
+        # Owner (dater) only — flat column compare on owner_id.
+        return obj.owner_id == deps.user.id
 
     @classmethod
     async def execute(
@@ -239,10 +234,6 @@ class ReorderPhoto(BaseObjectAction[ProfilePhoto, ReorderPhotoData]):
         transaction: AsyncSession,
         deps: ActionDeps,
     ) -> ActionExecutionResponse:
-        owner_id = await _photo_owner_id(transaction, obj)
-        if owner_id != deps.user.id:
-            raise PhotoNotFoundError()
-
         obj.display_order = data.displayOrder
         await transaction.flush()
         return ActionExecutionResponse(

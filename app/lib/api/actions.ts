@@ -17,8 +17,8 @@
 //
 // Every action resolves to `ActionExecutionResponse`
 //   { message, invalidate_queries, action_result, created_id }.
-// Create-style actions carry the new row id in `created_id`; decision actions use
-// `created_id` as the match id (non-null => a mutual match was just formed).
+// Create-style actions carry the new row id in `created_id`; a like that forms a
+// mutual match returns the match id in `created_id` (non-null => "it's a pear").
 //
 // NOTE: Image uploads do NOT go through actions. They use the media domain's
 // dedicated routes (`POST /api/media/upload-url` -> PUT bytes -> `POST
@@ -34,10 +34,8 @@ import type {
   CreatePhotoData,
   CreateProfilePromptData,
   CreatePromptResponseData,
-  CreateReportData,
-  DirectDecisionData,
-  ActSuggestionData,
-  SuggestData,
+  SuggestActionData,
+  ReportActionData,
   InviteWingpersonData,
   ReorderPhotoData,
   SendMessageData,
@@ -95,39 +93,57 @@ export function updateDatingProfile(
   );
 }
 
-// ── decision_actions ─────────────────────────────────────────────────────────
+// ── dating_profile_swipe_actions ─────────────────────────────────────────────
+// All swipe writes target the DatingProfile being acted on. Object-scoped: pass
+// the SwipeProfile.profileId (the dating-profile id, NOT the user id). Like/pass
+// cover both the dater's direct decisions and acting on a winger's suggestion.
 
 /**
- * Record a dater's direct like/pass. Top-level. On a mutual approval the backend
- * forms a match and returns its id in `created_id` (non-null => "it's a match").
+ * Like a profile. On a mutual approval the backend forms a match and returns its
+ * id in `created_id` (non-null => "it's a match").
  */
-export function decide(data: DirectDecisionData): Promise<ActionExecutionResponse> {
-  return apiActionsActionGroupExecuteAction('decision_actions', {
-    action: 'decision_actions__record',
-    data,
-  });
+export function like(datingProfileId: string): Promise<ActionExecutionResponse> {
+  return apiActionsActionGroupObjectIdExecuteObjectAction(
+    'dating_profile_swipe_actions',
+    datingProfileId,
+    { action: 'dating_profile_swipe_actions__like', data: EMPTY }
+  );
+}
+
+/** Pass on a profile. */
+export function pass(datingProfileId: string): Promise<ActionExecutionResponse> {
+  return apiActionsActionGroupObjectIdExecuteObjectAction(
+    'dating_profile_swipe_actions',
+    datingProfileId,
+    { action: 'dating_profile_swipe_actions__pass', data: EMPTY }
+  );
 }
 
 /**
- * A winger suggests a profile for a dater. Top-level. `decision: null` = normal
- * suggestion; `decision: 'declined'` = bypass the dater.
+ * A winger suggests this profile for a dater. `daterId` is required; `decision:
+ * null` = normal suggestion; `note` is an optional hand-pick note.
  */
-export function suggestDecision(data: SuggestData): Promise<ActionExecutionResponse> {
-  return apiActionsActionGroupExecuteAction('decision_actions', {
-    action: 'decision_actions__create_suggestion',
-    data,
-  });
+export function suggest(
+  datingProfileId: string,
+  data: SuggestActionData
+): Promise<ActionExecutionResponse> {
+  return apiActionsActionGroupObjectIdExecuteObjectAction(
+    'dating_profile_swipe_actions',
+    datingProfileId,
+    { action: 'dating_profile_swipe_actions__suggest', data }
+  );
 }
 
-/**
- * A dater acts on a winger's pending suggestion. Top-level. A resulting match id
- * comes back in `created_id`.
- */
-export function actOnSuggestion(data: ActSuggestionData): Promise<ActionExecutionResponse> {
-  return apiActionsActionGroupExecuteAction('decision_actions', {
-    action: 'decision_actions__act_suggestion',
-    data,
-  });
+/** File a report against this profile. `reason` is required. */
+export function report(
+  datingProfileId: string,
+  data: ReportActionData
+): Promise<ActionExecutionResponse> {
+  return apiActionsActionGroupObjectIdExecuteObjectAction(
+    'dating_profile_swipe_actions',
+    datingProfileId,
+    { action: 'dating_profile_swipe_actions__report', data }
+  );
 }
 
 // ── photo_actions ────────────────────────────────────────────────────────────
@@ -218,16 +234,6 @@ export function deletePromptResponse(responseId: string): Promise<ActionExecutio
   return apiActionsActionGroupObjectIdExecuteObjectAction('prompt_response_actions', responseId, {
     action: 'prompt_response_actions__delete',
     data: EMPTY,
-  });
-}
-
-// ── report_actions ───────────────────────────────────────────────────────────
-
-/** File a report against a profile. Top-level. */
-export function reportProfile(data: CreateReportData): Promise<ActionExecutionResponse> {
-  return apiActionsActionGroupExecuteAction('report_actions', {
-    action: 'report_actions__file',
-    data,
   });
 }
 

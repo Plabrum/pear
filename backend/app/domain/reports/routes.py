@@ -1,9 +1,9 @@
-# The reports domain is write-only: its single endpoint, `POST /reports`, is the
-# `FileReport` action in `actions.py`, exposed through the generic actions router.
-# `reports_router` is exported with no route handlers so it mounts uniformly with
-# every other domain, and remains the mount point should a read (e.g. an admin
-# report list) ever be added. `guards=[requires_session]` keeps the surface
-# authenticated even while empty.
+# The reports domain owns only its model + queries now: the write lives on the
+# DatingProfile `Report` action (target in the URL), so `reports/` has no action of
+# its own. `reports_router` is exported with no route handlers so the mount stays
+# uniform with every other domain, and remains the mount point should a read (e.g.
+# an admin report list) ever be added. `guards=[requires_session]` keeps the
+# surface authenticated even while empty.
 
 from __future__ import annotations
 

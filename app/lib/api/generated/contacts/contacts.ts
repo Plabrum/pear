@@ -14,7 +14,7 @@ import type {
   UseSuspenseQueryResult,
 } from '@tanstack/react-query';
 
-import type { WingpeopleResponse } from '../model';
+import type { WingingForTab, WingpeopleResponse } from '../model';
 
 import { pearFetch } from '../../http';
 
@@ -119,6 +119,114 @@ export function useGetApiWingpeopleSuspense<
   queryClient?: QueryClient
 ): UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getGetApiWingpeopleSuspenseQueryOptions(options);
+
+  const query = useSuspenseQuery(queryOptions, queryClient) as UseSuspenseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary GetWingerTabs
+ */
+export const getGetApiWingerTabsUrl = () => {
+  return `/api/winger-tabs`;
+};
+
+export const getApiWingerTabs = async (options?: RequestInit): Promise<WingingForTab[]> => {
+  return pearFetch<WingingForTab[]>(getGetApiWingerTabsUrl(), {
+    ...options,
+    method: 'GET',
+  });
+};
+
+export const getGetApiWingerTabsQueryKey = () => {
+  return [`/api/winger-tabs`] as const;
+};
+
+export const getGetApiWingerTabsSuspenseQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiWingerTabs>>,
+  TError = unknown,
+>(options?: {
+  query?: Partial<
+    UseSuspenseQueryOptions<Awaited<ReturnType<typeof getApiWingerTabs>>, TError, TData>
+  >;
+  request?: SecondParameter<typeof pearFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetApiWingerTabsQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiWingerTabs>>> = ({ signal }) =>
+    getApiWingerTabs({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseSuspenseQueryOptions<
+    Awaited<ReturnType<typeof getApiWingerTabs>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetApiWingerTabsSuspenseQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiWingerTabs>>
+>;
+export type GetApiWingerTabsSuspenseQueryError = unknown;
+
+export function useGetApiWingerTabsSuspense<
+  TData = Awaited<ReturnType<typeof getApiWingerTabs>>,
+  TError = unknown,
+>(
+  options: {
+    query: Partial<
+      UseSuspenseQueryOptions<Awaited<ReturnType<typeof getApiWingerTabs>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof pearFetch>;
+  },
+  queryClient?: QueryClient
+): UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetApiWingerTabsSuspense<
+  TData = Awaited<ReturnType<typeof getApiWingerTabs>>,
+  TError = unknown,
+>(
+  options?: {
+    query?: Partial<
+      UseSuspenseQueryOptions<Awaited<ReturnType<typeof getApiWingerTabs>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof pearFetch>;
+  },
+  queryClient?: QueryClient
+): UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetApiWingerTabsSuspense<
+  TData = Awaited<ReturnType<typeof getApiWingerTabs>>,
+  TError = unknown,
+>(
+  options?: {
+    query?: Partial<
+      UseSuspenseQueryOptions<Awaited<ReturnType<typeof getApiWingerTabs>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof pearFetch>;
+  },
+  queryClient?: QueryClient
+): UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary GetWingerTabs
+ */
+
+export function useGetApiWingerTabsSuspense<
+  TData = Awaited<ReturnType<typeof getApiWingerTabs>>,
+  TError = unknown,
+>(
+  options?: {
+    query?: Partial<
+      UseSuspenseQueryOptions<Awaited<ReturnType<typeof getApiWingerTabs>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof pearFetch>;
+  },
+  queryClient?: QueryClient
+): UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetApiWingerTabsSuspenseQueryOptions(options);
 
   const query = useSuspenseQuery(queryOptions, queryClient) as UseSuspenseQueryResult<
     TData,

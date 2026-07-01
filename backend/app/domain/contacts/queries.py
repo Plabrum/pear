@@ -13,6 +13,7 @@ from app.domain.contacts.transformers import (
     IncomingInvitationRow,
     SentInvitationRow,
     WingingForDaterRow,
+    WingingForTabRow,
     WingpersonRow,
 )
 from app.domain.dating_profiles.models import DatingProfile
@@ -154,6 +155,37 @@ async def fetch_winging_for(db: AsyncSession, winger_id: UUID) -> list[WingingFo
             dater_bio=bio,
         )
         for cid, created_at, dater_id, name, avatar, interests, bio in rows
+    ]
+
+
+async def fetch_winging_for_tabs(db: AsyncSession, winger_id: UUID) -> list[WingingForTabRow]:
+    """The daters the caller actively wings for — my active winger-side edges, newest first.
+
+    Active `contacts` where the caller is the `winger_id`, joined to each dater's
+    profile for the tab's display name. The minimal `{id, name}` projection backs the
+    winger-side dater-switcher tabs.
+    """
+    dater = aliased(Profile)
+    rows = (
+        await db.execute(
+            select(
+                Contact.user_id,
+                dater.chosen_name,
+                Contact.created_at,
+            )
+            .join(dater, dater.id == Contact.user_id)
+            .where(
+                and_(
+                    Contact.winger_id == winger_id,
+                    Contact.wingperson_status == WingpersonStatus.ACTIVE,
+                )
+            )
+            .order_by(desc(Contact.created_at))
+        )
+    ).all()
+    return [
+        WingingForTabRow(id=dater_id, chosen_name=chosen_name, created_at=created_at)
+        for dater_id, chosen_name, created_at in rows
     ]
 
 

@@ -17,16 +17,17 @@ from app.platform.auth.tokens import TokenService
 # `asyncio_mode = "auto"` (pyproject.toml) runs `async def test_*` without a marker.
 
 
-async def test_first_login_bootstrap_succeeds_in_system_mode_without_actor(
+async def test_first_login_bootstrap_succeeds_under_new_user_scope(
     db_session: AsyncSession, test_config: TestConfig
 ) -> None:
-    """As `pear_app`, system mode + NO app.user_id -> AuthService bootstraps identity.
+    """As `pear_app`, NO system mode -> AuthService bootstraps under the new user's scope.
 
-    Mirrors the unauthenticated login route: there is no `app.user_id` yet, so the
-    write would fail closed *except* for the honored `is_system_mode()` escape that
-    `AuthService.find_or_create_identity` turns on. We first clear any fixture GUCs
-    so it is unambiguously AuthService's own escape — not a leftover setting — that
-    enables the writes.
+    Mirrors the unauthenticated login route: there is no `app.user_id` yet and system
+    mode is OFF. `AuthService.find_or_create_identity` generates the new profile's id,
+    pins `app.user_id` to it, and inserts — so the `profiles_insert` WITH CHECK
+    (`id = current_user_id()`) passes under the user's OWN scope, not via an escape.
+    We first clear any fixture GUCs so it is unambiguously AuthService's own scoping —
+    not a leftover setting or system mode — that enables the writes.
     """
     # Start from the true unauthenticated bootstrap condition: escape OFF, no actor.
     await db_session.execute(text("SET LOCAL app.is_system_mode = false"))
@@ -42,6 +43,17 @@ async def test_first_login_bootstrap_succeeds_in_system_mode_without_actor(
 
     assert created is True
     assert profile.id is not None
+
+    # The bootstrap acted AS the new user: app.user_id is the new profile's id, and
+    # system mode was never turned on.
+    actor = (await db_session.execute(text("SELECT NULLIF(current_setting('app.user_id', true), '')"))).scalar_one()
+    assert str(actor) == str(profile.id)
+    system_mode = (
+        await db_session.execute(
+            text("SELECT coalesce(nullif(current_setting('app.is_system_mode', true), '')::boolean, false)")
+        )
+    ).scalar_one()
+    assert system_mode is False
 
     # The profile + identity rows are genuinely persisted (visible in this tx).
     after_profiles = (await db_session.execute(select(func.count()).select_from(Profile))).scalar_one()
@@ -68,10 +80,12 @@ async def test_first_login_bootstrap_succeeds_in_system_mode_without_actor(
 async def test_raw_profile_insert_denied_without_system_mode_or_actor(db_session: AsyncSession) -> None:
     """As `pear_app`, escape OFF + NO app.user_id -> raw INSERT INTO profiles DENIED.
 
-    This is the fail-closed proof: it is the honored `is_system_mode()` escape — not
-    a superuser connection and not a permissive policy — that enables bootstrap. With
-    the escape off and no actor, the `profiles_insert` WITH CHECK
-    (`is_system_mode() OR id = current_user_id()`) is false on both branches.
+    This is the fail-closed proof: RLS is the auth floor — not a superuser connection
+    and not a permissive policy. With the escape off and no actor, the
+    `profiles_insert` WITH CHECK (`is_system_mode() OR id = current_user_id()`) is
+    false on both branches. The bootstrap only succeeds because it scopes
+    `app.user_id` to the new profile's own id (see the test above); absent that
+    scoping, the write is denied.
 
     The write is raw SQL inside a nested SAVEPOINT so the expected
     `InsufficientPrivilege` does not poison the ORM session for teardown.

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
+from uuid import uuid4
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,12 +21,15 @@ from app.domain.contacts.queries import (
     fetch_sent_invitations,
     fetch_weekly_counts,
     fetch_winging_for,
+    fetch_winging_for_tabs,
 )
 from app.domain.contacts.schemas import InviteWingpersonData
 from app.domain.contacts.transformers import (
+    WingingForTabRow,
     row_to_sent_invitation,
     row_to_winging_for,
     row_to_wingperson,
+    rows_to_winging_for_tabs,
 )
 from app.domain.dating_profiles.enums import Interest
 from app.domain.profiles.enums import Gender
@@ -90,6 +95,50 @@ async def test_fetch_winging_for(graph: DomainGraph, db_session: AsyncSession) -
     assert dto.dater.interests is not None
     assert Interest.TRAVEL in dto.dater.interests
     assert dto.dater.bio == graph.dating_profile_a.bio
+
+
+async def test_fetch_winging_for_tabs(graph: DomainGraph, db_session: AsyncSession) -> None:
+    # The graph's only active edge is winger -> dater_a, so the winger's tabs hold
+    # exactly that dater, projected to the minimal {id, name} shape.
+    rows = await fetch_winging_for_tabs(db_session, graph.winger.id)
+    assert len(rows) == 1
+    assert rows[0].id == graph.dater_a.id
+    assert rows[0].chosen_name == graph.dater_a.chosen_name
+
+    tabs = rows_to_winging_for_tabs(rows)
+    assert len(tabs) == 1
+    assert tabs[0].id == graph.dater_a.id
+    assert tabs[0].name == graph.dater_a.chosen_name
+
+
+async def test_fetch_winging_for_tabs_only_active_edges(graph: DomainGraph, db_session: AsyncSession) -> None:
+    # An INVITED (not yet active) edge from dater_c must NOT appear as a tab.
+    invited = Contact(
+        user_id=graph.dater_c.id,
+        phone_number="+15555550009",
+        winger_id=graph.winger.id,
+        wingperson_status=WingpersonStatus.INVITED,
+    )
+    db_session.add(invited)
+    await db_session.flush()
+
+    rows = await fetch_winging_for_tabs(db_session, graph.winger.id)
+    assert [r.id for r in rows] == [graph.dater_a.id]
+    # A user who wings for nobody sees an empty list.
+    assert await fetch_winging_for_tabs(db_session, graph.dater_c.id) == []
+
+
+def test_rows_to_winging_for_tabs_dedupes_preserving_order() -> None:
+    d1, d2 = uuid4(), uuid4()
+    rows = [
+        WingingForTabRow(id=d1, chosen_name="Dana", created_at=datetime(2026, 1, 3, tzinfo=UTC)),
+        WingingForTabRow(id=d2, chosen_name="Drew", created_at=datetime(2026, 1, 2, tzinfo=UTC)),
+        WingingForTabRow(id=d1, chosen_name="Dana", created_at=datetime(2026, 1, 1, tzinfo=UTC)),
+    ]
+    tabs = rows_to_winging_for_tabs(rows)
+    assert [t.id for t in tabs] == [d1, d2]
+    assert [t.name for t in tabs] == ["Dana", "Drew"]
+    assert rows_to_winging_for_tabs([]) == []
 
 
 async def test_sent_invitations_and_incoming_reflect_an_invite(graph: DomainGraph, db_session: AsyncSession) -> None:

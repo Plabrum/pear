@@ -53,10 +53,9 @@ variable "aws_region" {
 }
 
 variable "domain" {
-  # TODO: set to Pear's real domain before first apply
   description = "Root domain. Used for ACM cert, Route53 zone, CORS, SES. The API is served at api.<domain>."
   type        = string
-  default     = "pear.dev"
+  default     = "usepear.app"
 }
 
 variable "ecr_repository" {

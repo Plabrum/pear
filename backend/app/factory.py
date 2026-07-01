@@ -19,18 +19,14 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from app.config import Config, config
 from app.domain.contacts.routes import contacts_router
+from app.domain.dating_profiles.routes import dating_profiles_router
 from app.domain.decisions.routes import decisions_router
-from app.domain.discover.routes import discover_router
-from app.domain.likes_you.routes import likes_you_router
 from app.domain.matches.routes import matches_router
 from app.domain.messages.routes import messages_router
 from app.domain.photos.routes import photos_router
 from app.domain.profiles.routes import profiles_router
 from app.domain.prompts.routes import prompts_router
 from app.domain.reports.routes import reports_router
-from app.domain.wing_pool.routes import wing_pool_router
-from app.domain.winger_activity.routes import winger_activity_router
-from app.domain.winger_tabs.routes import winger_tabs_router
 from app.platform.actions.routes import action_router
 from app.platform.auth.middleware import JWTAuthMiddleware
 from app.platform.auth.routes import auth_router
@@ -165,17 +161,13 @@ def create_app(
         route_handlers=[
             action_router,
             profiles_router,
+            dating_profiles_router,
             contacts_router,
             photos_router,
             prompts_router,
-            discover_router,
-            wing_pool_router,
-            likes_you_router,
             decisions_router,
             matches_router,
             messages_router,
-            winger_activity_router,
-            winger_tabs_router,
             reports_router,
             media_router,
         ],

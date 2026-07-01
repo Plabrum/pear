@@ -1,0 +1,121 @@
+# Infra-layer guard: raw SQL execution and DB engine/session creation only.
+#
+# GOVERNING RULE: the trusted RLS-bypass — raw transaction-control SQL (SET
+# LOCAL, etc.) and ad-hoc DB engine/session construction — lives ONLY in the
+# reviewed infra/task layer. Request handlers / actions / domain queries must run
+# their work through the injected `transaction` dependency, never raw statement
+# execution and never their own engine/session.
+#
+# Two families of rules, both severity ERROR:
+#
+#   1. no-raw-sql-execution — flags raw STATEMENT EXECUTION:
+#        $DB.execute(text(...))   $DB.execute("...")   $DB.execute(f"...")
+#        $DB.exec_driver_sql(...)
+#      Precision: `text(...)` as a QUERY EXPRESSION (inside select()/where()/
+#      column_property()/Index(postgresql_where=...)) is NOT flagged — only when
+#      `text(...)` is the direct argument to `.execute(...)`.
+#
+#   2. no-adhoc-db-engine / no-adhoc-db-sessionmaker — flag SQLAlchemy
+#        create_async_engine(...)   async_sessionmaker(...)   sessionmaker(...)
+#      outside the wiring layer. These target the three SQLAlchemy symbols only,
+#      so `aioboto3.Session()` (AWS) and `RotatedSession(...)` (a dataclass) do
+#      not trip.
+#
+# ALLOWED locations (excluded per rule via paths.exclude):
+#   raw SQL execution:
+#     * backend/app/utils/deps.py             — provide_transaction / helpers.
+#     * backend/app/platform/queue/**         — the worker transaction layer.
+#     * backend/app/platform/base/rls_*.py    — RLS context/comparator internals.
+#     * **/tasks.py                           — the worker task layer.
+#     * backend/alembic/**, backend/tests/**.
+#   engine/session creation:
+#     * backend/app/config.py, backend/app/factory.py — app wiring.
+#     * backend/app/platform/queue/**          — worker wiring.
+#     * backend/app/utils/deps.py              — request-tx wiring.
+#     * backend/tests/**.
+#
+# Scope: invoke against `backend/ app/` from the repo root, alongside the other
+# convention guards in this directory.
+
+rules:
+  - id: no-raw-sql-execution
+    languages: [python]
+    severity: ERROR
+    message: >-
+      Raw statement execution (`.execute(text(...))`, `.execute("...")`,
+      `.execute(f"...")`, `.exec_driver_sql(...)`) is only allowed in the
+      reviewed infra/task layer (app/utils/deps.py, app/platform/queue/**,
+      app/platform/base/rls_*.py, any tasks.py) and tests. A request handler /
+      action / domain query must run its work through the injected `transaction`
+      dependency — build queries with select()/insert()/update() instead of raw
+      SQL. (`text(...)` used as a query EXPRESSION inside select()/where() is fine
+      — only direct execution is flagged.)
+    patterns:
+      - pattern-either:
+          - pattern: $DB.execute(text(...))
+          - pattern: $DB.execute("...")
+          - pattern: $DB.execute(f"...")
+          - pattern: $DB.exec_driver_sql(...)
+    paths:
+      exclude:
+        - "**/app/utils/deps.py"
+        - "**/app/platform/queue/**"
+        - "**/app/platform/base/rls_*.py"
+        - "**/tasks.py"
+        - "**/backend/alembic/**"
+        - "**/backend/tests/**"
+        - "**/node_modules/**"
+        - "**/.venv/**"
+        - "**/__pycache__/**"
+        # The convention checker names these tokens to guard against them.
+        - "**/backend/scripts/check_conventions.py"
+
+  - id: no-adhoc-db-engine
+    languages: [python]
+    severity: ERROR
+    message: >-
+      `create_async_engine(...)` constructs a DB engine and is only allowed in
+      the wiring layer (app/config.py, app/factory.py, app/platform/queue/**,
+      app/utils/deps.py) and tests. A request handler / action / domain query
+      must use the injected `transaction` dependency, never its own engine.
+    patterns:
+      - pattern: create_async_engine(...)
+    paths:
+      exclude:
+        - "**/app/config.py"
+        - "**/app/factory.py"
+        - "**/app/platform/queue/**"
+        - "**/app/utils/deps.py"
+        - "**/backend/tests/**"
+        - "**/node_modules/**"
+        - "**/.venv/**"
+        - "**/__pycache__/**"
+        # The convention checker names these tokens to guard against them.
+        - "**/backend/scripts/check_conventions.py"
+
+  - id: no-adhoc-db-sessionmaker
+    languages: [python]
+    severity: ERROR
+    message: >-
+      `async_sessionmaker(...)` / `sessionmaker(...)` constructs a DB session
+      factory and is only allowed in the wiring layer (app/config.py,
+      app/factory.py, app/platform/queue/**, app/utils/deps.py) and tests. A
+      request handler / action / domain query must use the injected `transaction`
+      dependency, never its own session factory. (`aioboto3.Session()` and the
+      `RotatedSession` dataclass are different symbols and are not matched.)
+    patterns:
+      - pattern-either:
+          - pattern: async_sessionmaker(...)
+          - pattern: sessionmaker(...)
+    paths:
+      exclude:
+        - "**/app/config.py"
+        - "**/app/factory.py"
+        - "**/app/platform/queue/**"
+        - "**/app/utils/deps.py"
+        - "**/backend/tests/**"
+        - "**/node_modules/**"
+        - "**/.venv/**"
+        - "**/__pycache__/**"
+        # The convention checker names these tokens to guard against them.
+        - "**/backend/scripts/check_conventions.py"

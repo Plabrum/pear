@@ -27,6 +27,26 @@ class Photo(BaseSchema):
 OwnPhotosResponse = list[Photo]
 
 
+# ── GET /photos/suggested (photos I suggested as a winger) ───────────────────────
+
+SuggestedPhotoStatus = Literal["approved", "pending", "not_accepted"]
+
+
+class SuggestedPhoto(BaseSchema):
+    """A photo the caller suggested for a dater, with that dater + the verdict."""
+
+    id: UUID
+    daterId: UUID
+    daterName: str
+    storageUrl: str
+    status: SuggestedPhotoStatus
+    createdAt: str
+
+
+# GET /photos/suggested returns a bare JSON array.
+SuggestedPhotosResponse = list[SuggestedPhoto]
+
+
 class PhotosOkResponse(BaseSchema):
     """`{ ok: true }` — reject / delete success body."""
 

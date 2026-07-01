@@ -19,13 +19,12 @@ class ActionGroupType(StrEnum):
     # action_group_factory.
     PROFILE_ACTIONS = auto()
     DATING_PROFILE_ACTIONS = auto()
+    DATING_PROFILE_SWIPE_ACTIONS = auto()
     CONTACT_ACTIONS = auto()
     PHOTO_ACTIONS = auto()
     PROFILE_PROMPT_ACTIONS = auto()
     PROMPT_RESPONSE_ACTIONS = auto()
-    DECISION_ACTIONS = auto()
     MESSAGE_ACTIONS = auto()
-    REPORT_ACTIONS = auto()
 
 
 class ActionResultType(StrEnum):

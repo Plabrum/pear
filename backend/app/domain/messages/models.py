@@ -10,10 +10,11 @@ class Message(BaseDBModel):
     __tablename__ = "messages"
 
     # SQL: not null references matches(id) on delete cascade
+    # The composite (match_id, created_at) index below covers match_id-prefix
+    # lookups, so no standalone index here.
     match_id: Mapped[UUID] = mapped_column(
         sa.ForeignKey("matches.id", ondelete="CASCADE"),
         nullable=False,
-        index=True,
     )
     # SQL: not null references profiles(id) on delete cascade
     sender_id: Mapped[UUID] = mapped_column(
@@ -23,3 +24,5 @@ class Message(BaseDBModel):
     )
     body: Mapped[str] = mapped_column(sa.Text, nullable=False)
     is_read: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False, server_default=sa.false())
+
+    __table_args__ = (sa.Index("ix_messages_match_id_created_at", "match_id", "created_at"),)

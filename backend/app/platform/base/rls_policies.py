@@ -11,18 +11,20 @@ _ACTIVE = WingpersonStatus.ACTIVE.name
 
 # Tables that must have RLS enabled+forced. `prompt_templates` is included even
 # though its only policy is `using (true)` — the SQL still enables RLS on it.
+# `profile_photos` and `profile_prompts` are NOT here: they enroll for RLS via
+# their mixins (UserScopedMixin / WingpersonScopedMixin record them in
+# `metadata.info["rls"]`); we only attach a supplementary public-SELECT policy.
 _RLS_TABLES = (
     "profiles",
     "dating_profiles",
-    "profile_photos",
     "prompt_templates",
-    "profile_prompts",
     "prompt_responses",
     "contacts",
     "decisions",
     "matches",
     "messages",
     "profile_reports",
+    "media",
 )
 
 
@@ -118,81 +120,28 @@ _DATING_PROFILES = [
 
 
 # ── profile_photos ───────────────────────────────────────────────────────────
-# Owner OR active wingperson can insert; owner OR suggester can delete.
+# The owner/active-winger floor (SELECT/INSERT/UPDATE/DELETE) is the mixin's
+# `wingperson_scope_policy` (WingpersonScopedMixin, owner_column="owner_id"). This
+# supplementary SELECT broadens read visibility the floor doesn't cover: any viewer
+# may read an APPROVED photo on an ACTIVE dating profile (discover/matches), and a
+# suggester may read their own (possibly still-pending) suggestion.
 _PROFILE_PHOTOS = [
     _policy(
         "profile_photos",
-        "profile_photos_select",
+        "profile_photos_public_select",
         """
         AS PERMISSIVE
         FOR SELECT
         TO pear_app
-        USING (public.is_system_mode() OR (
-          EXISTS (
+        USING (
+          profile_photos.suggester_id = public.current_user_id()
+          OR EXISTS (
             SELECT 1 FROM public.dating_profiles dp
             WHERE dp.id = profile_photos.dating_profile_id
-              AND (
-                dp.user_id = public.current_user_id()
-                OR profile_photos.suggester_id = public.current_user_id()
-                OR (dp.is_active = true AND profile_photos.approved_at IS NOT NULL)
-              )
+              AND dp.is_active = true
+              AND profile_photos.approved_at IS NOT NULL
           )
-        ))
-        """,
-    ),
-    _policy(
-        "profile_photos",
-        "profile_photos_insert",
-        """
-        AS PERMISSIVE
-        FOR INSERT
-        TO pear_app
-        WITH CHECK (public.is_system_mode() OR (
-          EXISTS (
-            SELECT 1 FROM public.dating_profiles dp
-            WHERE dp.id = profile_photos.dating_profile_id
-              AND (
-                dp.user_id = public.current_user_id()
-                OR (
-                  profile_photos.suggester_id = public.current_user_id()
-                  AND public.is_active_wingperson(dp.user_id)
-                )
-              )
-          )
-        ))
-        """,
-    ),
-    _policy(
-        "profile_photos",
-        "profile_photos_update",
-        """
-        AS PERMISSIVE
-        FOR UPDATE
-        TO pear_app
-        USING (public.is_system_mode() OR (
-          EXISTS (
-            SELECT 1 FROM public.dating_profiles dp
-            WHERE dp.id = profile_photos.dating_profile_id
-              AND dp.user_id = public.current_user_id()
-          )
-        ))
-        """,
-    ),
-    _policy(
-        "profile_photos",
-        "profile_photos_delete",
-        """
-        AS PERMISSIVE
-        FOR DELETE
-        TO pear_app
-        USING (public.is_system_mode() OR (
-          EXISTS (
-            SELECT 1 FROM public.dating_profiles dp
-            WHERE dp.id = profile_photos.dating_profile_id
-              AND dp.user_id = public.current_user_id()
-          )
-          OR profile_photos.suggester_id = public.current_user_id()
-        ))
+        )
         """,
     ),
 ]
@@ -215,77 +164,34 @@ _PROMPT_TEMPLATES = [
 
 
 # ── profile_prompts ──────────────────────────────────────────────────────────
+# The owner floor (SELECT/INSERT/UPDATE/DELETE) is the mixin's `user_scope_policy`
+# (UserScopedMixin, user_id_column="owner_id"). This supplementary SELECT broadens
+# read visibility the floor doesn't cover: any viewer may read a prompt on an ACTIVE
+# dating profile (discover/matches render other daters' prompts).
 _PROFILE_PROMPTS = [
     _policy(
         "profile_prompts",
-        "profile_prompts_select",
+        "profile_prompts_public_select",
         """
         AS PERMISSIVE
         FOR SELECT
         TO pear_app
-        USING (public.is_system_mode() OR (
+        USING (
           EXISTS (
             SELECT 1 FROM public.dating_profiles dp
             WHERE dp.id = profile_prompts.dating_profile_id
-              AND (dp.is_active = true OR dp.user_id = public.current_user_id())
+              AND dp.is_active = true
           )
-        ))
-        """,
-    ),
-    _policy(
-        "profile_prompts",
-        "profile_prompts_insert",
-        """
-        AS PERMISSIVE
-        FOR INSERT
-        TO pear_app
-        WITH CHECK (public.is_system_mode() OR (
-          EXISTS (
-            SELECT 1 FROM public.dating_profiles dp
-            WHERE dp.id = profile_prompts.dating_profile_id
-              AND dp.user_id = public.current_user_id()
-          )
-        ))
-        """,
-    ),
-    _policy(
-        "profile_prompts",
-        "profile_prompts_update",
-        """
-        AS PERMISSIVE
-        FOR UPDATE
-        TO pear_app
-        USING (public.is_system_mode() OR (
-          EXISTS (
-            SELECT 1 FROM public.dating_profiles dp
-            WHERE dp.id = profile_prompts.dating_profile_id
-              AND dp.user_id = public.current_user_id()
-          )
-        ))
-        """,
-    ),
-    _policy(
-        "profile_prompts",
-        "profile_prompts_delete",
-        """
-        AS PERMISSIVE
-        FOR DELETE
-        TO pear_app
-        USING (public.is_system_mode() OR (
-          EXISTS (
-            SELECT 1 FROM public.dating_profiles dp
-            WHERE dp.id = profile_prompts.dating_profile_id
-              AND dp.user_id = public.current_user_id()
-          )
-        ))
+        )
         """,
     ),
 ]
 
 
 # ── prompt_responses ─────────────────────────────────────────────────────────
-# Visible to sender or profile owner; insert as self; only the profile owner can
-# update (approval).
+# Two-party row (author `user_id` + denormalized `profile_owner_id`), so no mixin
+# fits — bespoke, but now flat column compares (no joins). Visible to author or
+# profile owner; insert as self; only the profile owner can update (approval).
 _PROMPT_RESPONSES = [
     _policy(
         "prompt_responses",
@@ -296,13 +202,7 @@ _PROMPT_RESPONSES = [
         TO pear_app
         USING (public.is_system_mode() OR (
           user_id = public.current_user_id()
-          OR EXISTS (
-            SELECT 1
-            FROM public.profile_prompts pp
-            JOIN public.dating_profiles dp ON dp.id = pp.dating_profile_id
-            WHERE pp.id = prompt_responses.profile_prompt_id
-              AND dp.user_id = public.current_user_id()
-          )
+          OR profile_owner_id = public.current_user_id()
         ))
         """,
     ),
@@ -323,15 +223,7 @@ _PROMPT_RESPONSES = [
         AS PERMISSIVE
         FOR UPDATE
         TO pear_app
-        USING (public.is_system_mode() OR (
-          EXISTS (
-            SELECT 1
-            FROM public.profile_prompts pp
-            JOIN public.dating_profiles dp ON dp.id = pp.dating_profile_id
-            WHERE pp.id = prompt_responses.profile_prompt_id
-              AND dp.user_id = public.current_user_id()
-          )
-        ))
+        USING (public.is_system_mode() OR (profile_owner_id = public.current_user_id()))
         """,
     ),
 ]
@@ -548,6 +440,83 @@ _PROFILE_REPORTS = [
 ]
 
 
+# ── media ────────────────────────────────────────────────────────────────────
+# Bespoke per-command policies (NOT the generic WingpersonScopedMixin FOR ALL).
+#
+# SELECT mirrors profile_photos visibility EXACTLY so a viewer may read a media row
+# iff they may see a photo backing it: owner, the photo's suggester, or — for an
+# active dating profile — an approved photo. Avatars are public-read. A matched
+# viewer therefore presigns an approved photo's URL under their OWN scope (no system
+# mode). The owner + their active wingperson always see their own media directly.
+#
+# INSERT/UPDATE/DELETE stay owner + active wingperson (the management surface): a
+# winger uploads/curates media for the dater they wing.
+_MEDIA = [
+    _policy(
+        "media",
+        "media_select",
+        """
+        AS PERMISSIVE
+        FOR SELECT
+        TO pear_app
+        USING (public.is_system_mode()
+          OR owner_id = public.current_user_id()
+          OR public.is_active_wingperson(owner_id)
+          OR EXISTS (
+            SELECT 1
+            FROM public.profile_photos pp
+            JOIN public.dating_profiles dp ON dp.id = pp.dating_profile_id
+            WHERE pp.media_id = media.id
+              AND (
+                dp.user_id = public.current_user_id()
+                OR pp.suggester_id = public.current_user_id()
+                OR (dp.is_active = true AND pp.approved_at IS NOT NULL)
+              )
+          )
+          OR EXISTS (
+            SELECT 1 FROM public.profiles p WHERE p.avatar_media_id = media.id
+          ))
+        """,
+    ),
+    _policy(
+        "media",
+        "media_insert",
+        """
+        AS PERMISSIVE
+        FOR INSERT
+        TO pear_app
+        WITH CHECK (public.is_system_mode()
+          OR owner_id = public.current_user_id()
+          OR public.is_active_wingperson(owner_id))
+        """,
+    ),
+    _policy(
+        "media",
+        "media_update",
+        """
+        AS PERMISSIVE
+        FOR UPDATE
+        TO pear_app
+        USING (public.is_system_mode()
+          OR owner_id = public.current_user_id()
+          OR public.is_active_wingperson(owner_id))
+        """,
+    ),
+    _policy(
+        "media",
+        "media_delete",
+        """
+        AS PERMISSIVE
+        FOR DELETE
+        TO pear_app
+        USING (public.is_system_mode()
+          OR owner_id = public.current_user_id()
+          OR public.is_active_wingperson(owner_id))
+        """,
+    ),
+]
+
+
 PEAR_RLS_POLICIES: list[PGPolicy] = [
     *_PROFILES,
     *_DATING_PROFILES,
@@ -560,6 +529,7 @@ PEAR_RLS_POLICIES: list[PGPolicy] = [
     *_MATCHES,
     *_MESSAGES,
     *_PROFILE_REPORTS,
+    *_MEDIA,
 ]
 
 

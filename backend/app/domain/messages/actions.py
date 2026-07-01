@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from enum import StrEnum
+from typing import ClassVar
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.matches.models import Match
@@ -22,6 +25,12 @@ from app.platform.actions.schemas import ActionExecutionResponse
 
 # ── Action group ──────────────────────────────────────────────────────────────
 
+
+class MessageActionKey(StrEnum):
+    SEND = "send"
+    MARK_READ = "mark_read"
+
+
 message_actions = action_group_factory(
     ActionGroupType.MESSAGE_ACTIONS,
     default_invalidation="messages",
@@ -39,7 +48,7 @@ def _viewer_in_match(match: Match, deps: ActionDeps) -> bool:
 
 @message_actions
 class SendMessage(BaseObjectAction[Match, SendMessageData]):
-    action_key = "send"
+    action_key: ClassVar[MessageActionKey] = MessageActionKey.SEND
     label = "Send Message"
     icon = ActionIcon.SEND
 
@@ -90,7 +99,7 @@ class SendMessage(BaseObjectAction[Match, SendMessageData]):
 
 @message_actions
 class MarkMessagesRead(BaseObjectAction[Match, EmptyActionData]):
-    action_key = "mark_read"
+    action_key: ClassVar[MessageActionKey] = MessageActionKey.MARK_READ
     label = "Mark Read"
     icon = ActionIcon.CHECK
 

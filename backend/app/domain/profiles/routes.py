@@ -38,7 +38,7 @@ class ProfilesController(Controller):
         row = await fetch_profile(transaction, user.id)
         if row is None:
             raise NotFoundException("Profile not found")
-        url_by_media = await media_service.resolve_urls_system(
+        url_by_media = await media_service.resolve_urls(
             [row.avatar_media_id] if row.avatar_media_id is not None else []
         )
         return row_to_profile(row, url_by_media)
@@ -51,10 +51,10 @@ class ProfilesController(Controller):
         if bundle is None:
             raise NotFoundException("Profile not found")
         profile, base, photos, prompts = bundle
-        # RLS already authorized this read (approved-only photos); resolve every
-        # referenced media id in one batched system-mode pass so a matched viewer
-        # gets the approved photo + avatar URLs without direct media-row access.
-        url_by_media = await media_service.resolve_urls_system(public_media_ids(profile, photos))
+        # The media SELECT policy mirrors profile_photos visibility, so a viewer can
+        # read (and presign) the approved photos + the public avatar under their OWN
+        # scope — no system mode, no elevated media-row access.
+        url_by_media = await media_service.resolve_urls(public_media_ids(profile, photos))
         return bundle_to_public_profile(profile, base, photos, prompts, url_by_media)
 
 
@@ -71,7 +71,7 @@ class DatingProfilesController(Controller):
         if bundle is None:
             return None
         base, photos, prompts = bundle
-        url_by_media = await media_service.resolve_urls_system(own_media_ids(photos, prompts))
+        url_by_media = await media_service.resolve_urls(own_media_ids(photos, prompts))
         return dating_profile_to_own(base, photos, prompts, url_by_media)
 
 

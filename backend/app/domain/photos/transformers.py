@@ -4,8 +4,14 @@ from datetime import datetime
 from uuid import UUID
 
 from app.domain.photos.models import ProfilePhoto
-from app.domain.photos.queries import PhotoRow
-from app.domain.photos.schemas import Photo, PhotoSuggesterRef
+from app.domain.photos.queries import PhotoRow, SuggestedPhotoRow
+from app.domain.photos.schemas import (
+    Photo,
+    PhotoSuggesterRef,
+    SuggestedPhoto,
+    SuggestedPhotoStatus,
+)
+from app.platform.media.client import BaseMediaClient
 
 
 def _iso(value: datetime | None) -> str | None:
@@ -36,3 +42,28 @@ def photo_to_dto(photo: ProfilePhoto, suggester_name: str | None, url: str | Non
 def photos_to_dtos(rows: list[PhotoRow], url_by_media: dict[UUID, str]) -> list[Photo]:
     """Map a batch of photo rows to DTOs, each carrying its resolved media URL."""
     return [photo_to_dto(photo, name, url_by_media.get(photo.media_id)) for photo, name in rows]
+
+
+def _suggested_status(row: SuggestedPhotoRow) -> SuggestedPhotoStatus:
+    if row.rejected_at is not None:
+        return "not_accepted"
+    if row.approved_at is not None:
+        return "approved"
+    return "pending"
+
+
+async def suggested_photo_to_dto(row: SuggestedPhotoRow, media: BaseMediaClient) -> SuggestedPhoto:
+    """Map a photo the caller suggested to its wire DTO, presigning its media key.
+
+    `storage_url` holds the photo media's servable S3 key; serve a presigned GET
+    URL. The read is scoped to the caller's OWN suggestions (`suggester_id = me`),
+    so the visibility gate holds.
+    """
+    return SuggestedPhoto(
+        id=row.id,
+        daterId=row.dater_id,
+        daterName=row.dater_name or "",
+        storageUrl=await media.presign_download(row.storage_url),
+        status=_suggested_status(row),
+        createdAt=row.created_at.isoformat() if row.created_at is not None else "",
+    )

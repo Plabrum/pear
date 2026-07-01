@@ -11,6 +11,7 @@ from app.domain.contacts.schemas import (
     WingerSummary,
     WingingForDater,
     WingingForRow,
+    WingingForTab,
     Wingperson,
 )
 from app.domain.dating_profiles.enums import Interest
@@ -68,6 +69,15 @@ class SentInvitationRow:
     winger_chosen_name: str | None
 
 
+@dataclass
+class WingingForTabRow:
+    """A dater the caller actively wings for — the minimal `{id, name}` tab projection."""
+
+    id: UUID
+    chosen_name: str | None
+    created_at: datetime | None
+
+
 # ── Row -> struct mappers ────────────────────────────────────────────────────
 
 
@@ -123,3 +133,16 @@ def row_to_sent_invitation(row: SentInvitationRow) -> SentInvitation:
             DaterSummary(id=row.winger_id, chosenName=row.winger_chosen_name) if row.winger_id is not None else None
         ),
     )
+
+
+def rows_to_winging_for_tabs(rows: list[WingingForTabRow]) -> list[WingingForTab]:
+    """Collapse the active-edge rows to distinct daters, preserving first-seen order."""
+    seen: set[str] = set()
+    tabs: list[WingingForTab] = []
+    for row in rows:
+        key = str(row.id)
+        if key in seen:
+            continue
+        seen.add(key)
+        tabs.append(WingingForTab(id=row.id, name=row.chosen_name or ""))
+    return tabs

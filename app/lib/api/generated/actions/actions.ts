@@ -19,7 +19,6 @@ import type {
 
 import type {
   AcceptInviteAction,
-  ActOnSuggestionAction,
   ActionExecutionResponse,
   ActionGroupType,
   ActionListResponse,
@@ -33,19 +32,20 @@ import type {
   CreatePhotoAction,
   CreateProfilePromptAction,
   CreatePromptResponseAction,
-  CreateSuggestionAction,
   DeclineInviteAction,
   DeletePhotoAction,
   DeleteProfilePromptAction,
   DeletePromptResponseAction,
-  FileReportAction,
   InviteWingpersonAction,
+  LikeAction,
   MarkMessagesReadAction,
-  RecordDirectDecisionAction,
+  PassAction,
   RejectPhotoAction,
   RemoveWingpersonAction,
   ReorderPhotoAction,
+  ReportAction,
   SendMessageAction,
+  SuggestAction,
   UpdateDatingProfileAction,
   UpdateProfileAction,
 } from '../model';
@@ -207,16 +207,17 @@ export const getApiActionsActionGroupExecuteActionUrl = (actionGroup: ActionGrou
 
 export const apiActionsActionGroupExecuteAction = async (
   actionGroup: ActionGroupType,
-  sendMessageActionMarkMessagesReadActionInviteWingpersonActionAcceptInviteActionDeclineInviteActionRemoveWingpersonActionRecordDirectDecisionActionActOnSuggestionActionCreateSuggestionActionCreateProfilePromptActionDeleteProfilePromptActionCreatePromptResponseActionApprovePromptResponseActionDeletePromptResponseActionUpdateProfileActionCreateDatingProfileActionUpdateDatingProfileActionCreatePhotoActionApprovePhotoActionRejectPhotoActionDeletePhotoActionReorderPhotoActionFileReportAction:
+  sendMessageActionMarkMessagesReadActionLikeActionPassActionSuggestActionReportActionInviteWingpersonActionAcceptInviteActionDeclineInviteActionRemoveWingpersonActionCreateProfilePromptActionDeleteProfilePromptActionCreatePromptResponseActionApprovePromptResponseActionDeletePromptResponseActionUpdateProfileActionCreateDatingProfileActionUpdateDatingProfileActionCreatePhotoActionApprovePhotoActionRejectPhotoActionDeletePhotoActionReorderPhotoAction:
     | SendMessageAction
     | MarkMessagesReadAction
+    | LikeAction
+    | PassAction
+    | SuggestAction
+    | ReportAction
     | InviteWingpersonAction
     | AcceptInviteAction
     | DeclineInviteAction
     | RemoveWingpersonAction
-    | RecordDirectDecisionAction
-    | ActOnSuggestionAction
-    | CreateSuggestionAction
     | CreateProfilePromptAction
     | DeleteProfilePromptAction
     | CreatePromptResponseAction
@@ -229,8 +230,7 @@ export const apiActionsActionGroupExecuteAction = async (
     | ApprovePhotoAction
     | RejectPhotoAction
     | DeletePhotoAction
-    | ReorderPhotoAction
-    | FileReportAction,
+    | ReorderPhotoAction,
   options?: RequestInit
 ): Promise<ActionExecutionResponse> => {
   return pearFetch<ActionExecutionResponse>(getApiActionsActionGroupExecuteActionUrl(actionGroup), {
@@ -238,7 +238,7 @@ export const apiActionsActionGroupExecuteAction = async (
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     body: JSON.stringify(
-      sendMessageActionMarkMessagesReadActionInviteWingpersonActionAcceptInviteActionDeclineInviteActionRemoveWingpersonActionRecordDirectDecisionActionActOnSuggestionActionCreateSuggestionActionCreateProfilePromptActionDeleteProfilePromptActionCreatePromptResponseActionApprovePromptResponseActionDeletePromptResponseActionUpdateProfileActionCreateDatingProfileActionUpdateDatingProfileActionCreatePhotoActionApprovePhotoActionRejectPhotoActionDeletePhotoActionReorderPhotoActionFileReportAction
+      sendMessageActionMarkMessagesReadActionLikeActionPassActionSuggestActionReportActionInviteWingpersonActionAcceptInviteActionDeclineInviteActionRemoveWingpersonActionCreateProfilePromptActionDeleteProfilePromptActionCreatePromptResponseActionApprovePromptResponseActionDeletePromptResponseActionUpdateProfileActionCreateDatingProfileActionUpdateDatingProfileActionCreatePhotoActionApprovePhotoActionRejectPhotoActionDeletePhotoActionReorderPhotoAction
     ),
   });
 };
@@ -255,13 +255,14 @@ export const getApiActionsActionGroupExecuteActionMutationOptions = <
       data:
         | SendMessageAction
         | MarkMessagesReadAction
+        | LikeAction
+        | PassAction
+        | SuggestAction
+        | ReportAction
         | InviteWingpersonAction
         | AcceptInviteAction
         | DeclineInviteAction
         | RemoveWingpersonAction
-        | RecordDirectDecisionAction
-        | ActOnSuggestionAction
-        | CreateSuggestionAction
         | CreateProfilePromptAction
         | DeleteProfilePromptAction
         | CreatePromptResponseAction
@@ -274,8 +275,7 @@ export const getApiActionsActionGroupExecuteActionMutationOptions = <
         | ApprovePhotoAction
         | RejectPhotoAction
         | DeletePhotoAction
-        | ReorderPhotoAction
-        | FileReportAction;
+        | ReorderPhotoAction;
     },
     TContext
   >;
@@ -288,13 +288,14 @@ export const getApiActionsActionGroupExecuteActionMutationOptions = <
     data:
       | SendMessageAction
       | MarkMessagesReadAction
+      | LikeAction
+      | PassAction
+      | SuggestAction
+      | ReportAction
       | InviteWingpersonAction
       | AcceptInviteAction
       | DeclineInviteAction
       | RemoveWingpersonAction
-      | RecordDirectDecisionAction
-      | ActOnSuggestionAction
-      | CreateSuggestionAction
       | CreateProfilePromptAction
       | DeleteProfilePromptAction
       | CreatePromptResponseAction
@@ -307,8 +308,7 @@ export const getApiActionsActionGroupExecuteActionMutationOptions = <
       | ApprovePhotoAction
       | RejectPhotoAction
       | DeletePhotoAction
-      | ReorderPhotoAction
-      | FileReportAction;
+      | ReorderPhotoAction;
   },
   TContext
 > => {
@@ -326,13 +326,14 @@ export const getApiActionsActionGroupExecuteActionMutationOptions = <
       data:
         | SendMessageAction
         | MarkMessagesReadAction
+        | LikeAction
+        | PassAction
+        | SuggestAction
+        | ReportAction
         | InviteWingpersonAction
         | AcceptInviteAction
         | DeclineInviteAction
         | RemoveWingpersonAction
-        | RecordDirectDecisionAction
-        | ActOnSuggestionAction
-        | CreateSuggestionAction
         | CreateProfilePromptAction
         | DeleteProfilePromptAction
         | CreatePromptResponseAction
@@ -345,8 +346,7 @@ export const getApiActionsActionGroupExecuteActionMutationOptions = <
         | ApprovePhotoAction
         | RejectPhotoAction
         | DeletePhotoAction
-        | ReorderPhotoAction
-        | FileReportAction;
+        | ReorderPhotoAction;
     }
   > = (props) => {
     const { actionGroup, data } = props ?? {};
@@ -363,13 +363,14 @@ export type ApiActionsActionGroupExecuteActionMutationResult = NonNullable<
 export type ApiActionsActionGroupExecuteActionMutationBody =
   | SendMessageAction
   | MarkMessagesReadAction
+  | LikeAction
+  | PassAction
+  | SuggestAction
+  | ReportAction
   | InviteWingpersonAction
   | AcceptInviteAction
   | DeclineInviteAction
   | RemoveWingpersonAction
-  | RecordDirectDecisionAction
-  | ActOnSuggestionAction
-  | CreateSuggestionAction
   | CreateProfilePromptAction
   | DeleteProfilePromptAction
   | CreatePromptResponseAction
@@ -382,8 +383,7 @@ export type ApiActionsActionGroupExecuteActionMutationBody =
   | ApprovePhotoAction
   | RejectPhotoAction
   | DeletePhotoAction
-  | ReorderPhotoAction
-  | FileReportAction;
+  | ReorderPhotoAction;
 export type ApiActionsActionGroupExecuteActionMutationError = ApiActionsActionGroupExecuteAction400;
 
 /**
@@ -402,13 +402,14 @@ export const useApiActionsActionGroupExecuteAction = <
         data:
           | SendMessageAction
           | MarkMessagesReadAction
+          | LikeAction
+          | PassAction
+          | SuggestAction
+          | ReportAction
           | InviteWingpersonAction
           | AcceptInviteAction
           | DeclineInviteAction
           | RemoveWingpersonAction
-          | RecordDirectDecisionAction
-          | ActOnSuggestionAction
-          | CreateSuggestionAction
           | CreateProfilePromptAction
           | DeleteProfilePromptAction
           | CreatePromptResponseAction
@@ -421,8 +422,7 @@ export const useApiActionsActionGroupExecuteAction = <
           | ApprovePhotoAction
           | RejectPhotoAction
           | DeletePhotoAction
-          | ReorderPhotoAction
-          | FileReportAction;
+          | ReorderPhotoAction;
       },
       TContext
     >;
@@ -437,13 +437,14 @@ export const useApiActionsActionGroupExecuteAction = <
     data:
       | SendMessageAction
       | MarkMessagesReadAction
+      | LikeAction
+      | PassAction
+      | SuggestAction
+      | ReportAction
       | InviteWingpersonAction
       | AcceptInviteAction
       | DeclineInviteAction
       | RemoveWingpersonAction
-      | RecordDirectDecisionAction
-      | ActOnSuggestionAction
-      | CreateSuggestionAction
       | CreateProfilePromptAction
       | DeleteProfilePromptAction
       | CreatePromptResponseAction
@@ -456,8 +457,7 @@ export const useApiActionsActionGroupExecuteAction = <
       | ApprovePhotoAction
       | RejectPhotoAction
       | DeletePhotoAction
-      | ReorderPhotoAction
-      | FileReportAction;
+      | ReorderPhotoAction;
   },
   TContext
 > => {
@@ -641,16 +641,17 @@ export const getApiActionsActionGroupObjectIdExecuteObjectActionUrl = (
 export const apiActionsActionGroupObjectIdExecuteObjectAction = async (
   actionGroup: ActionGroupType,
   objectId: string,
-  sendMessageActionMarkMessagesReadActionInviteWingpersonActionAcceptInviteActionDeclineInviteActionRemoveWingpersonActionRecordDirectDecisionActionActOnSuggestionActionCreateSuggestionActionCreateProfilePromptActionDeleteProfilePromptActionCreatePromptResponseActionApprovePromptResponseActionDeletePromptResponseActionUpdateProfileActionCreateDatingProfileActionUpdateDatingProfileActionCreatePhotoActionApprovePhotoActionRejectPhotoActionDeletePhotoActionReorderPhotoActionFileReportAction:
+  sendMessageActionMarkMessagesReadActionLikeActionPassActionSuggestActionReportActionInviteWingpersonActionAcceptInviteActionDeclineInviteActionRemoveWingpersonActionCreateProfilePromptActionDeleteProfilePromptActionCreatePromptResponseActionApprovePromptResponseActionDeletePromptResponseActionUpdateProfileActionCreateDatingProfileActionUpdateDatingProfileActionCreatePhotoActionApprovePhotoActionRejectPhotoActionDeletePhotoActionReorderPhotoAction:
     | SendMessageAction
     | MarkMessagesReadAction
+    | LikeAction
+    | PassAction
+    | SuggestAction
+    | ReportAction
     | InviteWingpersonAction
     | AcceptInviteAction
     | DeclineInviteAction
     | RemoveWingpersonAction
-    | RecordDirectDecisionAction
-    | ActOnSuggestionAction
-    | CreateSuggestionAction
     | CreateProfilePromptAction
     | DeleteProfilePromptAction
     | CreatePromptResponseAction
@@ -663,8 +664,7 @@ export const apiActionsActionGroupObjectIdExecuteObjectAction = async (
     | ApprovePhotoAction
     | RejectPhotoAction
     | DeletePhotoAction
-    | ReorderPhotoAction
-    | FileReportAction,
+    | ReorderPhotoAction,
   options?: RequestInit
 ): Promise<ActionExecutionResponse> => {
   return pearFetch<ActionExecutionResponse>(
@@ -674,7 +674,7 @@ export const apiActionsActionGroupObjectIdExecuteObjectAction = async (
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...options?.headers },
       body: JSON.stringify(
-        sendMessageActionMarkMessagesReadActionInviteWingpersonActionAcceptInviteActionDeclineInviteActionRemoveWingpersonActionRecordDirectDecisionActionActOnSuggestionActionCreateSuggestionActionCreateProfilePromptActionDeleteProfilePromptActionCreatePromptResponseActionApprovePromptResponseActionDeletePromptResponseActionUpdateProfileActionCreateDatingProfileActionUpdateDatingProfileActionCreatePhotoActionApprovePhotoActionRejectPhotoActionDeletePhotoActionReorderPhotoActionFileReportAction
+        sendMessageActionMarkMessagesReadActionLikeActionPassActionSuggestActionReportActionInviteWingpersonActionAcceptInviteActionDeclineInviteActionRemoveWingpersonActionCreateProfilePromptActionDeleteProfilePromptActionCreatePromptResponseActionApprovePromptResponseActionDeletePromptResponseActionUpdateProfileActionCreateDatingProfileActionUpdateDatingProfileActionCreatePhotoActionApprovePhotoActionRejectPhotoActionDeletePhotoActionReorderPhotoAction
       ),
     }
   );
@@ -693,13 +693,14 @@ export const getApiActionsActionGroupObjectIdExecuteObjectActionMutationOptions 
       data:
         | SendMessageAction
         | MarkMessagesReadAction
+        | LikeAction
+        | PassAction
+        | SuggestAction
+        | ReportAction
         | InviteWingpersonAction
         | AcceptInviteAction
         | DeclineInviteAction
         | RemoveWingpersonAction
-        | RecordDirectDecisionAction
-        | ActOnSuggestionAction
-        | CreateSuggestionAction
         | CreateProfilePromptAction
         | DeleteProfilePromptAction
         | CreatePromptResponseAction
@@ -712,8 +713,7 @@ export const getApiActionsActionGroupObjectIdExecuteObjectActionMutationOptions 
         | ApprovePhotoAction
         | RejectPhotoAction
         | DeletePhotoAction
-        | ReorderPhotoAction
-        | FileReportAction;
+        | ReorderPhotoAction;
     },
     TContext
   >;
@@ -727,13 +727,14 @@ export const getApiActionsActionGroupObjectIdExecuteObjectActionMutationOptions 
     data:
       | SendMessageAction
       | MarkMessagesReadAction
+      | LikeAction
+      | PassAction
+      | SuggestAction
+      | ReportAction
       | InviteWingpersonAction
       | AcceptInviteAction
       | DeclineInviteAction
       | RemoveWingpersonAction
-      | RecordDirectDecisionAction
-      | ActOnSuggestionAction
-      | CreateSuggestionAction
       | CreateProfilePromptAction
       | DeleteProfilePromptAction
       | CreatePromptResponseAction
@@ -746,8 +747,7 @@ export const getApiActionsActionGroupObjectIdExecuteObjectActionMutationOptions 
       | ApprovePhotoAction
       | RejectPhotoAction
       | DeletePhotoAction
-      | ReorderPhotoAction
-      | FileReportAction;
+      | ReorderPhotoAction;
   },
   TContext
 > => {
@@ -766,13 +766,14 @@ export const getApiActionsActionGroupObjectIdExecuteObjectActionMutationOptions 
       data:
         | SendMessageAction
         | MarkMessagesReadAction
+        | LikeAction
+        | PassAction
+        | SuggestAction
+        | ReportAction
         | InviteWingpersonAction
         | AcceptInviteAction
         | DeclineInviteAction
         | RemoveWingpersonAction
-        | RecordDirectDecisionAction
-        | ActOnSuggestionAction
-        | CreateSuggestionAction
         | CreateProfilePromptAction
         | DeleteProfilePromptAction
         | CreatePromptResponseAction
@@ -785,8 +786,7 @@ export const getApiActionsActionGroupObjectIdExecuteObjectActionMutationOptions 
         | ApprovePhotoAction
         | RejectPhotoAction
         | DeletePhotoAction
-        | ReorderPhotoAction
-        | FileReportAction;
+        | ReorderPhotoAction;
     }
   > = (props) => {
     const { actionGroup, objectId, data } = props ?? {};
@@ -808,13 +808,14 @@ export type ApiActionsActionGroupObjectIdExecuteObjectActionMutationResult = Non
 export type ApiActionsActionGroupObjectIdExecuteObjectActionMutationBody =
   | SendMessageAction
   | MarkMessagesReadAction
+  | LikeAction
+  | PassAction
+  | SuggestAction
+  | ReportAction
   | InviteWingpersonAction
   | AcceptInviteAction
   | DeclineInviteAction
   | RemoveWingpersonAction
-  | RecordDirectDecisionAction
-  | ActOnSuggestionAction
-  | CreateSuggestionAction
   | CreateProfilePromptAction
   | DeleteProfilePromptAction
   | CreatePromptResponseAction
@@ -827,8 +828,7 @@ export type ApiActionsActionGroupObjectIdExecuteObjectActionMutationBody =
   | ApprovePhotoAction
   | RejectPhotoAction
   | DeletePhotoAction
-  | ReorderPhotoAction
-  | FileReportAction;
+  | ReorderPhotoAction;
 export type ApiActionsActionGroupObjectIdExecuteObjectActionMutationError =
   ApiActionsActionGroupObjectIdExecuteObjectAction400;
 
@@ -849,13 +849,14 @@ export const useApiActionsActionGroupObjectIdExecuteObjectAction = <
         data:
           | SendMessageAction
           | MarkMessagesReadAction
+          | LikeAction
+          | PassAction
+          | SuggestAction
+          | ReportAction
           | InviteWingpersonAction
           | AcceptInviteAction
           | DeclineInviteAction
           | RemoveWingpersonAction
-          | RecordDirectDecisionAction
-          | ActOnSuggestionAction
-          | CreateSuggestionAction
           | CreateProfilePromptAction
           | DeleteProfilePromptAction
           | CreatePromptResponseAction
@@ -868,8 +869,7 @@ export const useApiActionsActionGroupObjectIdExecuteObjectAction = <
           | ApprovePhotoAction
           | RejectPhotoAction
           | DeletePhotoAction
-          | ReorderPhotoAction
-          | FileReportAction;
+          | ReorderPhotoAction;
       },
       TContext
     >;
@@ -885,13 +885,14 @@ export const useApiActionsActionGroupObjectIdExecuteObjectAction = <
     data:
       | SendMessageAction
       | MarkMessagesReadAction
+      | LikeAction
+      | PassAction
+      | SuggestAction
+      | ReportAction
       | InviteWingpersonAction
       | AcceptInviteAction
       | DeclineInviteAction
       | RemoveWingpersonAction
-      | RecordDirectDecisionAction
-      | ActOnSuggestionAction
-      | CreateSuggestionAction
       | CreateProfilePromptAction
       | DeleteProfilePromptAction
       | CreatePromptResponseAction
@@ -904,8 +905,7 @@ export const useApiActionsActionGroupObjectIdExecuteObjectAction = <
       | ApprovePhotoAction
       | RejectPhotoAction
       | DeletePhotoAction
-      | ReorderPhotoAction
-      | FileReportAction;
+      | ReorderPhotoAction;
   },
   TContext
 > => {

@@ -14,7 +14,13 @@ import type {
   UseSuspenseQueryResult,
 } from '@tanstack/react-query';
 
-import type { ProfilePrompt, PromptTemplate } from '../model';
+import type {
+  AuthoredPromptResponse,
+  GetApiPromptResponsesMe400,
+  GetApiPromptResponsesMeParams,
+  ProfilePrompt,
+  PromptTemplate,
+} from '../model';
 
 import { pearFetch } from '../../http';
 
@@ -358,6 +364,137 @@ export function useGetApiProfilePromptsMeSuspense<
   queryClient?: QueryClient
 ): UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getGetApiProfilePromptsMeSuspenseQueryOptions(options);
+
+  const query = useSuspenseQuery(queryOptions, queryClient) as UseSuspenseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary AuthoredResponses
+ */
+export const getGetApiPromptResponsesMeUrl = (params?: GetApiPromptResponsesMeParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/prompt-responses/me?${stringifiedParams}`
+    : `/api/prompt-responses/me`;
+};
+
+export const getApiPromptResponsesMe = async (
+  params?: GetApiPromptResponsesMeParams,
+  options?: RequestInit
+): Promise<AuthoredPromptResponse[]> => {
+  return pearFetch<AuthoredPromptResponse[]>(getGetApiPromptResponsesMeUrl(params), {
+    ...options,
+    method: 'GET',
+  });
+};
+
+export const getGetApiPromptResponsesMeQueryKey = (params?: GetApiPromptResponsesMeParams) => {
+  return [`/api/prompt-responses/me`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetApiPromptResponsesMeSuspenseQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiPromptResponsesMe>>,
+  TError = GetApiPromptResponsesMe400,
+>(
+  params?: GetApiPromptResponsesMeParams,
+  options?: {
+    query?: Partial<
+      UseSuspenseQueryOptions<Awaited<ReturnType<typeof getApiPromptResponsesMe>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof pearFetch>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetApiPromptResponsesMeQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiPromptResponsesMe>>> = ({
+    signal,
+  }) => getApiPromptResponsesMe(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseSuspenseQueryOptions<
+    Awaited<ReturnType<typeof getApiPromptResponsesMe>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetApiPromptResponsesMeSuspenseQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiPromptResponsesMe>>
+>;
+export type GetApiPromptResponsesMeSuspenseQueryError = GetApiPromptResponsesMe400;
+
+export function useGetApiPromptResponsesMeSuspense<
+  TData = Awaited<ReturnType<typeof getApiPromptResponsesMe>>,
+  TError = GetApiPromptResponsesMe400,
+>(
+  params: undefined | GetApiPromptResponsesMeParams,
+  options: {
+    query: Partial<
+      UseSuspenseQueryOptions<Awaited<ReturnType<typeof getApiPromptResponsesMe>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof pearFetch>;
+  },
+  queryClient?: QueryClient
+): UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetApiPromptResponsesMeSuspense<
+  TData = Awaited<ReturnType<typeof getApiPromptResponsesMe>>,
+  TError = GetApiPromptResponsesMe400,
+>(
+  params?: GetApiPromptResponsesMeParams,
+  options?: {
+    query?: Partial<
+      UseSuspenseQueryOptions<Awaited<ReturnType<typeof getApiPromptResponsesMe>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof pearFetch>;
+  },
+  queryClient?: QueryClient
+): UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetApiPromptResponsesMeSuspense<
+  TData = Awaited<ReturnType<typeof getApiPromptResponsesMe>>,
+  TError = GetApiPromptResponsesMe400,
+>(
+  params?: GetApiPromptResponsesMeParams,
+  options?: {
+    query?: Partial<
+      UseSuspenseQueryOptions<Awaited<ReturnType<typeof getApiPromptResponsesMe>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof pearFetch>;
+  },
+  queryClient?: QueryClient
+): UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary AuthoredResponses
+ */
+
+export function useGetApiPromptResponsesMeSuspense<
+  TData = Awaited<ReturnType<typeof getApiPromptResponsesMe>>,
+  TError = GetApiPromptResponsesMe400,
+>(
+  params?: GetApiPromptResponsesMeParams,
+  options?: {
+    query?: Partial<
+      UseSuspenseQueryOptions<Awaited<ReturnType<typeof getApiPromptResponsesMe>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof pearFetch>;
+  },
+  queryClient?: QueryClient
+): UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetApiPromptResponsesMeSuspenseQueryOptions(params, options);
 
   const query = useSuspenseQuery(queryOptions, queryClient) as UseSuspenseQueryResult<
     TData,

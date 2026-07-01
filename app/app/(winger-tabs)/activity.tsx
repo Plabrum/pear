@@ -9,15 +9,13 @@ import { FaceAvatar } from '@/components/ui/FaceAvatar';
 import ScreenSuspense from '@/components/ui/ScreenSuspense';
 import { cn } from '@/lib/cn';
 import { getPhotoUrl } from '@/lib/photos';
-import {
-  useGetApiWingerActivityPeopleSuspense,
-  useGetApiWingerActivityPhotosSuspense,
-  useGetApiWingerActivityPromptsSuspense,
-} from '@/lib/api/generated/winger-activity/winger-activity';
+import { useGetApiDecisionsMySuggestionsSuspense } from '@/lib/api/generated/decisions/decisions';
+import { useGetApiPhotosSuggestedSuspense } from '@/lib/api/generated/photos/photos';
+import { useGetApiPromptResponsesMeSuspense } from '@/lib/api/generated/prompts/prompts';
 import type {
-  PeopleActivityRow,
-  PhotoActivityRow,
-  PromptActivityRow,
+  MySuggestion,
+  SuggestedPhoto,
+  AuthoredPromptResponse,
 } from '@/lib/api/generated/model';
 
 function formatRelativeTime(iso: string): string {
@@ -62,7 +60,7 @@ function StatusPill({ label, variant }: { label: string; variant: PillVariant })
 
 type ActivityMeta = { label: string; variant: PillVariant; message: string };
 
-function peopleMeta(item: PeopleActivityRow): ActivityMeta {
+function peopleMeta(item: MySuggestion): ActivityMeta {
   switch (item.status) {
     case 'matched':
       return { label: 'Matched', variant: 'positive', message: 'Your pick became a match.' };
@@ -81,7 +79,7 @@ function peopleMeta(item: PeopleActivityRow): ActivityMeta {
   }
 }
 
-function photoMeta(item: PhotoActivityRow): ActivityMeta {
+function photoMeta(item: SuggestedPhoto): ActivityMeta {
   switch (item.status) {
     case 'approved':
       return { label: 'Approved', variant: 'positive', message: 'Photo suggestion was approved.' };
@@ -100,7 +98,10 @@ function photoMeta(item: PhotoActivityRow): ActivityMeta {
   }
 }
 
-function promptPill(status: PromptActivityRow['status']): { label: string; variant: PillVariant } {
+function promptPill(status: AuthoredPromptResponse['status']): {
+  label: string;
+  variant: PillVariant;
+} {
   switch (status) {
     case 'accepted':
       return { label: 'Accepted', variant: 'positive' };
@@ -146,7 +147,7 @@ function EmptyState({ message }: { message: string }) {
 }
 
 function PeopleTab() {
-  const { data } = useGetApiWingerActivityPeopleSuspense();
+  const { data } = useGetApiDecisionsMySuggestionsSuspense();
 
   if (data.length === 0) {
     return <EmptyState message="Profiles you suggest as matches will appear here." />;
@@ -154,7 +155,7 @@ function PeopleTab() {
 
   return (
     <View style={{ gap: 8 }}>
-      {data.map((item: PeopleActivityRow) => {
+      {data.map((item: MySuggestion) => {
         const meta = peopleMeta(item);
         return (
           <Card key={item.id} muted={item.status === 'not_accepted'}>
@@ -182,7 +183,7 @@ function PeopleTab() {
 }
 
 function PhotosTab() {
-  const { data } = useGetApiWingerActivityPhotosSuspense();
+  const { data } = useGetApiPhotosSuggestedSuspense();
 
   if (data.length === 0) {
     return <EmptyState message="Photos you suggest for a dater's profile will appear here." />;
@@ -190,7 +191,7 @@ function PhotosTab() {
 
   return (
     <View style={{ gap: 8 }}>
-      {data.map((item: PhotoActivityRow) => {
+      {data.map((item: SuggestedPhoto) => {
         const meta = photoMeta(item);
         const photoUrl = getPhotoUrl(item.storageUrl);
         return (
@@ -230,7 +231,7 @@ function PhotosTab() {
 }
 
 function PromptsTab() {
-  const { data } = useGetApiWingerActivityPromptsSuspense();
+  const { data } = useGetApiPromptResponsesMeSuspense();
 
   if (data.length === 0) {
     return <EmptyState message="Prompt responses you write for daters will appear here." />;
@@ -238,7 +239,7 @@ function PromptsTab() {
 
   return (
     <View style={{ gap: 8 }}>
-      {data.map((item: PromptActivityRow) => {
+      {data.map((item: AuthoredPromptResponse) => {
         const pill = promptPill(item.status);
         return (
           <Card key={item.id} muted={item.status === 'not_accepted'}>

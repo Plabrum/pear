@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import asc, select
+from sqlalchemy import asc, desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -11,9 +13,62 @@ from app.domain.contacts.models import Contact
 from app.domain.dating_profiles.models import DatingProfile
 from app.domain.photos.models import ProfilePhoto
 from app.domain.profiles.models import Profile
+from app.platform.media.queries import servable_key_expr
 
 # A loaded photo plus the suggester's chosen name (None when self-uploaded).
 PhotoRow = tuple[ProfilePhoto, str | None]
+
+
+@dataclass
+class SuggestedPhotoRow:
+    """A photo the caller suggested for a dater, plus that dater's name + status."""
+
+    id: UUID
+    dater_id: UUID
+    dater_name: str | None
+    storage_url: str
+    approved_at: datetime | None
+    rejected_at: datetime | None
+    created_at: datetime | None
+
+
+async def fetch_suggested_photos(db: AsyncSession, suggester_id: UUID, limit: int) -> list[SuggestedPhotoRow]:
+    """Photos the caller suggested (`suggester_id = me`) + their approval status, newest first.
+
+    Each row joins the photo's dating profile to its owning dater for the dater's
+    name; `storage_url` is the photo media's servable S3 key (presigned downstream).
+    """
+    rows = (
+        await db.execute(
+            select(
+                ProfilePhoto.id,
+                DatingProfile.user_id,
+                Profile.chosen_name,
+                servable_key_expr(ProfilePhoto.media_id).label("storage_url"),
+                ProfilePhoto.approved_at,
+                ProfilePhoto.rejected_at,
+                ProfilePhoto.created_at,
+            )
+            .join(DatingProfile, DatingProfile.id == ProfilePhoto.dating_profile_id)
+            .join(Profile, Profile.id == DatingProfile.user_id)
+            .where(ProfilePhoto.suggester_id == suggester_id)
+            .order_by(desc(ProfilePhoto.created_at))
+            .limit(limit)
+        )
+    ).all()
+
+    return [
+        SuggestedPhotoRow(
+            id=photo_id,
+            dater_id=dater_id,
+            dater_name=dater_name,
+            storage_url=storage_url,
+            approved_at=approved_at,
+            rejected_at=rejected_at,
+            created_at=created_at,
+        )
+        for (photo_id, dater_id, dater_name, storage_url, approved_at, rejected_at, created_at) in rows
+    ]
 
 
 async def fetch_own_photos(db: AsyncSession, user_id: UUID) -> list[PhotoRow]:

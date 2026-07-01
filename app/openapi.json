@@ -571,6 +571,18 @@
                     "$ref": "#/components/schemas/MarkMessagesReadAction"
                   },
                   {
+                    "$ref": "#/components/schemas/LikeAction"
+                  },
+                  {
+                    "$ref": "#/components/schemas/PassAction"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SuggestAction"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ReportAction"
+                  },
+                  {
                     "$ref": "#/components/schemas/InviteWingpersonAction"
                   },
                   {
@@ -581,15 +593,6 @@
                   },
                   {
                     "$ref": "#/components/schemas/RemoveWingpersonAction"
-                  },
-                  {
-                    "$ref": "#/components/schemas/RecordDirectDecisionAction"
-                  },
-                  {
-                    "$ref": "#/components/schemas/ActOnSuggestionAction"
-                  },
-                  {
-                    "$ref": "#/components/schemas/CreateSuggestionAction"
                   },
                   {
                     "$ref": "#/components/schemas/CreateProfilePromptAction"
@@ -629,9 +632,6 @@
                   },
                   {
                     "$ref": "#/components/schemas/ReorderPhotoAction"
-                  },
-                  {
-                    "$ref": "#/components/schemas/FileReportAction"
                   }
                 ]
               }
@@ -815,6 +815,18 @@
                     "$ref": "#/components/schemas/MarkMessagesReadAction"
                   },
                   {
+                    "$ref": "#/components/schemas/LikeAction"
+                  },
+                  {
+                    "$ref": "#/components/schemas/PassAction"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SuggestAction"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ReportAction"
+                  },
+                  {
                     "$ref": "#/components/schemas/InviteWingpersonAction"
                   },
                   {
@@ -825,15 +837,6 @@
                   },
                   {
                     "$ref": "#/components/schemas/RemoveWingpersonAction"
-                  },
-                  {
-                    "$ref": "#/components/schemas/RecordDirectDecisionAction"
-                  },
-                  {
-                    "$ref": "#/components/schemas/ActOnSuggestionAction"
-                  },
-                  {
-                    "$ref": "#/components/schemas/CreateSuggestionAction"
                   },
                   {
                     "$ref": "#/components/schemas/CreateProfilePromptAction"
@@ -873,9 +876,6 @@
                   },
                   {
                     "$ref": "#/components/schemas/ReorderPhotoAction"
-                  },
-                  {
-                    "$ref": "#/components/schemas/FileReportAction"
                   }
                 ]
               }
@@ -1063,6 +1063,196 @@
         "deprecated": false
       }
     },
+    "/api/dating-profiles/swipe/count": {
+      "get": {
+        "tags": [
+          "dating-profiles"
+        ],
+        "summary": "GetLikesYouCount",
+        "operationId": "getApiDatingProfilesSwipeCount",
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LikesYouCountResponse"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/api/dating-profiles/swipe": {
+      "get": {
+        "tags": [
+          "dating-profiles"
+        ],
+        "summary": "GetSwipe",
+        "operationId": "getApiDatingProfilesSwipe",
+        "parameters": [
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "maximum": 100.0,
+              "minimum": 1.0,
+              "default": 20
+            },
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          },
+          {
+            "name": "pageOffset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0.0,
+              "default": 0
+            },
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          },
+          {
+            "name": "likesYouOnly",
+            "in": "query",
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          },
+          {
+            "name": "wingerOnly",
+            "in": "query",
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          },
+          {
+            "name": "filterWingerId",
+            "in": "query",
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          },
+          {
+            "name": "daterId",
+            "in": "query",
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SwipeProfile"
+                  },
+                  "type": "array"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
     "/api/wingpeople": {
       "get": {
         "tags": [
@@ -1078,6 +1268,32 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/WingpeopleResponse"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/api/winger-tabs": {
+      "get": {
+        "tags": [
+          "contacts"
+        ],
+        "summary": "GetWingerTabs",
+        "operationId": "getApiWingerTabs",
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/WingingForTab"
+                  },
+                  "type": "array"
                 }
               }
             }
@@ -1104,6 +1320,86 @@
                     "$ref": "#/components/schemas/Photo"
                   },
                   "type": "array"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/api/photos/suggested": {
+      "get": {
+        "tags": [
+          "photos"
+        ],
+        "summary": "ListSuggestedPhotos",
+        "operationId": "getApiPhotosSuggested",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "maximum": 100.0,
+              "minimum": 1.0,
+              "default": 50
+            },
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SuggestedPhoto"
+                  },
+                  "type": "array"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
                 }
               }
             }
@@ -1190,90 +1486,22 @@
         "deprecated": false
       }
     },
-    "/api/discover": {
+    "/api/prompt-responses/me": {
       "get": {
         "tags": [
-          "discover"
+          "prompts"
         ],
-        "summary": "GetDiscover",
-        "operationId": "getApiDiscover",
+        "summary": "AuthoredResponses",
+        "operationId": "getApiPromptResponsesMe",
         "parameters": [
           {
-            "name": "pageSize",
+            "name": "limit",
             "in": "query",
             "schema": {
               "type": "integer",
               "maximum": 100.0,
               "minimum": 1.0,
-              "default": 20
-            },
-            "required": false,
-            "deprecated": false,
-            "allowEmptyValue": false,
-            "allowReserved": false
-          },
-          {
-            "name": "pageOffset",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "minimum": 0.0,
-              "default": 0
-            },
-            "required": false,
-            "deprecated": false,
-            "allowEmptyValue": false,
-            "allowReserved": false
-          },
-          {
-            "name": "filterWingerId",
-            "in": "query",
-            "schema": {
-              "oneOf": [
-                {
-                  "type": "string",
-                  "format": "uuid"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "required": false,
-            "deprecated": false,
-            "allowEmptyValue": false,
-            "allowReserved": false
-          },
-          {
-            "name": "wingerOnly",
-            "in": "query",
-            "schema": {
-              "oneOf": [
-                {
-                  "type": "boolean"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "required": false,
-            "deprecated": false,
-            "allowEmptyValue": false,
-            "allowReserved": false
-          },
-          {
-            "name": "likesYouOnly",
-            "in": "query",
-            "schema": {
-              "oneOf": [
-                {
-                  "type": "boolean"
-                },
-                {
-                  "type": "null"
-                }
-              ]
+              "default": 50
             },
             "required": false,
             "deprecated": false,
@@ -1289,7 +1517,7 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/DiscoverProfile"
+                    "$ref": "#/components/schemas/AuthoredPromptResponse"
                   },
                   "type": "array"
                 }
@@ -1338,47 +1566,22 @@
         "deprecated": false
       }
     },
-    "/api/wing-pool": {
+    "/api/decisions/my-suggestions": {
       "get": {
         "tags": [
-          "wing-pool"
+          "decisions"
         ],
-        "summary": "GetWingPool",
-        "operationId": "getApiWingPool",
+        "summary": "GetMySuggestions",
+        "operationId": "getApiDecisionsMySuggestions",
         "parameters": [
           {
-            "name": "daterId",
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            },
-            "required": true,
-            "deprecated": false,
-            "allowEmptyValue": false,
-            "allowReserved": false
-          },
-          {
-            "name": "pageSize",
+            "name": "limit",
             "in": "query",
             "schema": {
               "type": "integer",
               "maximum": 100.0,
               "minimum": 1.0,
-              "default": 20
-            },
-            "required": false,
-            "deprecated": false,
-            "allowEmptyValue": false,
-            "allowReserved": false
-          },
-          {
-            "name": "pageOffset",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "minimum": 0.0,
-              "default": 0
+              "default": 50
             },
             "required": false,
             "deprecated": false,
@@ -1394,7 +1597,7 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/WingProfile"
+                    "$ref": "#/components/schemas/MySuggestion"
                   },
                   "type": "array"
                 }
@@ -1435,122 +1638,6 @@
                       "extra": {}
                     }
                   ]
-                }
-              }
-            }
-          }
-        },
-        "deprecated": false
-      }
-    },
-    "/api/likes-you": {
-      "get": {
-        "tags": [
-          "likes-you"
-        ],
-        "summary": "GetLikesYou",
-        "operationId": "getApiLikesYou",
-        "parameters": [
-          {
-            "name": "pageSize",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "maximum": 100.0,
-              "minimum": 1.0,
-              "default": 20
-            },
-            "required": false,
-            "deprecated": false,
-            "allowEmptyValue": false,
-            "allowReserved": false
-          },
-          {
-            "name": "pageOffset",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "minimum": 0.0,
-              "default": 0
-            },
-            "required": false,
-            "deprecated": false,
-            "allowEmptyValue": false,
-            "allowReserved": false
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Request fulfilled, document follows",
-            "headers": {},
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/LikesYouProfile"
-                  },
-                  "type": "array"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request syntax or unsupported method",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "status_code": {
-                      "type": "integer"
-                    },
-                    "detail": {
-                      "type": "string"
-                    },
-                    "extra": {
-                      "additionalProperties": {},
-                      "type": [
-                        "null",
-                        "object",
-                        "array"
-                      ]
-                    }
-                  },
-                  "type": "object",
-                  "required": [
-                    "detail",
-                    "status_code"
-                  ],
-                  "description": "Validation Exception",
-                  "examples": [
-                    {
-                      "status_code": 400,
-                      "detail": "Bad Request",
-                      "extra": {}
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "deprecated": false
-      }
-    },
-    "/api/likes-you/count": {
-      "get": {
-        "tags": [
-          "likes-you"
-        ],
-        "summary": "GetLikesYouCount",
-        "operationId": "getApiLikesYouCount",
-        "responses": {
-          "200": {
-            "description": "Request fulfilled, document follows",
-            "headers": {},
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/LikesYouCountResponse"
                 }
               }
             }
@@ -1802,272 +1889,6 @@
                       "extra": {}
                     }
                   ]
-                }
-              }
-            }
-          }
-        },
-        "deprecated": false
-      }
-    },
-    "/api/winger-activity/people": {
-      "get": {
-        "tags": [
-          "winger-activity"
-        ],
-        "summary": "GetPeople",
-        "operationId": "getApiWingerActivityPeople",
-        "parameters": [
-          {
-            "name": "limit",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "maximum": 100.0,
-              "minimum": 1.0,
-              "default": 50
-            },
-            "required": false,
-            "deprecated": false,
-            "allowEmptyValue": false,
-            "allowReserved": false
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Request fulfilled, document follows",
-            "headers": {},
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/PeopleActivityRow"
-                  },
-                  "type": "array"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request syntax or unsupported method",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "status_code": {
-                      "type": "integer"
-                    },
-                    "detail": {
-                      "type": "string"
-                    },
-                    "extra": {
-                      "additionalProperties": {},
-                      "type": [
-                        "null",
-                        "object",
-                        "array"
-                      ]
-                    }
-                  },
-                  "type": "object",
-                  "required": [
-                    "detail",
-                    "status_code"
-                  ],
-                  "description": "Validation Exception",
-                  "examples": [
-                    {
-                      "status_code": 400,
-                      "detail": "Bad Request",
-                      "extra": {}
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "deprecated": false
-      }
-    },
-    "/api/winger-activity/photos": {
-      "get": {
-        "tags": [
-          "winger-activity"
-        ],
-        "summary": "GetPhotos",
-        "operationId": "getApiWingerActivityPhotos",
-        "parameters": [
-          {
-            "name": "limit",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "maximum": 100.0,
-              "minimum": 1.0,
-              "default": 50
-            },
-            "required": false,
-            "deprecated": false,
-            "allowEmptyValue": false,
-            "allowReserved": false
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Request fulfilled, document follows",
-            "headers": {},
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/PhotoActivityRow"
-                  },
-                  "type": "array"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request syntax or unsupported method",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "status_code": {
-                      "type": "integer"
-                    },
-                    "detail": {
-                      "type": "string"
-                    },
-                    "extra": {
-                      "additionalProperties": {},
-                      "type": [
-                        "null",
-                        "object",
-                        "array"
-                      ]
-                    }
-                  },
-                  "type": "object",
-                  "required": [
-                    "detail",
-                    "status_code"
-                  ],
-                  "description": "Validation Exception",
-                  "examples": [
-                    {
-                      "status_code": 400,
-                      "detail": "Bad Request",
-                      "extra": {}
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "deprecated": false
-      }
-    },
-    "/api/winger-activity/prompts": {
-      "get": {
-        "tags": [
-          "winger-activity"
-        ],
-        "summary": "GetPrompts",
-        "operationId": "getApiWingerActivityPrompts",
-        "parameters": [
-          {
-            "name": "limit",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "maximum": 100.0,
-              "minimum": 1.0,
-              "default": 50
-            },
-            "required": false,
-            "deprecated": false,
-            "allowEmptyValue": false,
-            "allowReserved": false
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Request fulfilled, document follows",
-            "headers": {},
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/PromptActivityRow"
-                  },
-                  "type": "array"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request syntax or unsupported method",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "status_code": {
-                      "type": "integer"
-                    },
-                    "detail": {
-                      "type": "string"
-                    },
-                    "extra": {
-                      "additionalProperties": {},
-                      "type": [
-                        "null",
-                        "object",
-                        "array"
-                      ]
-                    }
-                  },
-                  "type": "object",
-                  "required": [
-                    "detail",
-                    "status_code"
-                  ],
-                  "description": "Validation Exception",
-                  "examples": [
-                    {
-                      "status_code": 400,
-                      "detail": "Bad Request",
-                      "extra": {}
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "deprecated": false
-      }
-    },
-    "/api/winger-tabs": {
-      "get": {
-        "tags": [
-          "winger-tabs"
-        ],
-        "summary": "GetWingerTabs",
-        "operationId": "getApiWingerTabs",
-        "responses": {
-          "200": {
-            "description": "Request fulfilled, document follows",
-            "headers": {},
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/WingerTab"
-                  },
-                  "type": "array"
                 }
               }
             }
@@ -2377,40 +2198,6 @@
         ],
         "title": "AcceptInviteAction"
       },
-      "ActOnSuggestionAction": {
-        "properties": {
-          "data": {
-            "$ref": "#/components/schemas/ActSuggestionData"
-          },
-          "action": {
-            "type": "string",
-            "const": "decision_actions__act_suggestion"
-          }
-        },
-        "type": "object",
-        "required": [
-          "action",
-          "data"
-        ],
-        "title": "ActOnSuggestionAction"
-      },
-      "ActSuggestionData": {
-        "properties": {
-          "recipientId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "decision": {
-            "$ref": "#/components/schemas/DecisionType"
-          }
-        },
-        "type": "object",
-        "required": [
-          "decision",
-          "recipientId"
-        ],
-        "title": "ActSuggestionData"
-      },
       "ActionCTA": {
         "properties": {
           "label": {
@@ -2554,13 +2341,12 @@
           "sample_widget_actions",
           "profile_actions",
           "dating_profile_actions",
+          "dating_profile_swipe_actions",
           "contact_actions",
           "photo_actions",
           "profile_prompt_actions",
           "prompt_response_actions",
-          "decision_actions",
-          "message_actions",
-          "report_actions"
+          "message_actions"
         ],
         "title": "ActionGroupType",
         "description": "Types of action groups.\n\nEach domain's `actions.py` adds the member it needs and wires it via\n`action_group_factory`.\n"
@@ -2635,6 +2421,49 @@
           "data"
         ],
         "title": "ApprovePromptResponseAction"
+      },
+      "AuthoredPromptResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "daterId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "daterName": {
+            "type": "string"
+          },
+          "promptQuestion": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "accepted",
+              "pending",
+              "not_accepted"
+            ]
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": [
+          "createdAt",
+          "daterId",
+          "daterName",
+          "id",
+          "message",
+          "promptQuestion",
+          "status"
+        ],
+        "title": "AuthoredPromptResponse"
       },
       "City": {
         "type": "string",
@@ -2953,40 +2782,6 @@
         ],
         "title": "CreatePromptResponseData"
       },
-      "CreateReportData": {
-        "properties": {
-          "recipientId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "reason": {
-            "type": "string"
-          }
-        },
-        "type": "object",
-        "required": [
-          "reason",
-          "recipientId"
-        ],
-        "title": "CreateReportData"
-      },
-      "CreateSuggestionAction": {
-        "properties": {
-          "data": {
-            "$ref": "#/components/schemas/SuggestData"
-          },
-          "action": {
-            "type": "string",
-            "const": "decision_actions__create_suggestion"
-          }
-        },
-        "type": "object",
-        "required": [
-          "action",
-          "data"
-        ],
-        "title": "CreateSuggestionAction"
-      },
       "DaterSummary": {
         "properties": {
           "id": {
@@ -3096,23 +2891,6 @@
         ],
         "title": "DeletePromptResponseAction"
       },
-      "DirectDecisionData": {
-        "properties": {
-          "recipientId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "decision": {
-            "$ref": "#/components/schemas/DecisionType"
-          }
-        },
-        "type": "object",
-        "required": [
-          "decision",
-          "recipientId"
-        ],
-        "title": "DirectDecisionData"
-      },
       "DisabledReason": {
         "properties": {
           "message": {
@@ -3134,110 +2912,6 @@
           "message"
         ],
         "title": "DisabledReason"
-      },
-      "DiscoverProfile": {
-        "properties": {
-          "profileId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "userId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "chosenName": {
-            "type": "string"
-          },
-          "gender": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/Gender"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "age": {
-            "type": "integer"
-          },
-          "city": {
-            "$ref": "#/components/schemas/City"
-          },
-          "bio": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "datingStatus": {
-            "$ref": "#/components/schemas/DatingStatus"
-          },
-          "interests": {
-            "items": {
-              "$ref": "#/components/schemas/Interest"
-            },
-            "type": "array"
-          },
-          "photos": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "wingNote": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "suggestedBy": {
-            "oneOf": [
-              {
-                "type": "string",
-                "format": "uuid"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "suggesterName": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "type": "object",
-        "required": [
-          "age",
-          "bio",
-          "chosenName",
-          "city",
-          "datingStatus",
-          "gender",
-          "interests",
-          "photos",
-          "profileId",
-          "suggestedBy",
-          "suggesterName",
-          "userId",
-          "wingNote"
-        ],
-        "title": "DiscoverProfile"
       },
       "DownloadFileActionResult": {
         "properties": {
@@ -3265,23 +2939,6 @@
         "type": "object",
         "required": [],
         "title": "EmptyActionData"
-      },
-      "FileReportAction": {
-        "properties": {
-          "data": {
-            "$ref": "#/components/schemas/CreateReportData"
-          },
-          "action": {
-            "type": "string",
-            "const": "report_actions__file"
-          }
-        },
-        "type": "object",
-        "required": [
-          "action",
-          "data"
-        ],
-        "title": "FileReportAction"
       },
       "Gender": {
         "type": "string",
@@ -3371,6 +3028,23 @@
         ],
         "title": "InviteWingpersonData"
       },
+      "LikeAction": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/EmptyActionData"
+          },
+          "action": {
+            "type": "string",
+            "const": "dating_profile_swipe_actions__like"
+          }
+        },
+        "type": "object",
+        "required": [
+          "action",
+          "data"
+        ],
+        "title": "LikeAction"
+      },
       "LikesYouCountResponse": {
         "properties": {
           "count": {
@@ -3382,114 +3056,6 @@
           "count"
         ],
         "title": "LikesYouCountResponse"
-      },
-      "LikesYouProfile": {
-        "properties": {
-          "profileId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "userId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "chosenName": {
-            "type": "string"
-          },
-          "gender": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/Gender"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "age": {
-            "type": "integer"
-          },
-          "city": {
-            "$ref": "#/components/schemas/City"
-          },
-          "bio": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "datingStatus": {
-            "$ref": "#/components/schemas/DatingStatus"
-          },
-          "interests": {
-            "items": {
-              "$ref": "#/components/schemas/Interest"
-            },
-            "type": "array"
-          },
-          "firstPhoto": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "wingNote": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "suggestedBy": {
-            "oneOf": [
-              {
-                "type": "string",
-                "format": "uuid"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "suggesterName": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "type": "object",
-        "required": [
-          "age",
-          "bio",
-          "chosenName",
-          "city",
-          "datingStatus",
-          "firstPhoto",
-          "gender",
-          "interests",
-          "profileId",
-          "suggestedBy",
-          "suggesterName",
-          "userId",
-          "wingNote"
-        ],
-        "title": "LikesYouProfile"
       },
       "LogoutIn": {
         "properties": {
@@ -3888,6 +3454,44 @@
         ],
         "title": "MessageSender"
       },
+      "MySuggestion": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "daterId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "daterName": {
+            "type": "string"
+          },
+          "suggestedName": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "matched",
+              "pending",
+              "not_accepted"
+            ]
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": [
+          "createdAt",
+          "daterId",
+          "daterName",
+          "id",
+          "status",
+          "suggestedName"
+        ],
+        "title": "MySuggestion"
+      },
       "OwnDatingProfile": {
         "properties": {
           "id": {
@@ -4127,6 +3731,23 @@
         ],
         "title": "OwnPromptResponse"
       },
+      "PassAction": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/EmptyActionData"
+          },
+          "action": {
+            "type": "string",
+            "const": "dating_profile_swipe_actions__pass"
+          }
+        },
+        "type": "object",
+        "required": [
+          "action",
+          "data"
+        ],
+        "title": "PassAction"
+      },
       "PendingSuggestion": {
         "properties": {
           "id": {
@@ -4182,44 +3803,6 @@
           "wingerName"
         ],
         "title": "PendingSuggestion"
-      },
-      "PeopleActivityRow": {
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "daterId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "daterName": {
-            "type": "string"
-          },
-          "suggestedName": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "matched",
-              "pending",
-              "not_accepted"
-            ]
-          },
-          "createdAt": {
-            "type": "string"
-          }
-        },
-        "type": "object",
-        "required": [
-          "createdAt",
-          "daterId",
-          "daterName",
-          "id",
-          "status",
-          "suggestedName"
-        ],
-        "title": "PeopleActivityRow"
       },
       "Photo": {
         "properties": {
@@ -4280,45 +3863,6 @@
           "suggesterId"
         ],
         "title": "Photo"
-      },
-      "PhotoActivityRow": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "daterId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "daterName": {
-            "type": "string"
-          },
-          "storageUrl": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "approved",
-              "pending",
-              "not_accepted"
-            ]
-          },
-          "createdAt": {
-            "type": "string"
-          }
-        },
-        "type": "object",
-        "required": [
-          "createdAt",
-          "daterId",
-          "daterName",
-          "id",
-          "status",
-          "storageUrl"
-        ],
-        "title": "PhotoActivityRow"
       },
       "PhotoSuggester": {
         "properties": {
@@ -4524,49 +4068,6 @@
           "template"
         ],
         "title": "ProfilePrompt"
-      },
-      "PromptActivityRow": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "daterId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "daterName": {
-            "type": "string"
-          },
-          "promptQuestion": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "accepted",
-              "pending",
-              "not_accepted"
-            ]
-          },
-          "createdAt": {
-            "type": "string"
-          }
-        },
-        "type": "object",
-        "required": [
-          "createdAt",
-          "daterId",
-          "daterName",
-          "id",
-          "message",
-          "promptQuestion",
-          "status"
-        ],
-        "title": "PromptActivityRow"
       },
       "PromptResponse": {
         "properties": {
@@ -4816,23 +4317,6 @@
         ],
         "title": "PublicProfilePrompt"
       },
-      "RecordDirectDecisionAction": {
-        "properties": {
-          "data": {
-            "$ref": "#/components/schemas/DirectDecisionData"
-          },
-          "action": {
-            "type": "string",
-            "const": "decision_actions__record"
-          }
-        },
-        "type": "object",
-        "required": [
-          "action",
-          "data"
-        ],
-        "title": "RecordDirectDecisionAction"
-      },
       "RedirectActionResult": {
         "properties": {
           "path": {
@@ -4941,6 +4425,35 @@
         ],
         "title": "ReorderPhotoData"
       },
+      "ReportAction": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ReportActionData"
+          },
+          "action": {
+            "type": "string",
+            "const": "dating_profile_swipe_actions__report"
+          }
+        },
+        "type": "object",
+        "required": [
+          "action",
+          "data"
+        ],
+        "title": "ReportAction"
+      },
+      "ReportActionData": {
+        "properties": {
+          "reason": {
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reason"
+        ],
+        "title": "ReportActionData"
+      },
       "SendMessageAction": {
         "properties": {
           "data": {
@@ -5022,13 +4535,26 @@
         ],
         "title": "SessionOut"
       },
-      "SuggestData": {
+      "SuggestAction": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SuggestActionData"
+          },
+          "action": {
+            "type": "string",
+            "const": "dating_profile_swipe_actions__suggest"
+          }
+        },
+        "type": "object",
+        "required": [
+          "action",
+          "data"
+        ],
+        "title": "SuggestAction"
+      },
+      "SuggestActionData": {
         "properties": {
           "daterId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "recipientId": {
             "type": "string",
             "format": "uuid"
           },
@@ -5055,10 +4581,163 @@
         },
         "type": "object",
         "required": [
-          "daterId",
-          "recipientId"
+          "daterId"
         ],
-        "title": "SuggestData"
+        "title": "SuggestActionData"
+      },
+      "SuggestedPhoto": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "daterId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "daterName": {
+            "type": "string"
+          },
+          "storageUrl": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "approved",
+              "pending",
+              "not_accepted"
+            ]
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": [
+          "createdAt",
+          "daterId",
+          "daterName",
+          "id",
+          "status",
+          "storageUrl"
+        ],
+        "title": "SuggestedPhoto"
+      },
+      "SwipeProfile": {
+        "properties": {
+          "profileId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "chosenName": {
+            "type": "string"
+          },
+          "gender": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Gender"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "age": {
+            "type": "integer"
+          },
+          "city": {
+            "$ref": "#/components/schemas/City"
+          },
+          "bio": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "datingStatus": {
+            "$ref": "#/components/schemas/DatingStatus"
+          },
+          "interests": {
+            "items": {
+              "$ref": "#/components/schemas/Interest"
+            },
+            "type": "array"
+          },
+          "photos": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "firstPhoto": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "wingNote": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "suggestedBy": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "suggesterName": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "age",
+          "bio",
+          "chosenName",
+          "city",
+          "datingStatus",
+          "firstPhoto",
+          "gender",
+          "interests",
+          "photos",
+          "profileId",
+          "suggestedBy",
+          "suggesterName",
+          "userId",
+          "wingNote"
+        ],
+        "title": "SwipeProfile"
       },
       "UpdateDatingProfileAction": {
         "properties": {
@@ -5300,80 +4979,6 @@
         ],
         "title": "UserRole"
       },
-      "WingProfile": {
-        "properties": {
-          "profileId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "userId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "chosenName": {
-            "type": "string"
-          },
-          "gender": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/Gender"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "age": {
-            "type": "integer"
-          },
-          "city": {
-            "$ref": "#/components/schemas/City"
-          },
-          "bio": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "datingStatus": {
-            "$ref": "#/components/schemas/DatingStatus"
-          },
-          "interests": {
-            "items": {
-              "$ref": "#/components/schemas/Interest"
-            },
-            "type": "array"
-          },
-          "firstPhoto": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "type": "object",
-        "required": [
-          "age",
-          "bio",
-          "chosenName",
-          "city",
-          "datingStatus",
-          "firstPhoto",
-          "gender",
-          "interests",
-          "profileId",
-          "userId"
-        ],
-        "title": "WingProfile"
-      },
       "WingerSummary": {
         "properties": {
           "id": {
@@ -5419,23 +5024,6 @@
           "id"
         ],
         "title": "WingerSummary"
-      },
-      "WingerTab": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "name": {
-            "type": "string"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "name"
-        ],
-        "title": "WingerTab"
       },
       "WingingForDater": {
         "properties": {
@@ -5524,6 +5112,23 @@
           "id"
         ],
         "title": "WingingForRow"
+      },
+      "WingingForTab": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "WingingForTab"
       },
       "WingpeopleResponse": {
         "properties": {

@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from enum import StrEnum
+from typing import ClassVar
+
+from msgspec import UNSET
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.dating_profiles.models import DatingProfile
@@ -56,6 +60,16 @@ def _apply(obj: object, provided: dict[str, object], field_map: dict[str, str]) 
 
 # ── Action groups ─────────────────────────────────────────────────────────────
 
+
+class ProfileActionKey(StrEnum):
+    UPDATE = "update"
+
+
+class DatingProfileActionKey(StrEnum):
+    CREATE = "create"
+    UPDATE = "update"
+
+
 profile_actions = action_group_factory(
     ActionGroupType.PROFILE_ACTIONS,
     default_invalidation="profiles",
@@ -74,7 +88,7 @@ dating_profile_actions = action_group_factory(
 
 @profile_actions
 class UpdateProfile(BaseObjectAction[Profile, UpdateProfileData]):
-    action_key = "update"
+    action_key: ClassVar[ProfileActionKey] = ProfileActionKey.UPDATE
     label = "Edit Profile"
     icon = ActionIcon.EDIT
 
@@ -104,7 +118,7 @@ class UpdateProfile(BaseObjectAction[Profile, UpdateProfileData]):
 
 @dating_profile_actions
 class CreateDatingProfile(BaseTopLevelAction[CreateDatingProfileData]):
-    action_key = "create"
+    action_key: ClassVar[DatingProfileActionKey] = DatingProfileActionKey.CREATE
     label = "Create Dating Profile"
     icon = ActionIcon.ADD
 
@@ -132,8 +146,9 @@ class CreateDatingProfile(BaseTopLevelAction[CreateDatingProfileData]):
             interests=provided["interests"],
         )
         # datingStatus defaults to 'open' at the column level; honor it if supplied.
-        if "datingStatus" in provided:
-            dating_profile.dating_status = provided["datingStatus"]  # type: ignore[assignment]
+        # Narrow off the typed input field so the assignment is a real DatingStatus.
+        if data.datingStatus is not UNSET:
+            dating_profile.dating_status = data.datingStatus
 
         transaction.add(dating_profile)
         await transaction.flush()
@@ -149,7 +164,7 @@ class CreateDatingProfile(BaseTopLevelAction[CreateDatingProfileData]):
 
 @dating_profile_actions
 class UpdateDatingProfile(BaseObjectAction[DatingProfile, UpdateDatingProfileData]):
-    action_key = "update"
+    action_key: ClassVar[DatingProfileActionKey] = DatingProfileActionKey.UPDATE
     label = "Edit Dating Profile"
     icon = ActionIcon.EDIT
 

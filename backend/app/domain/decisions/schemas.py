@@ -1,11 +1,11 @@
 from __future__ import annotations
 
+from typing import Literal
 from uuid import UUID
 
 import msgspec
-from msgspec import UNSET, UnsetType
+from msgspec import UNSET
 
-from app.domain.decisions.enums import DecisionType
 from app.platform.base.schemas import BaseSchema
 
 # ── Output shapes ────────────────────────────────────────────────────────────
@@ -16,25 +16,6 @@ class Match(BaseSchema):
     userAId: UUID
     userBId: UUID
     createdAt: str
-
-
-class DirectDecisionResponse(BaseSchema):
-    """POST /decisions success body."""
-
-    created: bool
-    match: Match | None
-
-
-class ActSuggestionResponse(BaseSchema):
-    """POST /decisions/suggestions/act success body."""
-
-    match: Match | None
-
-
-class SuggestResponse(BaseSchema):
-    """POST /decisions/suggestions success body."""
-
-    ok: bool
 
 
 class PendingSuggestion(BaseSchema):
@@ -50,35 +31,30 @@ class PendingSuggestion(BaseSchema):
 PendingSuggestionsResponse = list[PendingSuggestion]
 
 
-# ── Action input shapes ──────────────────────────────────────────────────────
+# ── My-suggestions read (suggestions I made as a winger) ───────────────────────
+
+MySuggestionStatus = Literal["matched", "pending", "not_accepted"]
 
 
-class DirectDecisionData(BaseSchema):
-    """POST /decisions body — a dater's own like/pass on a recipient."""
+class MySuggestion(BaseSchema):
+    """One card I suggested as a winger, with its computed status.
 
-    recipientId: UUID
-    decision: DecisionType
-
-
-class ActSuggestionData(BaseSchema):
-    """POST /decisions/suggestions/act body — act on a pending winger suggestion."""
-
-    recipientId: UUID
-    decision: DecisionType
-
-
-class SuggestData(BaseSchema):
-    """POST /decisions/suggestions body — a winger creates a suggestion.
-
-    `decision` is `None` for a normal suggestion the dater must act on, or
-    `'declined'` to bypass the dater entirely (the only non-null literal
-    accepted). `note` is optional/omittable.
+    The decision id is prefixed with `suggestion:` (see transformers), so `id` is a
+    plain string, not a UUID.
     """
 
+    id: str
     daterId: UUID
-    recipientId: UUID
-    decision: DecisionType | None = None
-    note: str | None | UnsetType = UNSET
+    daterName: str
+    suggestedName: str
+    status: MySuggestionStatus
+    createdAt: str
+
+
+MySuggestionsResponse = list[MySuggestion]
+
+
+# ── Shared helper ──────────────────────────────────────────────────────────────
 
 
 def fields_set(data: msgspec.Struct) -> dict[str, object]:

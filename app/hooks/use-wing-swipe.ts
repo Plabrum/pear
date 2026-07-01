@@ -1,11 +1,11 @@
 import { useRef, useState } from 'react';
-import type { WingProfile } from '@/lib/api/generated/model';
-import { getApiWingPool } from '@/lib/api/generated/wing-pool/wing-pool';
-import { suggestDecision } from '@/lib/api/actions';
+import type { SwipeProfile } from '@/lib/api/generated/model';
+import { getApiDatingProfilesSwipe } from '@/lib/api/generated/dating-profiles/dating-profiles';
+import { suggest } from '@/lib/api/actions';
 
 const PAGE_SIZE = 20;
 
-export function useWingSwipe(daterId: string, initialPool: WingProfile[]) {
+export function useWingSwipe(daterId: string, initialPool: SwipeProfile[]) {
   const [pool, setPool] = useState(initialPool);
   const [index, setIndex] = useState(0);
 
@@ -15,7 +15,7 @@ export function useWingSwipe(daterId: string, initialPool: WingProfile[]) {
   async function loadMore() {
     if (loadingMoreRef.current) return;
     loadingMoreRef.current = true;
-    const data = await getApiWingPool({
+    const data = await getApiDatingProfilesSwipe({
       daterId,
       pageSize: PAGE_SIZE,
       pageOffset: offsetRef.current,
@@ -27,7 +27,7 @@ export function useWingSwipe(daterId: string, initialPool: WingProfile[]) {
     loadingMoreRef.current = false;
   }
 
-  async function suggest(note: string | null): Promise<void> {
+  async function suggestCard(note: string | null): Promise<void> {
     const card = pool[index];
     if (!card) return;
 
@@ -37,12 +37,8 @@ export function useWingSwipe(daterId: string, initialPool: WingProfile[]) {
     if (newIndex >= pool.length - 3) loadMore();
 
     try {
-      await suggestDecision({
-        daterId,
-        recipientId: card.userId,
-        note,
-        decision: null,
-      });
+      // Suggest targets the DatingProfile (profileId); daterId names who it's for.
+      await suggest(card.profileId, { daterId, note, decision: null });
     } catch {
       // Roll back on failure
       setIndex((prev) => prev - 1);
@@ -59,15 +55,11 @@ export function useWingSwipe(daterId: string, initialPool: WingProfile[]) {
     if (newIndex >= pool.length - 3) loadMore();
 
     try {
-      await suggestDecision({
-        daterId,
-        recipientId: card.userId,
-        decision: 'declined',
-      });
+      await suggest(card.profileId, { daterId, decision: 'declined' });
     } catch {
       // Match legacy behavior: declines are fire-and-forget, no rollback.
     }
   }
 
-  return { pool, index, suggest, decline };
+  return { pool, index, suggest: suggestCard, decline };
 }

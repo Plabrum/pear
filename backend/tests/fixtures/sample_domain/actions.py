@@ -1,3 +1,6 @@
+from enum import StrEnum
+from typing import ClassVar
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.platform.actions.base import (
@@ -11,6 +14,11 @@ from app.platform.actions.schemas import ActionExecutionResponse
 from tests.fixtures.sample_domain.models import SampleStatus, SampleWidget
 from tests.fixtures.sample_domain.state_machine import sample_machine
 
+
+class SampleWidgetActionKey(StrEnum):
+    ACTIVATE = "activate"
+
+
 sample_widget_actions = action_group_factory(
     ActionGroupType.SAMPLE_WIDGET_ACTIONS,
     default_invalidation="sample_widgets",
@@ -20,7 +28,7 @@ sample_widget_actions = action_group_factory(
 
 @sample_widget_actions
 class ActivateWidget(BaseObjectAction[SampleWidget, EmptyActionData]):
-    action_key = "activate"  # type: ignore[assignment]
+    action_key: ClassVar[SampleWidgetActionKey] = SampleWidgetActionKey.ACTIVATE
     label = "Activate"
     icon = ActionIcon.CHECK
     target_state = SampleStatus.ACTIVE

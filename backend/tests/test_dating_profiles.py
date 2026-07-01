@@ -1,0 +1,431 @@
+from __future__ import annotations
+
+from datetime import date
+from typing import cast
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.domain.dating_profiles.actions import Like, Pass, Report, Suggest
+from app.domain.dating_profiles.enums import City, DatingStatus
+from app.domain.dating_profiles.exceptions import (
+    CannotSuggestSelfError,
+    NotActiveWingpersonError,
+)
+from app.domain.dating_profiles.queries import (
+    fetch_likes_you_count,
+    fetch_swipe_pool,
+    is_active_wingperson,
+)
+from app.domain.dating_profiles.schemas import ReportActionData, SuggestActionData
+from app.domain.dating_profiles.transformers import row_to_swipe_profile
+from app.domain.decisions.enums import DecisionType
+from app.domain.decisions.models import Decision
+from app.domain.decisions.queries import find_mutual_match
+from app.domain.profiles.enums import Gender
+from app.domain.reports.models import ProfileReport
+from app.platform.actions.base import EmptyActionData
+from app.platform.actions.deps import ActionDeps
+from app.platform.auth.principal import User
+from app.platform.state_machine.machine import StateMachineService
+from app.platform.state_machine.roles import Role
+from tests.fixtures.graph import DomainGraph
+from tests.fixtures.media import local_media
+
+# `asyncio_mode = "auto"` (pyproject.toml) runs `async def test_*` without a marker.
+
+
+def _deps(session: AsyncSession, *, user_id, role: Role = Role.DATER) -> ActionDeps:
+    """ActionDeps backed by the test session and a given actor.
+
+    `push` is an AsyncMock so the (stub) match/suggestion pushes can be asserted.
+    """
+    push = MagicMock()
+    push.send = AsyncMock()
+    return ActionDeps(
+        transaction=session,
+        user=User(id=user_id, role=role),
+        request=MagicMock(),
+        config=MagicMock(),
+        push=push,
+        email=MagicMock(),
+        state_machine_service=StateMachineService(transaction=session),
+    )
+
+
+def _push(deps: ActionDeps) -> AsyncMock:
+    return cast(AsyncMock, deps.push.send)
+
+
+async def _normalize_ages(graph: DomainGraph, db_session: AsyncSession) -> None:
+    """Pin candidate DOBs (~30) and widen dater_a's preferred range to [18, 99].
+
+    Makes age-filter membership deterministic regardless of the faker-advanced seed
+    ages, so a test asserting on dater_b/dater_c isn't order-dependent.
+    """
+    in_range = date(1995, 1, 1)
+    graph.dater_b.date_of_birth = in_range
+    graph.dater_c.date_of_birth = in_range
+    graph.dating_profile_a.age_from = 18
+    graph.dating_profile_a.age_to = 99
+    await db_session.flush()
+
+
+# ── the collapsed swipe read ─────────────────────────────────────────────────
+
+
+async def test_swipe_pool_returns_preference_matches(graph: DomainGraph, db_session: AsyncSession) -> None:
+    await _normalize_ages(graph, db_session)
+    rows = await fetch_swipe_pool(db_session, viewer_id=graph.dater_a.id, page_size=20, page_offset=0)
+    user_ids = {r.user_id for r in rows}
+
+    # dater_b and dater_c match dater_a's prefs (Boston, open, female, in range).
+    assert graph.dater_b.id in user_ids
+    assert graph.dater_c.id in user_ids
+    # Never include self.
+    assert graph.dater_a.id not in user_ids
+
+
+async def test_swipe_pool_orders_suggestions_first(graph: DomainGraph, db_session: AsyncSession) -> None:
+    await _normalize_ages(graph, db_session)
+    rows = await fetch_swipe_pool(db_session, viewer_id=graph.dater_a.id, page_size=20, page_offset=0)
+    # The graph seeds a pending winger suggestion (dater_a -> dater_b). It must sort
+    # ahead of the un-suggested dater_c, with its note + suggester surfaced.
+    first = rows[0]
+    assert first.user_id == graph.dater_b.id
+    assert first.suggested_by == graph.winger.id
+    assert first.suggester_name == graph.winger.chosen_name
+    assert first.wing_note == graph.suggestion.note
+
+
+async def test_swipe_row_maps_to_camel_case(graph: DomainGraph, db_session: AsyncSession) -> None:
+    await _normalize_ages(graph, db_session)
+    rows = await fetch_swipe_pool(db_session, viewer_id=graph.dater_a.id, page_size=20, page_offset=0)
+    suggested = next(r for r in rows if r.user_id == graph.dater_b.id)
+    dto = await row_to_swipe_profile(suggested, local_media())
+
+    assert dto.profileId == graph.dating_profile_b.id
+    assert dto.userId == graph.dater_b.id
+    assert dto.chosenName == graph.dater_b.chosen_name
+    assert dto.city == City.BOSTON
+    assert dto.datingStatus == DatingStatus.OPEN
+    assert dto.gender is Gender.FEMALE
+    assert dto.suggestedBy == graph.winger.id
+    assert dto.suggesterName == graph.winger.chosen_name
+    assert dto.wingNote == graph.suggestion.note
+
+
+async def test_swipe_pool_excludes_already_decided(graph: DomainGraph, db_session: AsyncSession) -> None:
+    await _normalize_ages(graph, db_session)
+    # dater_a passes on dater_c (a NOT-NULL decision) -> dater_c drops out.
+    db_session.add(
+        Decision(
+            actor_id=graph.dater_a.id,
+            recipient_id=graph.dater_c.id,
+            decision=DecisionType.DECLINED,
+        )
+    )
+    await db_session.flush()
+
+    rows = await fetch_swipe_pool(db_session, viewer_id=graph.dater_a.id, page_size=20, page_offset=0)
+    user_ids = {r.user_id for r in rows}
+    assert graph.dater_c.id not in user_ids
+    # dater_b (only a NULL suggestion against it, not a real decision) stays.
+    assert graph.dater_b.id in user_ids
+
+
+async def test_swipe_pool_winger_only_keeps_suggested(graph: DomainGraph, db_session: AsyncSession) -> None:
+    await _normalize_ages(graph, db_session)
+    rows = await fetch_swipe_pool(
+        db_session,
+        viewer_id=graph.dater_a.id,
+        page_size=20,
+        page_offset=0,
+        winger_only=True,
+    )
+    # Only the pending-suggestion card (dater_b) survives the wingerOnly EXISTS.
+    assert {r.user_id for r in rows} == {graph.dater_b.id}
+
+
+async def test_swipe_pool_likes_you_only_excludes_matched(graph: DomainGraph, db_session: AsyncSession) -> None:
+    await _normalize_ages(graph, db_session)
+    # dater_b approved dater_a in the graph, but they are already matched -> excluded.
+    # dater_c approves dater_a fresh (no match) -> dater_c surfaces. The count agrees.
+    db_session.add(
+        Decision(
+            actor_id=graph.dater_c.id,
+            recipient_id=graph.dater_a.id,
+            decision=DecisionType.APPROVED,
+        )
+    )
+    await db_session.flush()
+
+    rows = await fetch_swipe_pool(
+        db_session,
+        viewer_id=graph.dater_a.id,
+        page_size=20,
+        page_offset=0,
+        likes_you_only=True,
+    )
+    user_ids = {r.user_id for r in rows}
+    assert graph.dater_c.id in user_ids
+    assert graph.dater_b.id not in user_ids  # already matched
+    assert await fetch_likes_you_count(db_session, graph.dater_a.id) == 1
+
+
+async def test_swipe_pool_winger_context_dater_scoped(graph: DomainGraph, db_session: AsyncSession) -> None:
+    await _normalize_ages(graph, db_session)
+    rows = await fetch_swipe_pool(
+        db_session,
+        viewer_id=graph.winger.id,
+        page_size=20,
+        page_offset=0,
+        filter_dater_id=graph.dater_a.id,
+    )
+    user_ids = {r.user_id for r in rows}
+    # Candidates matching dater_a's prefs, minus the dater and the winger.
+    assert graph.dater_b.id in user_ids
+    assert graph.dater_c.id in user_ids
+    assert graph.dater_a.id not in user_ids
+    assert graph.winger.id not in user_ids
+
+
+async def test_is_active_wingperson_gate(graph: DomainGraph, db_session: AsyncSession) -> None:
+    assert await is_active_wingperson(db_session, graph.winger.id, graph.dater_a.id) is True
+    # dater_c has no contact with the winger -> the route would raise 403.
+    assert await is_active_wingperson(db_session, graph.winger.id, graph.dater_c.id) is False
+
+
+# ── Like / Pass actions ──────────────────────────────────────────────────────
+
+
+async def test_like_no_match(graph: DomainGraph, db_session: AsyncSession) -> None:
+    # dater_a likes dater_c's dating profile. dater_c has not approved back -> no match.
+    deps = _deps(db_session, user_id=graph.dater_a.id)
+    result = await Like.execute(graph.dating_profile_c, EmptyActionData(), db_session, deps)
+    assert result.created_id is None
+    assert await find_mutual_match(db_session, graph.dater_a.id, graph.dater_c.id) is None
+
+    row = (
+        await db_session.execute(
+            select(Decision).where(
+                Decision.actor_id == graph.dater_a.id,
+                Decision.recipient_id == graph.dater_c.id,
+            )
+        )
+    ).scalar_one()
+    assert row.decision == DecisionType.APPROVED
+    _push(deps).assert_not_called()
+
+
+async def test_like_creates_match_on_mutual(graph: DomainGraph, db_session: AsyncSession) -> None:
+    # Seed dater_c -> dater_a as an existing approval, then dater_a likes dater_c
+    # back: the second approval makes the pair mutual. The Like enqueues the
+    # FORM_MATCH task, which (QUEUE_SYNC=1 -> inline) idempotently inserts the
+    # matches row under system mode. The action returns a non-null `created_id`
+    # purely as the client's match-overlay signal (NOT the real match id, which the
+    # task owns).
+    db_session.add(
+        Decision(
+            actor_id=graph.dater_c.id,
+            recipient_id=graph.dater_a.id,
+            decision=DecisionType.APPROVED,
+        )
+    )
+    await db_session.flush()
+
+    deps = _deps(db_session, user_id=graph.dater_a.id)
+    result = await Like.execute(graph.dating_profile_c, EmptyActionData(), db_session, deps)
+
+    # Non-null overlay signal on a fresh mutual.
+    assert result.created_id is not None
+    # The FORM_MATCH task formed the actual match for the pair.
+    match = await find_mutual_match(db_session, graph.dater_a.id, graph.dater_c.id)
+    assert match is not None
+
+
+async def test_like_lands_on_pending_winger_suggestion(graph: DomainGraph, db_session: AsyncSession) -> None:
+    # The graph seeds a pending winger suggestion (actor=dater_a, recipient=dater_b,
+    # decision IS NULL, suggested_by=winger). dater_a liking dater_b's profile must
+    # UPDATE that same row (preserving suggested_by) — not create a second row — and
+    # form a match because dater_b already approved dater_a.
+    deps = _deps(db_session, user_id=graph.dater_a.id)
+    result = await Like.execute(graph.dating_profile_b, EmptyActionData(), db_session, deps)
+
+    rows = (
+        (
+            await db_session.execute(
+                select(Decision).where(
+                    Decision.actor_id == graph.dater_a.id,
+                    Decision.recipient_id == graph.dater_b.id,
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    # Still exactly one row (the winger's pending suggestion), now finalised.
+    assert len(rows) == 1
+    assert rows[0].decision == DecisionType.APPROVED
+    assert rows[0].suggested_by == graph.winger.id  # provenance preserved
+    # The match for this pair exists (the graph seeds it). The like finalising the
+    # pending row doesn't double-create it, so created_id stays None.
+    assert result.created_id is None
+    match = await find_mutual_match(db_session, graph.dater_a.id, graph.dater_b.id)
+    assert match is not None
+
+
+async def test_pass_upserts_declined(graph: DomainGraph, db_session: AsyncSession) -> None:
+    deps = _deps(db_session, user_id=graph.dater_a.id)
+    await Pass.execute(graph.dating_profile_c, EmptyActionData(), db_session, deps)
+    row = (
+        await db_session.execute(
+            select(Decision).where(
+                Decision.actor_id == graph.dater_a.id,
+                Decision.recipient_id == graph.dater_c.id,
+            )
+        )
+    ).scalar_one()
+    assert row.decision == DecisionType.DECLINED
+
+
+async def test_like_role_gate_denies_winger(graph: DomainGraph, db_session: AsyncSession) -> None:
+    # A winger may not Like — is_available gates the swipe to daters.
+    deps = _deps(db_session, user_id=graph.winger.id, role=Role.WINGER)
+    assert Like.is_available(graph.dating_profile_c, deps) is False
+
+
+async def test_like_self_denied(graph: DomainGraph, db_session: AsyncSession) -> None:
+    deps = _deps(db_session, user_id=graph.dater_a.id)
+    assert Like.is_available(graph.dating_profile_a, deps) is False
+
+
+# ── Suggest action ───────────────────────────────────────────────────────────
+
+
+async def test_suggest_happy(graph: DomainGraph, db_session: AsyncSession) -> None:
+    # winger (active for dater_a) suggests dater_c's profile to dater_a, with a note.
+    graph.dater_a.push_token = "ExpoTokenA"
+    await db_session.flush()
+    deps = _deps(db_session, user_id=graph.winger.id, role=Role.WINGER)
+    assert Suggest.is_available(graph.dating_profile_c, deps) is True
+
+    data = SuggestActionData(daterId=graph.dater_a.id, note="You two!")
+    result = await Suggest.execute(graph.dating_profile_c, data, db_session, deps)
+    assert result.message == "Suggestion created"
+
+    row = (
+        await db_session.execute(
+            select(Decision).where(
+                Decision.actor_id == graph.dater_a.id,
+                Decision.recipient_id == graph.dater_c.id,
+            )
+        )
+    ).scalar_one()
+    assert row.suggested_by == graph.winger.id
+    assert row.decision is None  # pending — the dater must act
+    assert row.note == "You two!"
+    # A new pending suggestion -> the dater gets a push.
+    _push(deps).assert_awaited_once()
+    call = _push(deps).await_args
+    assert call is not None
+    assert call.args[0] == "ExpoTokenA"
+
+
+async def test_suggest_duplicate_is_noop_no_push(graph: DomainGraph, db_session: AsyncSession) -> None:
+    # A second suggestion on a pair that already has a decision row is a no-op
+    # conflict: insert_wing_suggestion's ON CONFLICT DO NOTHING writes nothing and
+    # returns False, so no duplicate row is created and the dater gets NO push.
+    graph.dater_a.push_token = "ExpoTokenA"
+    await db_session.flush()
+    deps = _deps(db_session, user_id=graph.winger.id, role=Role.WINGER)
+    data = SuggestActionData(daterId=graph.dater_a.id, note="You two!")
+
+    await Suggest.execute(graph.dating_profile_c, data, db_session, deps)
+    _push(deps).assert_awaited_once()  # first suggestion pushes
+    _push(deps).reset_mock()
+
+    # Second, conflicting suggestion on the same (dater_a -> dater_c) pair.
+    again = SuggestActionData(daterId=graph.dater_a.id, note="Again!")
+    await Suggest.execute(graph.dating_profile_c, again, db_session, deps)
+
+    rows = (
+        (
+            await db_session.execute(
+                select(Decision).where(
+                    Decision.actor_id == graph.dater_a.id,
+                    Decision.recipient_id == graph.dater_c.id,
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    # Exactly one row, with the ORIGINAL note (DO NOTHING never overwrote it).
+    assert len(rows) == 1
+    assert rows[0].note == "You two!"
+    # The conflicting suggestion fired no push.
+    _push(deps).assert_not_awaited()
+
+
+async def test_suggest_gate_denied_not_wingperson(graph: DomainGraph, db_session: AsyncSession) -> None:
+    # dater_c is NOT a wingperson for dater_a -> 403 in execute, no row written.
+    deps = _deps(db_session, user_id=graph.dater_c.id, role=Role.WINGER)
+    data = SuggestActionData(daterId=graph.dater_a.id)
+    with pytest.raises(NotActiveWingpersonError):
+        await Suggest.execute(graph.dating_profile_b, data, db_session, deps)
+
+
+async def test_suggest_self_denied(graph: DomainGraph, db_session: AsyncSession) -> None:
+    # Suggesting the dater their own profile (recipient == daterId) -> 400.
+    deps = _deps(db_session, user_id=graph.winger.id, role=Role.WINGER)
+    data = SuggestActionData(daterId=graph.dater_a.id)
+    with pytest.raises(CannotSuggestSelfError):
+        await Suggest.execute(graph.dating_profile_a, data, db_session, deps)
+
+
+async def test_suggest_role_gate_denies_dater(graph: DomainGraph, db_session: AsyncSession) -> None:
+    deps = _deps(db_session, user_id=graph.dater_a.id, role=Role.DATER)
+    assert Suggest.is_available(graph.dating_profile_c, deps) is False
+
+
+# ── Report action ────────────────────────────────────────────────────────────
+
+
+async def test_report_inserts_report_and_declines(graph: DomainGraph, db_session: AsyncSession) -> None:
+    # dater_a reports dater_c's profile (no prior decision between them).
+    deps = _deps(db_session, user_id=graph.dater_a.id)
+    assert Report.is_available(graph.dating_profile_c, deps) is True
+
+    data = ReportActionData(reason="Inappropriate photos")
+    result = await Report.execute(graph.dating_profile_c, data, db_session, deps)
+    assert result.message == "Report filed"
+    assert "decisions" in result.invalidate_queries
+
+    report = (
+        await db_session.execute(
+            select(ProfileReport).where(
+                ProfileReport.reporter_id == graph.dater_a.id,
+                ProfileReport.reported_id == graph.dater_c.id,
+            )
+        )
+    ).scalar_one()
+    assert report.reason == "Inappropriate photos"
+
+    # A declined decision was upserted so the reported profile leaves the queue.
+    decision = (
+        await db_session.execute(
+            select(Decision).where(
+                Decision.actor_id == graph.dater_a.id,
+                Decision.recipient_id == graph.dater_c.id,
+            )
+        )
+    ).scalar_one()
+    assert decision.decision == DecisionType.DECLINED
+
+
+async def test_report_self_denied(graph: DomainGraph, db_session: AsyncSession) -> None:
+    deps = _deps(db_session, user_id=graph.dater_a.id)
+    assert Report.is_available(graph.dating_profile_a, deps) is False

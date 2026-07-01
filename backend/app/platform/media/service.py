@@ -4,7 +4,6 @@ import uuid
 from collections.abc import Sequence
 from uuid import UUID
 
-from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.platform.media.client import BaseMediaClient
@@ -68,22 +67,13 @@ class MediaService:
         """A short-lived presigned GET URL for the best servable key of `media`."""
         return await self.client.presign_download(self._servable_key(media))
 
-    async def resolve_urls(self, media: Sequence[Media]) -> dict[UUID, str]:
-        """Batch-resolve `{media.id: url}` for already-loaded, already-authorized rows."""
-        return {m.id: await self.resolve_url(m) for m in media}
+    async def resolve_urls(self, media_ids: Sequence[UUID]) -> dict[UUID, str]:
+        """Resolve `{media.id: url}` for `media_ids`, subject to the caller's RLS scope.
 
-    async def resolve_urls_system(self, media_ids: Sequence[UUID]) -> dict[UUID, str]:
-        """Resolve URLs for `media_ids` under `app.is_system_mode = true`.
-
-        The photos domain calls this AFTER it has authorized that the viewer may see
-        the underlying (approved) photo — media RLS alone would not let a matched
-        viewer SELECT the owner's media row. We flip on the honored system escape for
-        the duration of the read, presign each row, then restore ordinary scope so no
-        elevated state leaks into the rest of the request.
+        Reads each media row under the viewer's OWN scope: the media SELECT policy
+        lets a viewer read the rows they may legitimately see (their own, ones they
+        wing, an approved photo's media on an active dating profile, public avatars),
+        so no system mode is required. Ids the viewer cannot see are silently omitted.
         """
-        await self.transaction.execute(text("SET LOCAL app.is_system_mode = true"))
-        try:
-            rows = await fetch_media_by_ids(self.transaction, media_ids)
-            return {m.id: await self.resolve_url(m) for m in rows}
-        finally:
-            await self.transaction.execute(text("SET LOCAL app.is_system_mode = false"))
+        rows = await fetch_media_by_ids(self.transaction, media_ids)
+        return {m.id: await self.resolve_url(m) for m in rows}

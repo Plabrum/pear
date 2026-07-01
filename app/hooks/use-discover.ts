@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
-import type { DecisionType, DiscoverProfile } from '@/lib/api/generated/model';
-import { decide as recordDecision, actOnSuggestion as actOnSuggestionApi } from '@/lib/api/actions';
+import type { DecisionType, SwipeProfile } from '@/lib/api/generated/model';
+import { like as likeProfile, pass as passProfile } from '@/lib/api/actions';
 
 const PAGE_SIZE = 20;
 
@@ -10,12 +10,12 @@ export type PoolFetcher = (
   userId: string,
   pageSize: number,
   offset: number
-) => Promise<DiscoverProfile[]>;
+) => Promise<SwipeProfile[]>;
 
 export function useDiscover(
   fetchPool: PoolFetcher,
   userId: string | null,
-  initialPool: DiscoverProfile[]
+  initialPool: SwipeProfile[]
 ) {
   const [pool, setPool] = useState(initialPool);
   const [index, setIndex] = useState(0);
@@ -36,16 +36,15 @@ export function useDiscover(
   }
 
   async function decide(
-    card: DiscoverProfile,
+    card: SwipeProfile,
     decision: DecisionType
   ): Promise<{ matched: boolean } | { error: true }> {
     try {
-      if (card.suggestedBy) {
-        // A mutual match comes back as the new match id in `created_id`.
-        const res = await actOnSuggestionApi({ recipientId: card.userId, decision });
-        return { matched: res.created_id != null };
-      }
-      const res = await recordDecision({ recipientId: card.userId, decision });
+      // Like/pass on the target DatingProfile (profileId). A like covers both a
+      // direct decision and acting on a winger's suggestion; a mutual match comes
+      // back as the new match id in `created_id`.
+      const res =
+        decision === 'approved' ? await likeProfile(card.profileId) : await passProfile(card.profileId);
       return { matched: res.created_id != null };
     } catch {
       return { error: true };
@@ -89,10 +88,5 @@ export function useDiscover(
     swipingRef.current = false;
   }
 
-  async function actOnSuggestion(decision: DecisionType) {
-    if (decision === 'approved') return like();
-    return pass();
-  }
-
-  return { pool, index, like, pass, actOnSuggestion };
+  return { pool, index, like, pass };
 }

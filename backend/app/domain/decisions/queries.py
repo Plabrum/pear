@@ -4,7 +4,8 @@ from collections.abc import Sequence
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Row, and_, desc, select, text
+from sqlalchemy import Row, and_, desc, exists, or_, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -12,6 +13,7 @@ from app.domain.contacts.enums import WingpersonStatus
 from app.domain.contacts.models import Contact
 from app.domain.decisions.enums import DecisionType
 from app.domain.decisions.models import Decision
+from app.domain.decisions.transformers import SuggestionRow
 from app.domain.matches.models import Match
 from app.domain.profiles.models import Profile
 
@@ -29,56 +31,19 @@ async def upsert_direct_decision(
     Upserts on (actor_id, recipient_id). Match formation is the action's
     on-approve side-effect (see `actions.py`).
     """
-    existing = (
-        await db.execute(
-            select(Decision)
-            .where(
-                and_(
-                    Decision.actor_id == actor_id,
-                    Decision.recipient_id == recipient_id,
-                )
-            )
-            .limit(1)
+    stmt = (
+        pg_insert(Decision)
+        .values(actor_id=actor_id, recipient_id=recipient_id, decision=decision)
+        .on_conflict_do_update(
+            constraint="unique_actor_recipient",
+            set_={"decision": pg_insert(Decision).excluded.decision},
         )
-    ).scalar_one_or_none()
-
-    if existing is not None:
-        existing.decision = decision
-    else:
-        db.add(Decision(actor_id=actor_id, recipient_id=recipient_id, decision=decision))
+        .returning(Decision)
+    )
+    # populate_existing syncs the identity map so a same-transaction entity re-read
+    # sees the upserted decision (RETURNING refreshes the row we just wrote).
+    await db.execute(stmt, execution_options={"populate_existing": True})
     await db.flush()
-
-
-async def act_on_pending_suggestion(
-    db: AsyncSession,
-    actor_id: UUID,
-    recipient_id: UUID,
-    decision: DecisionType,
-) -> bool:
-    """Approve/decline a winger's pending suggestion.
-
-    Constrained to rows the caller owns (actor_id) AND where `decision IS NULL`,
-    so a finalised decision can't be overwritten through this path. Returns True
-    when a pending row was found and updated.
-    """
-    row = (
-        await db.execute(
-            select(Decision)
-            .where(
-                and_(
-                    Decision.actor_id == actor_id,
-                    Decision.recipient_id == recipient_id,
-                    Decision.decision.is_(None),
-                )
-            )
-            .limit(1)
-        )
-    ).scalar_one_or_none()
-    if row is None:
-        return False
-    row.decision = decision
-    await db.flush()
-    return True
 
 
 async def insert_wing_suggestion(
@@ -99,32 +64,21 @@ async def insert_wing_suggestion(
     dater already decided on / was already suggested this recipient), no row is
     written. Returns True only on a genuinely new insert.
     """
-    existing = (
-        await db.execute(
-            select(Decision.id)
-            .where(
-                and_(
-                    Decision.actor_id == dater_id,
-                    Decision.recipient_id == recipient_id,
-                )
-            )
-            .limit(1)
-        )
-    ).scalar_one_or_none()
-    if existing is not None:
-        return False
-
-    db.add(
-        Decision(
+    stmt = (
+        pg_insert(Decision)
+        .values(
             actor_id=dater_id,
             recipient_id=recipient_id,
             suggested_by=winger_id,
             decision=decision,
             note=note,
         )
+        .on_conflict_do_nothing(constraint="unique_actor_recipient")
+        .returning(Decision.id)
     )
+    inserted = (await db.execute(stmt)).scalar_one_or_none()
     await db.flush()
-    return True
+    return inserted is not None
 
 
 # ── Mutual-match lookup + match formation ─────────────────────────────────────
@@ -159,34 +113,6 @@ async def both_sides_approved(db: AsyncSession, user_a: UUID, user_b: UUID) -> b
     ).all()
     pairs = {(a, r) for a, r in rows}
     return (user_a, user_b) in pairs and (user_b, user_a) in pairs
-
-
-async def create_match_system(db: AsyncSession, user_a: UUID, user_b: UUID) -> Match:
-    """Insert the matches row under the honored system-mode escape.
-
-    The `matches_insert` RLS policy is `WITH CHECK (public.is_system_mode())` — an
-    ordinary user can never forge a match. We briefly enable `app.is_system_mode`
-    for just this INSERT (SET LOCAL is transaction-scoped, restored immediately
-    after) so the match is created as a SYSTEM operation.
-
-    Ids are ordered to satisfy the `ordered_match_ids` CHECK (user_a_id < user_b_id).
-    """
-    lo, hi = (user_a, user_b) if str(user_a) < str(user_b) else (user_b, user_a)
-    match = Match(user_a_id=lo, user_b_id=hi)
-    db.add(match)
-    # Enable the escape for the flush, then RESTORE the prior value so the rest of
-    # the request keeps its original scope. In a normal request that prior value is
-    # `false` (user-scoped); under the system-mode test/worker path it's `true`, so
-    # we must not hardcode `false` or we'd break subsequent reads. SET LOCAL is
-    # transaction-scoped and rolls back with the transaction.
-    prior = (await db.execute(text("SELECT current_setting('app.is_system_mode', true)"))).scalar_one_or_none()
-    await db.execute(text("SET LOCAL app.is_system_mode = true"))
-    try:
-        await db.flush()
-    finally:
-        restore = "true" if prior == "true" else "false"
-        await db.execute(text(f"SET LOCAL app.is_system_mode = {restore}"))
-    return match
 
 
 # ── Authorization + push lookups ──────────────────────────────────────────────
@@ -273,3 +199,78 @@ async def fetch_pending_suggestions(
         )
     ).all()
     return rows
+
+
+# ── Suggestions I made as a winger (the people-activity read) ──────────────────
+
+
+async def fetch_my_suggestions(db: AsyncSession, winger_id: UUID, limit: int) -> list[SuggestionRow]:
+    """Cards the winger suggested + whether each became a match, newest first.
+
+    Every decision row the winger authored (`suggested_by = winger_id`), joined to
+    the dater (actor) and recipient profile names, with a correlated EXISTS that
+    reports whether a match now joins the actor and recipient (in either id
+    ordering).
+    """
+    dater = aliased(Profile)
+    recipient = aliased(Profile)
+
+    match_exists_expr = exists(
+        select(Match.id).where(
+            or_(
+                and_(
+                    Match.user_a_id == Decision.actor_id,
+                    Match.user_b_id == Decision.recipient_id,
+                ),
+                and_(
+                    Match.user_a_id == Decision.recipient_id,
+                    Match.user_b_id == Decision.actor_id,
+                ),
+            )
+        )
+    )
+
+    rows = (
+        await db.execute(
+            select(
+                Decision.id,
+                Decision.decision,
+                match_exists_expr,
+                Decision.actor_id,
+                dater.chosen_name,
+                recipient.chosen_name,
+                Decision.created_at,
+            )
+            .join(dater, dater.id == Decision.actor_id)
+            .join(recipient, recipient.id == Decision.recipient_id)
+            .where(
+                and_(
+                    Decision.suggested_by.is_not(None),
+                    Decision.suggested_by == winger_id,
+                )
+            )
+            .order_by(desc(Decision.created_at))
+            .limit(limit)
+        )
+    ).all()
+
+    return [
+        SuggestionRow(
+            id=decision_id,
+            decision=decision,
+            has_match=bool(has_match),
+            dater_id=dater_id,
+            dater_name=dater_name,
+            recipient_name=recipient_name,
+            created_at=created_at,
+        )
+        for (
+            decision_id,
+            decision,
+            has_match,
+            dater_id,
+            dater_name,
+            recipient_name,
+            created_at,
+        ) in rows
+    ]

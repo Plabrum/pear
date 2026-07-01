@@ -10,11 +10,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import generate_es256_keypair
-from app.domain.decisions.actions import RecordDirectDecision
+from app.domain.dating_profiles.actions import Like
 from app.domain.decisions.enums import DecisionType
 from app.domain.decisions.models import Decision
-from app.domain.decisions.schemas import DirectDecisionData
 from app.domain.profiles.models import Profile
+from app.platform.actions.base import EmptyActionData
 from app.platform.actions.deps import ActionDeps
 from app.platform.auth.principal import User
 from app.platform.push.client import (
@@ -285,10 +285,16 @@ async def test_match_action_fires_push(graph: DomainGraph, db_session: AsyncSess
     await db_session.flush()
 
     deps = _deps(db_session, user_id=graph.dater_a.id)
-    data = DirectDecisionData(recipientId=graph.dater_c.id, decision=DecisionType.APPROVED)
-    await RecordDirectDecision.execute(data, db_session, deps)
+    # The match push now fires inside the FORM_MATCH task (system mode), which the
+    # Like enqueues and QUEUE_SYNC=1 runs inline. The task builds its own push
+    # client (no ctx-injected one in sync dispatch), so patch the builder to assert
+    # the fan-out. dater_a liking dater_c's profile makes the pair mutual.
+    client = MagicMock()
+    client.send = AsyncMock(return_value=PushSendResult(delivered=True))
+    with patch("app.domain.decisions.tasks.build_push_client", return_value=client):
+        await Like.execute(graph.dating_profile_c, EmptyActionData(), db_session, deps)
 
-    send = cast(AsyncMock, deps.push.send)
+    send = cast(AsyncMock, client.send)
     # A match formed -> a push fired to each tokened participant.
     assert send.await_count == 2
     tokens = {call.args[0] for call in send.await_args_list}

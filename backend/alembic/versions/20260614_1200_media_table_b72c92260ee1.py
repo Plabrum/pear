@@ -5,9 +5,14 @@ Revises: b1c2d3e4f5a6
 Create Date: 2026-06-14 12:00:00.000000+00:00
 
 Creates `public.media` (an uploaded object + its processing lifecycle), enables +
-forces RLS, and applies the WingpersonScopedMixin policy (owner + active wingperson
-+ system). The policy SQL is generated from the mixin helper so it stays in lockstep
-with `app/platform/base/rls_mixins.py` (policies-as-code === migration, zero drift).
+forces RLS, and applies media's BESPOKE write policies (NOT the generic
+WingpersonScopedMixin FOR ALL policy): INSERT/UPDATE/DELETE are owner + active
+wingperson, referencing only `owner_id` so they stand up at table-creation time. The
+column-dependent SELECT policy (which references `profile_photos.media_id` and
+`profiles.avatar_media_id`) is applied once those columns exist — see the follow-on
+RLS revision `d4e5f6a7b8c9`. The policy text is kept in lockstep with
+`app/platform/base/rls_policies.py`'s `_MEDIA`, so policies-as-code === migration
+SQL (zero autogenerate drift).
 """
 
 from typing import Sequence
@@ -17,7 +22,6 @@ from alembic_utils.pg_policy import PGPolicy
 
 from alembic import op
 from app.platform.base.rls_grants import app_grants_sql
-from app.platform.base.rls_mixins import _wingperson_scoped_definition
 from app.platform.media.enums import MediaState
 from app.utils.textenum import TextEnum
 
@@ -28,12 +32,51 @@ branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 
-_MEDIA_POLICY = PGPolicy(
+_MEDIA_INSERT = PGPolicy(
     schema="public",
-    signature="wingperson_scope_policy",
+    signature="media_insert",
     on_entity="public.media",
-    definition=_wingperson_scoped_definition("owner_id").strip(),
+    definition=(
+        "AS PERMISSIVE\n"
+        "        FOR INSERT\n"
+        "        TO pear_app\n"
+        "        WITH CHECK (public.is_system_mode()\n"
+        "          OR owner_id = public.current_user_id()\n"
+        "          OR public.is_active_wingperson(owner_id))"
+    ),
 )
+
+_MEDIA_UPDATE = PGPolicy(
+    schema="public",
+    signature="media_update",
+    on_entity="public.media",
+    definition=(
+        "AS PERMISSIVE\n"
+        "        FOR UPDATE\n"
+        "        TO pear_app\n"
+        "        USING (public.is_system_mode()\n"
+        "          OR owner_id = public.current_user_id()\n"
+        "          OR public.is_active_wingperson(owner_id))"
+    ),
+)
+
+_MEDIA_DELETE = PGPolicy(
+    schema="public",
+    signature="media_delete",
+    on_entity="public.media",
+    definition=(
+        "AS PERMISSIVE\n"
+        "        FOR DELETE\n"
+        "        TO pear_app\n"
+        "        USING (public.is_system_mode()\n"
+        "          OR owner_id = public.current_user_id()\n"
+        "          OR public.is_active_wingperson(owner_id))"
+    ),
+)
+
+# SELECT is created in the follow-on RLS revision (after media_id / avatar_media_id
+# columns exist); here we only stand up the owner-scoped write policies.
+_MEDIA_POLICIES = [_MEDIA_INSERT, _MEDIA_UPDATE, _MEDIA_DELETE]
 
 
 def upgrade() -> None:
@@ -56,7 +99,8 @@ def upgrade() -> None:
     op.create_index(op.f("ix_media_state"), "media", ["state"], unique=False)
     op.create_index(op.f("ix_media_deleted_at"), "media", ["deleted_at"], unique=False)
 
-    op.create_entity(_MEDIA_POLICY)
+    for policy in _MEDIA_POLICIES:
+        op.create_entity(policy)
     op.enable_rls("public", "media")
 
     # Re-assert the centralized grants so the new table inherits pear_app CRUD.
@@ -65,7 +109,8 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.disable_rls("public", "media")
-    op.drop_entity(_MEDIA_POLICY)
+    for policy in _MEDIA_POLICIES:
+        op.drop_entity(policy)
     op.drop_index(op.f("ix_media_deleted_at"), table_name="media")
     op.drop_index(op.f("ix_media_state"), table_name="media")
     op.drop_index(op.f("ix_media_owner_id"), table_name="media")

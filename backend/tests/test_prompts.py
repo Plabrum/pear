@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from unittest.mock import MagicMock
 from uuid import uuid4
 
@@ -24,6 +25,8 @@ from app.domain.prompts.exceptions import (
 )
 from app.domain.prompts.models import ProfilePrompt, PromptResponse, PromptTemplate
 from app.domain.prompts.queries import (
+    AuthoredResponseRow,
+    fetch_authored_prompt_responses,
     fetch_onboarding_prompt_templates,
     fetch_own_profile_prompts,
     fetch_prompt_templates,
@@ -34,6 +37,7 @@ from app.domain.prompts.schemas import (
 )
 from app.domain.prompts.state_machine import adapt
 from app.domain.prompts.transformers import (
+    authored_response_to_dto,
     row_to_profile_prompt,
     row_to_prompt_template,
 )
@@ -100,6 +104,69 @@ async def test_get_own_profile_prompts_empty(db_session: AsyncSession) -> None:
     assert await fetch_own_profile_prompts(db_session, uuid4()) == []
 
 
+# ── Reads: responses I added (user_id = me) ──────────────────────────────────────
+
+
+async def test_fetch_authored_prompt_responses(graph: DomainGraph, db_session: AsyncSession) -> None:
+    # The graph seeds one winger-authored response on dater_a's prompt, pending.
+    rows = await fetch_authored_prompt_responses(db_session, graph.winger.id, 50)
+    assert len(rows) == 1
+    row = rows[0]
+    assert row.id == graph.prompt_response.id
+    assert row.dater_id == graph.dater_a.id
+    assert row.dater_name == graph.dater_a.chosen_name
+    assert row.message == graph.prompt_response.message
+    assert row.is_approved is False
+    assert row.is_rejected is False
+
+    dto = authored_response_to_dto(row)
+    assert dto.daterId == graph.dater_a.id
+    assert dto.promptQuestion  # joined from the template
+    assert dto.status == "pending"
+
+
+async def test_fetch_authored_prompt_responses_scoped_to_author(graph: DomainGraph, db_session: AsyncSession) -> None:
+    # A user who authored no responses sees nothing.
+    assert await fetch_authored_prompt_responses(db_session, graph.dater_c.id, 50) == []
+
+
+async def test_authored_prompt_responses_honors_limit(graph: DomainGraph, db_session: AsyncSession) -> None:
+    # Seed a second winger-authored response so the feed has > 1 row.
+    db_session.add(
+        PromptResponse(
+            user_id=graph.winger.id,
+            profile_owner_id=graph.dater_a.id,
+            profile_prompt_id=graph.profile_prompt.id,
+            message="another comment",
+            is_approved=False,
+            is_rejected=False,
+        )
+    )
+    await db_session.flush()
+    assert len(await fetch_authored_prompt_responses(db_session, graph.winger.id, 50)) == 2
+    assert len(await fetch_authored_prompt_responses(db_session, graph.winger.id, 1)) == 1
+
+
+async def test_authored_response_status_matrix(graph: DomainGraph, db_session: AsyncSession) -> None:
+    def _row(is_approved: bool, is_rejected: bool) -> AuthoredResponseRow:
+        return AuthoredResponseRow(
+            id=graph.prompt_response.id,
+            dater_id=graph.dater_a.id,
+            dater_name="Dana",
+            prompt_question="Q?",
+            message="hi",
+            is_approved=is_approved,
+            is_rejected=is_rejected,
+            created_at=datetime(2026, 1, 1, tzinfo=UTC),
+        )
+
+    # rejected wins over approved.
+    assert authored_response_to_dto(_row(True, True)).status == "not_accepted"
+    assert authored_response_to_dto(_row(False, True)).status == "not_accepted"
+    assert authored_response_to_dto(_row(True, False)).status == "accepted"
+    assert authored_response_to_dto(_row(False, False)).status == "pending"
+
+
 # ── Actions: CreateProfilePrompt ─────────────────────────────────────────────────
 
 
@@ -150,12 +217,11 @@ async def test_delete_profile_prompt_denied_for_winger(graph: DomainGraph, db_se
     assert DeleteProfilePrompt.is_available(graph.profile_prompt, deps) is False
 
 
-async def test_delete_profile_prompt_wrong_owner_404(graph: DomainGraph, db_session: AsyncSession) -> None:
-    # dater_b is a dater (passes is_available) but doesn't own dater_a's prompt -> 404.
+async def test_delete_profile_prompt_denied_for_non_owner(graph: DomainGraph, db_session: AsyncSession) -> None:
+    # dater_b is a dater but doesn't own dater_a's prompt. Ownership now lives in
+    # is_available (owner_id compare) -> not offered (a request would be 403).
     deps = _deps(db_session, user_id=graph.dater_b.id)
-    assert DeleteProfilePrompt.is_available(graph.profile_prompt, deps) is True
-    with pytest.raises(ProfilePromptNotFoundError):
-        await DeleteProfilePrompt.execute(graph.profile_prompt, EmptyActionData(), db_session, deps)
+    assert DeleteProfilePrompt.is_available(graph.profile_prompt, deps) is False
 
 
 # ── Actions: CreatePromptResponse ────────────────────────────────────────────────
@@ -241,12 +307,11 @@ async def test_approve_prompt_response_denied_for_winger(graph: DomainGraph, db_
     assert ApprovePromptResponse.is_available(graph.prompt_response, deps) is False
 
 
-async def test_approve_prompt_response_wrong_owner_404(graph: DomainGraph, db_session: AsyncSession) -> None:
-    # dater_b is a dater (passes is_available) but doesn't own the prompt -> 404.
+async def test_approve_prompt_response_denied_for_non_owner(graph: DomainGraph, db_session: AsyncSession) -> None:
+    # dater_b is a dater but doesn't own the prompt's profile. Ownership now lives
+    # in is_available (profile_owner_id compare) -> not offered (a request -> 403).
     deps = _deps(db_session, user_id=graph.dater_b.id)
-    assert ApprovePromptResponse.is_available(graph.prompt_response, deps) is True
-    with pytest.raises(ProfilePromptNotFoundError):
-        await ApprovePromptResponse.execute(graph.prompt_response, EmptyActionData(), db_session, deps)
+    assert ApprovePromptResponse.is_available(graph.prompt_response, deps) is False
 
 
 async def test_approve_prompt_response_not_available_when_already_approved(
@@ -284,9 +349,7 @@ async def test_delete_prompt_response_as_profile_owner(graph: DomainGraph, db_se
     assert result.message == "Comment deleted"
 
 
-async def test_delete_prompt_response_unrelated_404(graph: DomainGraph, db_session: AsyncSession) -> None:
-    # dater_c is neither author nor profile owner -> 404.
+async def test_delete_prompt_response_denied_for_unrelated(graph: DomainGraph, db_session: AsyncSession) -> None:
+    # dater_c is neither author nor profile owner -> is_available denies (-> 403).
     deps = _deps(db_session, user_id=graph.dater_c.id)
-    assert DeletePromptResponse.is_available(graph.prompt_response, deps) is True
-    with pytest.raises(ProfilePromptNotFoundError):
-        await DeletePromptResponse.execute(graph.prompt_response, EmptyActionData(), db_session, deps)
+    assert DeletePromptResponse.is_available(graph.prompt_response, deps) is False

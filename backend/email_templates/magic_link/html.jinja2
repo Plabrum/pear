@@ -1,65 +1,153 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-<html dir="ltr" lang="en">
+<html dir="ltr" lang="en" xmlns="http://www.w3.org/1999/xhtml">
   <head>
     <meta content="text/html; charset=UTF-8" http-equiv="Content-Type" />
     <meta name="x-apple-disable-message-reformatting" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Sign in to Pear</title>
+    <!--[if mso]><style type="text/css">body,table,td,a{font-family:Helvetica,Arial,sans-serif !important;}</style><![endif]-->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono&display=swap');
+      /* Clients that honor <style> get nicer padding on small screens. */
+      @media only screen and (max-width: 540px) {
+        .pad { padding-left: 26px !important; padding-right: 26px !important; }
+        .headline { font-size: 32px !important; }
+        .cta { display: block !important; text-align: center !important; }
+      }
+    </style>
   </head>
-  <body style="background-color:#F5F1E8;margin:0;padding:0;font-family:Georgia,'Times New Roman',serif">
-    <table border="0" width="100%" cellpadding="0" cellspacing="0" role="presentation" align="center"
+  <body style="background-color:#F5F1E8;margin:0;padding:0;width:100%;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%">
+    <!-- Preheader: the inbox preview line, hidden in the body. -->
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:#F5F1E8;font-size:1px;line-height:1px">
+      Your secure sign-in link is ready — it expires in {{ expiration_minutes }} minutes.
+    </div>
+
+    <table role="presentation" border="0" width="100%" cellpadding="0" cellspacing="0"
       style="background-color:#F5F1E8">
       <tbody>
         <tr>
-          <td align="center" style="padding:40px 20px">
-            <table border="0" width="480" cellpadding="0" cellspacing="0" role="presentation"
-              style="max-width:480px;background-color:#FBF8F1;border:1px solid #EDE6D6;border-radius:18px">
+          <td align="center" style="padding:48px 20px">
+
+            <!-- Email card -->
+            <table role="presentation" border="0" width="600" cellpadding="0" cellspacing="0"
+              style="width:600px;max-width:600px;background-color:#FBF8F1;border:1px solid #EDE6D6;border-radius:16px;overflow:hidden">
               <tbody>
+
+                <!-- Wordmark -->
                 <tr>
-                  <td style="padding:40px 36px">
-                    <p style="font-size:11px;color:#3F6B3A;text-transform:uppercase;letter-spacing:2px;margin:0 0 12px">
-                      Sign in
+                  <td class="pad" style="padding:44px 48px 0">
+                    <span style="font-family:'DM Serif Display',Georgia,'Times New Roman',serif;font-size:27px;color:#1F1B16;letter-spacing:-0.5px;line-height:1">
+                      Pear
+                    </span>
+                  </td>
+                </tr>
+
+                <!-- Headline -->
+                <tr>
+                  <td class="pad" style="padding:40px 48px 0">
+                    <p style="font-family:'Geist Mono',ui-monospace,'Courier New',monospace;font-size:11px;letter-spacing:2.4px;text-transform:uppercase;color:#2F6633;font-weight:500;margin:0">
+                      Secure sign-in
                     </p>
-                    <h1 style="font-size:26px;line-height:1.2;color:#2B2B2B;margin:0 0 20px">
-                      Sign in to Pear
+                    <h1 class="headline" style="font-family:'DM Serif Display',Georgia,'Times New Roman',serif;font-weight:400;font-size:40px;line-height:1.05;letter-spacing:-1px;color:#1F1B16;margin:14px 0 0">
+                      Your magic link<br />is <span style="font-style:italic;color:#2F6633">ready</span>.
                     </h1>
-                    <p style="font-size:15px;line-height:1.6;color:#5C5C5C;margin:0 0 28px;font-family:Helvetica,Arial,sans-serif">
-                      Tap the button below to securely sign in. This link expires in
-                      {{ expiration_minutes }} minutes for your security.
+                    <p style="font-family:'Geist',-apple-system,Helvetica,Arial,sans-serif;font-size:15.5px;line-height:1.6;color:#4A4338;margin:18px 0 0;max-width:430px">
+                      Tap the button below and you&rsquo;ll be signed in to Pear &mdash; no password to
+                      remember. The link works once, on any device.
                     </p>
-                    <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="margin:0 0 32px">
+                  </td>
+                </tr>
+
+                <!-- CTA -->
+                <tr>
+                  <td class="pad" style="padding:30px 48px 0">
+                    <table role="presentation" border="0" cellpadding="0" cellspacing="0">
                       <tbody>
                         <tr>
-                          <td align="center" bgcolor="#3F6B3A" style="border-radius:13px">
-                            <a href="{{ magic_link_url }}"
-                              style="display:inline-block;padding:14px 28px;font-size:15px;color:#FFFFFF;text-decoration:none;font-family:Helvetica,Arial,sans-serif;font-weight:600">
-                              Continue to Pear
+                          <td align="center" bgcolor="#2F6633" style="border-radius:26px">
+                            <a href="{{ magic_link_url }}" class="cta"
+                              style="display:inline-block;background-color:#2F6633;color:#FBF8F1;font-family:'Geist',-apple-system,Helvetica,Arial,sans-serif;font-size:16px;font-weight:600;letter-spacing:-0.1px;text-decoration:none;padding:17px 34px;border-radius:26px">
+                              Sign in to Pear&nbsp;&nbsp;&rarr;
                             </a>
                           </td>
                         </tr>
                       </tbody>
                     </table>
-                    <hr style="border:none;border-top:1px solid #EDE6D6;margin:0 0 24px" />
-                    <p style="font-size:10px;color:#3F6B3A;text-transform:uppercase;letter-spacing:1.5px;margin:0 0 8px;font-family:Helvetica,Arial,sans-serif">
-                      Or copy this link
-                    </p>
-                    <div style="background-color:#EDE6D6;border-radius:9px;padding:12px 14px;margin:0 0 24px">
-                      <p style="font-size:12px;word-break:break-all;margin:0;line-height:1.4;color:#5C5C5C;font-family:'Courier New',monospace">
-                        {{ magic_link_url }}
-                      </p>
-                    </div>
-                    <hr style="border:none;border-top:1px solid #EDE6D6;margin:0 0 24px" />
-                    <p style="font-size:14px;line-height:1.6;color:#5C5C5C;margin:0;font-family:Helvetica,Arial,sans-serif">
-                      <strong style="color:#2B2B2B">Didn&rsquo;t request this?</strong><br />
-                      You can safely ignore this email. This link can only be used once and expires automatically.
+                  </td>
+                </tr>
+
+                <!-- Expiry -->
+                <tr>
+                  <td class="pad" style="padding:18px 48px 0">
+                    <span style="font-family:'Geist Mono',ui-monospace,'Courier New',monospace;font-size:12.5px;color:#8B8170;letter-spacing:0.2px">
+                      &bull;&nbsp; Expires in {{ expiration_minutes }} minutes &middot; one-time use
+                    </span>
+                  </td>
+                </tr>
+
+                <!-- Fallback link -->
+                <tr>
+                  <td class="pad" style="padding:30px 48px 0">
+                    <p style="font-family:'Geist',-apple-system,Helvetica,Arial,sans-serif;font-size:13px;line-height:1.55;color:#8B8170;margin:0">
+                      Button not working? Paste this link into your browser:<br />
+                      <a href="{{ magic_link_url }}" style="color:#2F6633;word-break:break-all">{{ magic_link_url }}</a>
                     </p>
                   </td>
                 </tr>
+
+                <!-- Divider -->
+                <tr>
+                  <td class="pad" style="padding:30px 48px 0">
+                    <div style="height:1px;line-height:1px;font-size:1px;background-color:#EDE6D6">&nbsp;</div>
+                  </td>
+                </tr>
+
+                <!-- Security note -->
+                <tr>
+                  <td class="pad" style="padding:24px 48px 0">
+                    <table role="presentation" border="0" width="100%" cellpadding="0" cellspacing="0"
+                      style="background-color:#EDE6D6;border-radius:16px">
+                      <tbody>
+                        <tr>
+                          <td style="padding:18px 20px">
+                            <p style="font-family:'Geist',-apple-system,Helvetica,Arial,sans-serif;font-size:13.5px;line-height:1.5;color:#4A4338;margin:0">
+                              <span style="color:#1F1B16;font-weight:600">Didn&rsquo;t try to sign in?</span>
+                              You can safely ignore this email &mdash; your account stays locked and no one
+                              can get in without this link.
+                            </p>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </td>
+                </tr>
+
+                <tr><td style="height:44px;line-height:44px;font-size:1px">&nbsp;</td></tr>
+
+                <!-- Footer -->
+                <tr>
+                  <td class="pad" style="padding:30px 48px 38px;background-color:#F5F1E8;border-top:1px solid #EDE6D6">
+                    <p style="font-family:'DM Serif Display',Georgia,'Times New Roman',serif;font-size:18px;color:#4A4338;letter-spacing:-0.3px;margin:0">
+                      Pear
+                    </p>
+                    <p style="font-family:'Geist',-apple-system,Helvetica,Arial,sans-serif;font-size:12.5px;color:#8B8170;font-style:italic;margin:5px 0 0">
+                      Dating, with a second opinion.
+                    </p>
+                    <p style="font-family:'Geist',-apple-system,Helvetica,Arial,sans-serif;font-size:11.5px;line-height:1.55;color:#8B8170;margin:18px 0 0">
+                      You&rsquo;re receiving this because someone requested a sign-in link for this address.
+                    </p>
+                    <p style="font-family:'Geist',-apple-system,Helvetica,Arial,sans-serif;font-size:11.5px;color:#8B8170;margin:14px 0 0">
+                      &copy; 2026 Pear
+                    </p>
+                  </td>
+                </tr>
+
               </tbody>
             </table>
-            <p style="font-size:11px;color:#8A8A8A;margin:24px 0 0;font-family:Helvetica,Arial,sans-serif">
-              &copy; 2026 Pear
-            </p>
+            <!-- /Email card -->
+
           </td>
         </tr>
       </tbody>

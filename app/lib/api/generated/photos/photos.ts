@@ -14,7 +14,12 @@ import type {
   UseSuspenseQueryResult,
 } from '@tanstack/react-query';
 
-import type { Photo } from '../model';
+import type {
+  GetApiPhotosSuggested400,
+  GetApiPhotosSuggestedParams,
+  Photo,
+  SuggestedPhoto,
+} from '../model';
 
 import { pearFetch } from '../../http';
 
@@ -119,6 +124,136 @@ export function useGetApiPhotosMeSuspense<
   queryClient?: QueryClient
 ): UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getGetApiPhotosMeSuspenseQueryOptions(options);
+
+  const query = useSuspenseQuery(queryOptions, queryClient) as UseSuspenseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary ListSuggestedPhotos
+ */
+export const getGetApiPhotosSuggestedUrl = (params?: GetApiPhotosSuggestedParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/photos/suggested?${stringifiedParams}`
+    : `/api/photos/suggested`;
+};
+
+export const getApiPhotosSuggested = async (
+  params?: GetApiPhotosSuggestedParams,
+  options?: RequestInit
+): Promise<SuggestedPhoto[]> => {
+  return pearFetch<SuggestedPhoto[]>(getGetApiPhotosSuggestedUrl(params), {
+    ...options,
+    method: 'GET',
+  });
+};
+
+export const getGetApiPhotosSuggestedQueryKey = (params?: GetApiPhotosSuggestedParams) => {
+  return [`/api/photos/suggested`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetApiPhotosSuggestedSuspenseQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiPhotosSuggested>>,
+  TError = GetApiPhotosSuggested400,
+>(
+  params?: GetApiPhotosSuggestedParams,
+  options?: {
+    query?: Partial<
+      UseSuspenseQueryOptions<Awaited<ReturnType<typeof getApiPhotosSuggested>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof pearFetch>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetApiPhotosSuggestedQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getApiPhotosSuggested>>> = ({ signal }) =>
+    getApiPhotosSuggested(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseSuspenseQueryOptions<
+    Awaited<ReturnType<typeof getApiPhotosSuggested>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetApiPhotosSuggestedSuspenseQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiPhotosSuggested>>
+>;
+export type GetApiPhotosSuggestedSuspenseQueryError = GetApiPhotosSuggested400;
+
+export function useGetApiPhotosSuggestedSuspense<
+  TData = Awaited<ReturnType<typeof getApiPhotosSuggested>>,
+  TError = GetApiPhotosSuggested400,
+>(
+  params: undefined | GetApiPhotosSuggestedParams,
+  options: {
+    query: Partial<
+      UseSuspenseQueryOptions<Awaited<ReturnType<typeof getApiPhotosSuggested>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof pearFetch>;
+  },
+  queryClient?: QueryClient
+): UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetApiPhotosSuggestedSuspense<
+  TData = Awaited<ReturnType<typeof getApiPhotosSuggested>>,
+  TError = GetApiPhotosSuggested400,
+>(
+  params?: GetApiPhotosSuggestedParams,
+  options?: {
+    query?: Partial<
+      UseSuspenseQueryOptions<Awaited<ReturnType<typeof getApiPhotosSuggested>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof pearFetch>;
+  },
+  queryClient?: QueryClient
+): UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetApiPhotosSuggestedSuspense<
+  TData = Awaited<ReturnType<typeof getApiPhotosSuggested>>,
+  TError = GetApiPhotosSuggested400,
+>(
+  params?: GetApiPhotosSuggestedParams,
+  options?: {
+    query?: Partial<
+      UseSuspenseQueryOptions<Awaited<ReturnType<typeof getApiPhotosSuggested>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof pearFetch>;
+  },
+  queryClient?: QueryClient
+): UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary ListSuggestedPhotos
+ */
+
+export function useGetApiPhotosSuggestedSuspense<
+  TData = Awaited<ReturnType<typeof getApiPhotosSuggested>>,
+  TError = GetApiPhotosSuggested400,
+>(
+  params?: GetApiPhotosSuggestedParams,
+  options?: {
+    query?: Partial<
+      UseSuspenseQueryOptions<Awaited<ReturnType<typeof getApiPhotosSuggested>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof pearFetch>;
+  },
+  queryClient?: QueryClient
+): UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetApiPhotosSuggestedSuspenseQueryOptions(params, options);
 
   const query = useSuspenseQuery(queryOptions, queryClient) as UseSuspenseQueryResult<
     TData,

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from sqlalchemy import and_, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.decisions.enums import DecisionType
@@ -39,27 +39,20 @@ async def upsert_decline_decision(
     suggestion), it is overwritten to `'declined'`; otherwise a new declined row is
     inserted.
     """
-    existing = (
-        await db.execute(
-            select(Decision)
-            .where(
-                and_(
-                    Decision.actor_id == actor_id,
-                    Decision.recipient_id == recipient_id,
-                )
-            )
-            .limit(1)
+    stmt = (
+        pg_insert(Decision)
+        .values(
+            actor_id=actor_id,
+            recipient_id=recipient_id,
+            decision=DecisionType.DECLINED,
         )
-    ).scalar_one_or_none()
-
-    if existing is not None:
-        existing.decision = DecisionType.DECLINED
-    else:
-        db.add(
-            Decision(
-                actor_id=actor_id,
-                recipient_id=recipient_id,
-                decision=DecisionType.DECLINED,
-            )
+        .on_conflict_do_update(
+            constraint="unique_actor_recipient",
+            set_={"decision": DecisionType.DECLINED},
         )
+        .returning(Decision)
+    )
+    # populate_existing syncs the identity map so a same-transaction entity re-read
+    # sees the declined decision (RETURNING refreshes the row we just wrote).
+    await db.execute(stmt, execution_options={"populate_existing": True})
     await db.flush()

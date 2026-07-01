@@ -2,16 +2,14 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.domain.dating_profiles.actions import Report
+from app.domain.dating_profiles.schemas import ReportActionData
 from app.domain.decisions.enums import DecisionType
 from app.domain.decisions.models import Decision
-from app.domain.reports.actions import FileReport
-from app.domain.reports.exceptions import CannotReportSelfError
 from app.domain.reports.models import ProfileReport
-from app.domain.reports.schemas import CreateReportData
 from app.platform.actions.deps import ActionDeps
 from app.platform.auth.principal import User
 from app.platform.state_machine.machine import StateMachineService
@@ -36,15 +34,15 @@ def _deps(session: AsyncSession, *, user_id, role: Role = Role.DATER) -> ActionD
     )
 
 
-# ── reports action: happy path ───────────────────────────────────────────────
+# ── report via the new DatingProfile action: happy path ──────────────────────
 
 
-async def test_file_report_inserts_report_and_declines(graph: DomainGraph, db_session: AsyncSession) -> None:
-    # dater_a reports dater_c (no prior decision between them).
+async def test_report_inserts_report_and_declines(graph: DomainGraph, db_session: AsyncSession) -> None:
+    # dater_a reports dater_c's profile (no prior decision between them).
     deps = _deps(db_session, user_id=graph.dater_a.id)
-    data = CreateReportData(recipientId=graph.dater_c.id, reason="Inappropriate photos")
+    data = ReportActionData(reason="Inappropriate photos")
 
-    result = await FileReport.execute(data, db_session, deps)
+    result = await Report.execute(graph.dating_profile_c, data, db_session, deps)
     assert result.message == "Report filed"
     assert "decisions" in result.invalidate_queries
 
@@ -71,9 +69,7 @@ async def test_file_report_inserts_report_and_declines(graph: DomainGraph, db_se
     assert decision.decision == DecisionType.DECLINED
 
 
-async def test_file_report_overwrites_existing_decision_to_declined(
-    graph: DomainGraph, db_session: AsyncSession
-) -> None:
+async def test_report_overwrites_existing_decision_to_declined(graph: DomainGraph, db_session: AsyncSession) -> None:
     # dater_a previously liked dater_c; reporting them overwrites the like to a pass
     # (upsert on the unique (actor, recipient) pair).
     db_session.add(
@@ -86,8 +82,8 @@ async def test_file_report_overwrites_existing_decision_to_declined(
     await db_session.flush()
 
     deps = _deps(db_session, user_id=graph.dater_a.id)
-    data = CreateReportData(recipientId=graph.dater_c.id, reason="Changed my mind — abusive")
-    await FileReport.execute(data, db_session, deps)
+    data = ReportActionData(reason="Changed my mind — abusive")
+    await Report.execute(graph.dating_profile_c, data, db_session, deps)
 
     # Still exactly one decision row for the pair, now declined (upsert, not insert).
     rows = (
@@ -109,18 +105,17 @@ async def test_file_report_overwrites_existing_decision_to_declined(
 # ── reports RLS: own-report scoping ──────────────────────────────────────────
 
 
-async def test_file_report_under_rls_actor(graph: DomainGraph, db_session: AsyncSession, acting_as: ActingAs) -> None:
+async def test_report_under_rls_actor(graph: DomainGraph, db_session: AsyncSession, acting_as: ActingAs) -> None:
     """End-to-end under a real RLS actor (not system mode): the reporter can insert
     their own report and read it back; another user cannot see it.
 
-    This exercises the `profile_reports_select` policy added for the ORM's
-    `INSERT ... RETURNING` (the insert is rejected without a SELECT policy under
-    FORCE RLS), plus the existing INSERT WITH CHECK scoping.
+    This exercises the `profile_reports_select` policy (the insert is rejected
+    without a SELECT policy under FORCE RLS), plus the INSERT WITH CHECK scoping.
     """
     async with acting_as(graph.dater_a.id) as s:
         deps = _deps(s, user_id=graph.dater_a.id)
-        data = CreateReportData(recipientId=graph.dater_c.id, reason="RLS path")
-        await FileReport.execute(data, s, deps)
+        data = ReportActionData(reason="RLS path")
+        await Report.execute(graph.dating_profile_c, data, s, deps)
 
         # The reporter reads back their own report (SELECT policy permits it).
         mine = (
@@ -141,16 +136,15 @@ async def test_file_report_under_rls_actor(graph: DomainGraph, db_session: Async
         assert visible == []
 
 
-# ── reports action: gate denial ──────────────────────────────────────────────
+# ── report action: self gate denial ──────────────────────────────────────────
 
 
-async def test_file_report_self_denied(graph: DomainGraph, db_session: AsyncSession) -> None:
+async def test_report_self_denied(graph: DomainGraph, db_session: AsyncSession) -> None:
+    # is_available blocks reporting your own profile (the framework raises 403).
     deps = _deps(db_session, user_id=graph.dater_a.id)
-    data = CreateReportData(recipientId=graph.dater_a.id, reason="should fail")
-    with pytest.raises(CannotReportSelfError):
-        await FileReport.execute(data, db_session, deps)
+    assert Report.is_available(graph.dating_profile_a, deps) is False
 
-    # No report and no decision were written for the self pair.
+    # No report exists for the self pair.
     report = (
         await db_session.execute(select(ProfileReport).where(ProfileReport.reporter_id == graph.dater_a.id))
     ).scalar_one_or_none()
