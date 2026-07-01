@@ -22,12 +22,14 @@ rows) and re-exported through `tests/fixtures/__init__.py`.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from uuid import UUID
 
 import pytest
 from faker import Faker
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.contacts.enums import WingpersonStatus
@@ -43,7 +45,16 @@ from app.domain.profiles.enums import Gender, UserRole
 from app.domain.profiles.models import Profile
 from app.domain.prompts.models import ProfilePrompt, PromptResponse, PromptTemplate
 
-__all__ = ["DomainGraph", "build_domain_graph", "graph"]
+__all__ = [
+    "ActingAs",
+    "DomainGraph",
+    "acting_as",
+    "build_domain_graph",
+    "graph",
+]
+
+# An `async with acting_as(<uuid>):` callable — switches the session's RLS actor.
+ActingAs = Callable[[UUID | str | None], "_ActorScope"]
 
 # Deterministic so test failures are reproducible run-to-run.
 faker = Faker()
@@ -56,9 +67,11 @@ class DomainGraph:
 
     dater_a: Profile
     dater_b: Profile
+    dater_c: Profile  # unrelated to the winger AND to dater_a (no contact, no match)
     winger: Profile
     dating_profile_a: DatingProfile
     dating_profile_b: DatingProfile
+    dating_profile_c: DatingProfile  # active, so its public profile is discoverable
     contact: Contact
     suggestion: Decision  # winger-suggested card for dater_a (decision IS NULL)
     decision: Decision  # dater_a approved dater_b
@@ -111,10 +124,14 @@ async def build_domain_graph(session: AsyncSession) -> DomainGraph:
     # ── Identities ───────────────────────────────────────────────────────────
     dater_a = await _make_profile(session, role=UserRole.DATER, gender=Gender.MALE)
     dater_b = await _make_profile(session, role=UserRole.DATER, gender=Gender.FEMALE)
+    # dater_c stands alone: no contact with the winger, no match with anyone — the
+    # "unrelated dater" used to prove relationship-scoped denials.
+    dater_c = await _make_profile(session, role=UserRole.DATER, gender=Gender.FEMALE)
     winger = await _make_profile(session, role=UserRole.WINGER, gender=Gender.NON_BINARY)
 
     dating_profile_a = await _make_dating_profile(session, user=dater_a)
     dating_profile_b = await _make_dating_profile(session, user=dater_b)
+    dating_profile_c = await _make_dating_profile(session, user=dater_c)
 
     # ── Winger ↔ dater_a relationship (active contact) ───────────────────────
     contact = Contact(
@@ -203,9 +220,11 @@ async def build_domain_graph(session: AsyncSession) -> DomainGraph:
     return DomainGraph(
         dater_a=dater_a,
         dater_b=dater_b,
+        dater_c=dater_c,
         winger=winger,
         dating_profile_a=dating_profile_a,
         dating_profile_b=dating_profile_b,
+        dating_profile_c=dating_profile_c,
         contact=contact,
         suggestion=suggestion,
         decision=decision,
@@ -226,3 +245,70 @@ async def graph(db_session: AsyncSession) -> DomainGraph:
     user-scoped session) to assert RLS visibility against the graph's user ids.
     """
     return await build_domain_graph(db_session)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# RLS actor switching
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# `db_session` connects as the NON-superuser `pear_app` role (the app's runtime
+# role) and sets `app.is_system_mode = true`, so the graph above seeds with RLS
+# bypassed via the *honored escape* (NOT a superuser connection — `pear_app` is
+# fully subject to FORCE RLS). To *assert* RLS we drop that escape
+# (`app.is_system_mode = false`) and set `app.user_id = '<actor>'`, exactly
+# mirroring `app/utils/deps.py:provide_transaction`. `public.current_user_id()`
+# then reads `app.user_id`, and every policy evaluates against that actor.
+#
+# There is no `SET ROLE` anymore: the connection role *is* the non-superuser
+# `pear_app` role throughout. Because the whole test lives in one savepoint-isolated
+# transaction, the actor is switched in place and restored to system mode on exit
+# so later fixture writes still work.
+
+
+class _ActorScope:
+    """Async context manager that runs a block as one RLS actor, then restores."""
+
+    def __init__(self, session: AsyncSession, actor: UUID | str | None) -> None:
+        self._session = session
+        # `None` => leave `app.user_id` UNSET (fail-closed test): no actor is
+        # established. Validate any non-None actor as a real UUID before inlining
+        # (SET LOCAL rejects bind params), so this can never become an injection
+        # vector.
+        self._actor = str(UUID(str(actor))) if actor is not None else None
+
+    async def __aenter__(self) -> AsyncSession:
+        # Drop the system-mode escape, then (optionally) establish the actor.
+        # `SET LOCAL` takes no bind parameters, so the validated UUID is inlined.
+        await self._session.execute(text("SET LOCAL app.is_system_mode = false"))
+        if self._actor is not None:
+            await self._session.execute(text(f"SET LOCAL app.user_id = '{self._actor}'"))
+        else:
+            # Explicitly clear any actor left over from a previous scope.
+            await self._session.execute(text("SET LOCAL app.user_id = ''"))
+        return self._session
+
+    async def __aexit__(self, *_exc: object) -> None:
+        # Restore system mode so the outer fixture transaction (and any follow-on
+        # seeding) is unaffected by this scope.
+        await self._session.execute(text("SET LOCAL app.user_id = ''"))
+        await self._session.execute(text("SET LOCAL app.is_system_mode = true"))
+
+
+@pytest.fixture
+def acting_as(db_session: AsyncSession) -> ActingAs:
+    """Return `acting_as(actor)` — an `async with` that scopes the session to an RLS actor.
+
+    Usage::
+
+        async with acting_as(graph.dater_a.id) as s:
+            rows = (await s.execute(select(Message))).scalars().all()
+
+    Pass `None` to leave `app.user_id` unset (the fail-closed case): the role is
+    still `authenticated`, but no actor is established so relationship-scoped
+    policies deny.
+    """
+
+    def _scope(actor: UUID | str | None) -> _ActorScope:
+        return _ActorScope(db_session, actor)
+
+    return _scope

@@ -20,7 +20,7 @@ from app.platform.actions.deps import ActionDeps
 from app.platform.actions.enums import ActionGroupType
 from app.platform.actions.registry import ActionRegistry
 from app.platform.actions.schemas import build_action_union
-from app.platform.auth.models import StubUser
+from app.platform.auth.principal import User
 from app.platform.state_machine.machine import StateMachineService
 from app.platform.state_machine.roles import Role
 from tests.fixtures.sample_domain.actions import ActivateWidget, sample_widget_actions
@@ -37,12 +37,12 @@ class FakeWidget:
 
 
 def _make_deps(*, role: Role = Role.DATER) -> ActionDeps:
-    """ActionDeps with a real StateMachineService (mock session) and stub user."""
+    """ActionDeps with a real StateMachineService (mock session) and a test user."""
     session = MagicMock()
     session.flush = AsyncMock()
     return ActionDeps(
         transaction=session,
-        user=StubUser(id=uuid4(), role=role),
+        user=User(id=uuid4(), role=role),
         request=MagicMock(),
         config=MagicMock(),
         push=MagicMock(),

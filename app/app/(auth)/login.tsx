@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PearMark } from '@/components/ui/PearMark';
 import { Sprout } from '@/components/ui/Sprout';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { supabase } from '@/lib/supabase';
+import { useAuthActions } from '@/context/auth';
 
 const LEAF = '#5A8C3A';
 const LEAF2 = '#7BAE52';
@@ -17,6 +17,7 @@ const BLUSH = '#E9A6A0';
 export default function LoginScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { signInWithApple } = useAuthActions();
 
   const handleAppleSignIn = async () => {
     if (Platform.OS !== 'ios') return;
@@ -33,32 +34,24 @@ export default function LoginScreen() {
         return;
       }
 
-      const { error } = await supabase.auth.signInWithIdToken({
-        provider: 'apple',
-        token: credential.identityToken,
-      });
+      const fullName = credential.fullName
+        ? [
+            credential.fullName.givenName,
+            credential.fullName.middleName,
+            credential.fullName.familyName,
+          ]
+            .filter(Boolean)
+            .join(' ')
+        : undefined;
+
+      const { error } = await signInWithApple(
+        credential.identityToken,
+        fullName && fullName.length > 0 ? fullName : undefined
+      );
 
       if (error) {
         toast.error(error.message);
         return;
-      }
-
-      if (credential.fullName) {
-        const parts = [
-          credential.fullName.givenName,
-          credential.fullName.middleName,
-          credential.fullName.familyName,
-        ].filter(Boolean);
-
-        if (parts.length > 0) {
-          await supabase.auth.updateUser({
-            data: {
-              full_name: parts.join(' '),
-              given_name: credential.fullName.givenName,
-              family_name: credential.fullName.familyName,
-            },
-          });
-        }
       }
     } catch (e: any) {
       if (e.code === 'ERR_REQUEST_CANCELED') return;
@@ -155,6 +148,17 @@ export default function LoginScreen() {
               onPress={() => router.push('/(auth)/sms')}
             >
               Phone
+            </Sprout>
+          </View>
+          <View className="flex-1">
+            <Sprout
+              block
+              size="lg"
+              variant="secondary"
+              icon={<IconSymbol name="envelope.fill" size={16} color="#1F1B16" />}
+              onPress={() => router.push('/(auth)/email')}
+            >
+              Email
             </Sprout>
           </View>
         </View>

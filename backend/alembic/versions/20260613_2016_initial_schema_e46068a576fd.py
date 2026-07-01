@@ -12,10 +12,12 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 from alembic import op
+from app.config import config as app_config
 from app.domain.contacts.enums import WingpersonStatus
 from app.domain.dating_profiles.enums import City, DatingStatus, Interest, Religion
 from app.domain.decisions.enums import DecisionType
 from app.domain.profiles.enums import Gender, UserRole
+from app.platform.base.rls_grants import app_grants_sql, app_role_bootstrap_sql
 from app.platform.comms.enums import MessageDirection, MessageState
 from app.platform.events.enums import EventType
 from app.platform.queue.enums import TaskStatus
@@ -306,29 +308,18 @@ def upgrade() -> None:
     op.create_index(op.f("ix_prompt_responses_deleted_at"), "prompt_responses", ["deleted_at"], unique=False)
     # ### end Alembic commands ###
 
-    # ── Authenticated-role table grants ──────────────────────────────────────
-    # The request/task transaction runs `SET LOCAL role = authenticated` as the
-    # RLS floor (see app/utils/deps.py). Tables are owned by the migration role,
-    # so `authenticated` needs explicit table privileges before RLS can filter
-    # rows. Mirrors what Supabase grants the `authenticated` role. Guarded so the
-    # migration still runs on a DB where the role hasn't been provisioned.
-    # Concrete per-table Pear RLS policies are authored in Phase 4 — this only
-    # establishes the privilege floor.
-    # TODO(Phase 4): centralize role provisioning + default privileges.
-    op.execute(
-        """
-        DO $$
-        BEGIN
-            IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'authenticated') THEN
-                GRANT USAGE ON SCHEMA public TO authenticated;
-                GRANT SELECT, INSERT, UPDATE, DELETE
-                    ON ALL TABLES IN SCHEMA public TO authenticated;
-                GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO authenticated;
-            END IF;
-        END
-        $$;
-        """
-    )
+    # ── pear_app role: create + GRANT (privilege floor for RLS) ──────────────
+    # The app connects as the dedicated NON-superuser, NON-owner `pear_app` LOGIN
+    # role for ALL runtime work (no per-request SET ROLE) — so it is natively
+    # subject to FORCE RLS. Roles are cluster-global, so create it first (idempotent
+    # DO block; password from DB_APP_PASSWORD, default `pear_app` for dev), then
+    # grant the privilege ceiling RLS filters against: schema USAGE, table CRUD,
+    # sequence USAGE/SELECT, function EXECUTE, plus ALTER DEFAULT PRIVILEGES so
+    # objects created by later migrations (the auth tables + RLS functions) inherit
+    # the same grants. Guarded on role existence and idempotent, so it is safe to
+    # re-assert in the RLS migration too.
+    op.execute(app_role_bootstrap_sql(app_config.DB_APP_PASSWORD))
+    op.execute(app_grants_sql())
 
 
 def downgrade() -> None:

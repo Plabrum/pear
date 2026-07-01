@@ -1,12 +1,20 @@
-"""STUB authentication layer (Phase 2).
+"""Self-hosted authentication (Phase 4).
 
-This package implements a *temporary* auth surface that mirrors the current Hono
-`authMiddleware`: a Bearer JWT is decoded (NOT signature-verified) and a minimal
-`StubUser` is built from the token's `sub` claim. It exists so the platform can
-boot end-to-end (actions router guard, `ActionDeps.user`, RLS `app.user_id` GUC)
-before the real self-hosted auth provider lands.
+Pear owns auth end-to-end (no Supabase): it issues + verifies its own ES256 access
+tokens, runs phone OTP / Apple Sign-In / email magic-link login itself, and stores
+rotating refresh tokens. The pieces:
 
-TODO(Phase 4): replace `StubAuthMiddleware` with real ES256 signature
-verification (config.JWT_PUBLIC_KEY), proper session/role resolution from the
-users table, and the enforced `role = authenticated` RLS floor.
+  * `models` — `AuthIdentity` + `RefreshToken` tables; `enums.AuthProvider`.
+  * `principal` — the authenticated request `User` (loaded from `profiles`).
+  * `tokens.TokenService` — ES256 issue/verify + refresh rotation with reuse
+    detection.
+  * `service.AuthService` — identity bootstrap (`find_or_create_identity`) +
+    `issue_session`.
+  * `clients` — OTP (Twilio Verify / local fake) + Apple JWKS verifier (with a
+    test-key injection path).
+  * `middleware.JWTAuthMiddleware` — verifies the Bearer token's ES256 signature
+    and attaches the verified principal; `deps.provide_current_user` builds the
+    rich `User`; `guards.requires_session` gates protected routes.
+  * `routes` — token-core routes (refresh / logout / me); login-method routes are
+    appended by the Methods agent (see `routes.py` docstring).
 """

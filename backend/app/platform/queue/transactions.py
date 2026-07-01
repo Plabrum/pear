@@ -31,27 +31,32 @@ async def task_transaction(
     """Async context manager that begins a transaction with RLS context.
 
     role_type=USER sets `app.user_id` so RLS policies scope to a single user
-    (requires the `user_id` kwarg — a UUID string). role_type=SYSTEM runs
-    system-actor work without a user scope.
+    (requires the `user_id` kwarg — a UUID string) and pins `app.is_system_mode =
+    false`. role_type=SYSTEM runs trusted system-actor work with no user scope and
+    `app.is_system_mode = true` (the honored RLS escape).
+
+    The worker connection runs as the NON-superuser `pear_app` role
+    (`ASYNC_DATABASE_URL`), so — like the request path — there is no `SET ROLE`:
+    FORCE RLS applies natively and only the per-tx GUCs are set. `SET LOCAL` is
+    transaction-scoped, so system mode cannot leak across pooled connections.
 
     Pear has no organization concept — scope is relationship-based (dater <->
-    winger <-> match), so only `app.user_id` is set. The concrete RLS policies
-    that read this GUC land in Phase 4; here we establish the contract.
+    winger <-> match), so only `app.user_id` is set.
 
     Commits on success or on CommittableTaskError (then re-raises).
     Rolls back on all other exceptions.
-
-    TODO(Phase 4): wire `role = authenticated` enforcement to match the request
-    path once the self-hosted auth provider lands.
     """
     async with db_sessionmaker() as session:
         await session.begin()
         try:
-            await session.execute(text("SET LOCAL role = authenticated"))
             if role_type == TaskRoleType.USER:
                 if user_id is None:
                     raise ValueError("user_id is required for TaskRoleType.USER")
+                await session.execute(text("SET LOCAL app.is_system_mode = false"))
                 await session.execute(text(f"SET LOCAL app.user_id = {_quote_literal(user_id)}"))
+            else:
+                # SYSTEM jobs run as the trusted system actor: the honored escape.
+                await session.execute(text("SET LOCAL app.is_system_mode = true"))
             yield session
             await session.commit()
         except CommittableTaskError:

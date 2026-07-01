@@ -6,16 +6,16 @@ Adapted from sloopquest's `create_app`, stripped to Pear's Phase-2 surface:
   * SAQPlugin (litestar-saq) using the platform queue config; web UI in dev
   * ChannelsPlugin (in-memory backend; presence/messages land in Phase 6)
   * CORSConfig (FRONTEND_ORIGIN) + TemplateConfig (Jinja email templates)
-  * STUB JWT bearer auth (decode-only) excluding ^/health and ^/schema
+  * Verified ES256 JWT bearer auth excluding ^/health, ^/schema and the
+    unauthenticated /auth/* routes (per the auth contract)
   * DI from `get_dependencies()`; registries booted via `discover_and_import`
   * Exception handler mapping `ApplicationError` -> JSON response
-  * Routes: /health + the actions router. NO domain routers yet (Phase 5).
+  * Routes: /health + the auth router + the actions router. NO domain routers
+    yet (Phase 5).
 
 Removed vs sloopquest: organizations, Sqid type codecs + SqidSchemaPlugin,
 SessionAuth/Redis session store, billing/comms-webhook/domain routers, the
 embeddings queue resolver.
-
-TODO(Phase 4): swap `StubAuthMiddleware` for verified ES256 auth + real RLS.
 """
 
 from typing import Any
@@ -29,6 +29,7 @@ from litestar import Litestar, get
 from litestar.channels import ChannelsPlugin
 from litestar.channels.backends.memory import MemoryChannelsBackend
 from litestar.config.cors import CORSConfig
+from litestar.datastructures import State
 from litestar.middleware import DefineMiddleware
 from litestar.middleware.base import AbstractMiddleware
 from litestar.plugins.jinja import JinjaTemplateEngine
@@ -38,7 +39,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from app.config import Config, config
 from app.platform.actions.routes import action_router
-from app.platform.auth.middleware import StubAuthMiddleware
+from app.platform.auth.middleware import JWTAuthMiddleware
+from app.platform.auth.routes import auth_router
 from app.platform.base.models import BaseDBModel
 from app.platform.base.soft_delete import install_soft_delete_filter
 from app.platform.queue.config import queue_config
@@ -61,9 +63,22 @@ install_soft_delete_filter()
 
 __all__ = ["BaseDBModel", "create_app"]
 
-# Routes excluded from the STUB auth middleware: the health probe and the
-# generated OpenAPI schema / docs.
-_AUTH_EXCLUDE = ["^/health", "^/schema"]
+# Unauthenticated /auth/* routes (the login-method + refresh endpoints). These
+# must NOT be rejected by the ES256 middleware for lacking a bearer token. The
+# Methods agent appends its new public paths here (e.g. /auth/otp/start). Note
+# /auth/me and /auth/logout are intentionally ABSENT — they require a token.
+AUTH_PUBLIC_PATHS = [
+    "^/auth/refresh$",
+    "^/auth/otp/start$",
+    "^/auth/otp/check$",
+    "^/auth/apple$",
+    "^/auth/magic-link/request$",
+    "^/auth/magic-link/verify$",
+]
+
+# Routes excluded from the auth middleware: health probe, OpenAPI schema/docs,
+# and the unauthenticated auth routes above.
+_AUTH_EXCLUDE = ["^/health", "^/schema", *AUTH_PUBLIC_PATHS]
 
 
 @get("/health", sync_to_thread=False, exclude_from_auth=True)
@@ -126,10 +141,11 @@ def create_app(
     default_plugins: list[Any] = [sqlalchemy_plugin, saq_plugin, channels_plugin]
     plugins = plugins_overrides if plugins_overrides is not None else default_plugins
 
-    # STUB auth: decode (not verify) the Bearer token, attach a principal. Skipped
-    # for the health probe and the OpenAPI schema. TODO(Phase 4): verified auth.
+    # Verified ES256 auth: check the Bearer token's signature/exp/iss/aud and attach
+    # the verified principal. Skipped for the health probe, OpenAPI schema, and the
+    # unauthenticated /auth/* routes (login methods + refresh).
     auth_middleware: AbstractMiddleware | DefineMiddleware = DefineMiddleware(
-        StubAuthMiddleware,
+        JWTAuthMiddleware,
         exclude=_AUTH_EXCLUDE,
     )
     middleware = middleware_overrides if middleware_overrides is not None else [auth_middleware]
@@ -143,8 +159,14 @@ def create_app(
     return Litestar(
         route_handlers=[
             health,
+            auth_router,
             action_router,
         ],
+        # The active config is shared via app state so the auth middleware / deps
+        # verify with the SAME keypair that signed tokens. In prod every config is
+        # built from the same env PEM; under tests `TestConfig` mints an ephemeral
+        # keypair, so this single instance must be authoritative everywhere.
+        state=State({"config": config}),
         plugins=plugins,
         middleware=middleware,
         cors_config=cors_config,

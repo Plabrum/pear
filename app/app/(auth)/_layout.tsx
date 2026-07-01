@@ -14,6 +14,16 @@ export default function AuthLayout() {
           sheetAllowedDetents: [0.65, 1.0],
         }}
       />
+      <Stack.Screen
+        name="email"
+        options={{
+          presentation: 'formSheet',
+          headerShown: true,
+          title: 'Email',
+          sheetGrabberVisible: true,
+          sheetAllowedDetents: [0.65, 1.0],
+        }}
+      />
     </Stack>
   );
 }

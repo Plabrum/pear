@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { z } from 'zod';
 import { View, Text, Pressable } from '@/lib/tw';
-import { sendOTP, verifyOTP } from '@/context/auth';
+import { sendOTP, useAuthActions } from '@/context/auth';
 import { toE164 } from '@/lib/phoneUtils';
 import { createForm, RootError, SubmitButton, phoneSchema } from '@/lib/forms';
 
@@ -17,6 +17,7 @@ const otpForm = createForm(otpFormSchema);
 export default function SmsModal() {
   const [step, setStep] = useState<'phone' | 'otp'>('phone');
   const [e164Phone, setE164Phone] = useState('');
+  const { verifyOTP } = useAuthActions();
 
   return (
     <KeyboardAvoidingView

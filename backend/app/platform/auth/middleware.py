@@ -1,61 +1,55 @@
-"""STUB JWT bearer authentication middleware.
+"""ES256 bearer authentication middleware (Phase 4 — REAL verification).
 
-Decodes (but does NOT verify) a `Bearer <jwt>` Authorization header and builds a
-`StubUser` from the token's `sub` claim — exactly like the current Hono
-`authMiddleware`, which trusts the gateway-issued token. The resulting principal
-is attached to `connection.scope["user"]` and picked up by:
+Replaces the Phase-2 decode-only stub. Extracts the `Bearer <jwt>` access token,
+**verifies its ES256 signature + exp + iss/aud** via `TokenService`, and attaches a
+verified principal (`VerifiedPrincipal`: the token `sub` as UUID + the `role`
+claim) to `connection.scope["user"]`. Downstream:
 
-  * `provide_transaction` — sets the `app.user_id` RLS GUC from `request.user.id`
-  * `provide_user` (`@dep("user")`) — exposes the principal to handlers/actions
-  * `requires_session` — the guard on the actions router
+  * `provide_transaction` reads `request.user.id` — now a *verified* uuid — to
+    `SET LOCAL app.user_id` (the RLS GUC). Unverified/absent token => no
+    principal => no `app.user_id` => RLS fails closed.
+  * `provide_current_user` (`@dep("user")`) loads the full `Profile` under the
+    RLS-scoped transaction and builds the rich `User` (id + role + chosen_name).
+  * `requires_session` asserts a principal is present.
 
-Requests without a (decodable) token are left unauthenticated (`user=None`);
-route guards decide whether that is allowed. `^/health` and `^/schema` are
-excluded from this middleware entirely (see factory.py).
-
-TODO(Phase 4): verify the ES256 signature against `config.JWT_PUBLIC_KEY`, check
-`exp`/`aud`, and resolve the real `User` (with role) from the database.
+ASGI middleware runs before DI, so it does **no DB work** — it only proves the
+token is authentic and hands the verified id forward. The unauthenticated
+`/auth/*` routes plus `^/health` and `^/schema` are excluded (see factory.py).
+Requests with no / malformed / invalid token are left unauthenticated
+(`user=None`); guards decide whether anonymous access is allowed.
 """
 
 from __future__ import annotations
 
-import base64
-import binascii
-import json
 import logging
+from dataclasses import dataclass
 from uuid import UUID
 
 from litestar.connection import ASGIConnection
 from litestar.middleware import AbstractAuthenticationMiddleware, AuthenticationResult
 
-from app.platform.auth.models import StubUser
+from app.config import Config, config
+from app.domain.profiles.enums import UserRole
+from app.platform.auth.tokens import TokenError, TokenService
 from app.platform.state_machine.roles import Role
 
 logger = logging.getLogger(__name__)
 
 
-def _decode_jwt_unverified(token: str) -> dict | None:
-    """Decode a JWT payload WITHOUT verifying its signature.
+@dataclass
+class VerifiedPrincipal:
+    """Minimal principal proven by a verified access token.
 
-    Returns the decoded claims dict, or None if the token is malformed.
-
-    WARNING: no signature/expiry verification — STUB only. See module docstring.
+    Carries the verified `sub` (uuid) used by `provide_transaction` to set the
+    RLS GUC, plus the advisory `role` claim. The full DB-backed `User` is built
+    later by `provide_current_user`. Satisfies the `Actor` protocol (`.id`/`.role`).
     """
-    parts = token.split(".")
-    if len(parts) != 3:
-        return None
-    payload_b64 = parts[1]
-    # JWT uses url-safe base64 without padding — re-pad before decoding.
-    padding = "=" * (-len(payload_b64) % 4)
-    try:
-        raw = base64.urlsafe_b64decode(payload_b64 + padding)
-        claims = json.loads(raw)
-    except (binascii.Error, ValueError, json.JSONDecodeError):
-        return None
-    return claims if isinstance(claims, dict) else None
+
+    id: UUID
+    role: Role = Role.DATER
 
 
-def _user_from_claims(claims: dict) -> StubUser | None:
+def _principal_from_claims(claims: dict) -> VerifiedPrincipal | None:
     sub = claims.get("sub")
     if not sub:
         return None
@@ -63,27 +57,37 @@ def _user_from_claims(claims: dict) -> StubUser | None:
         user_id = UUID(str(sub))
     except (ValueError, AttributeError):
         return None
-    # `role` is advisory in this phase; default to dater when absent/unknown.
     raw_role = claims.get("role")
-    try:
-        role = Role(raw_role) if raw_role is not None else Role.DATER
-    except ValueError:
-        role = Role.DATER
-    return StubUser(id=user_id, role=role)
+    # `role` claim holds the profile's dater|winger value; map to a transition Role.
+    role = Role.DATER
+    if raw_role is not None:
+        try:
+            role = Role.WINGER if UserRole(raw_role) is UserRole.WINGER else Role.DATER
+        except ValueError:
+            role = Role.DATER
+    return VerifiedPrincipal(id=user_id, role=role)
 
 
-class StubAuthMiddleware(AbstractAuthenticationMiddleware):
-    """Trust-the-token bearer auth — decodes `sub`, never verifies the signature."""
+class JWTAuthMiddleware(AbstractAuthenticationMiddleware):
+    """Verify the Bearer access token's ES256 signature and attach the principal."""
 
     async def authenticate_request(self, connection: ASGIConnection) -> AuthenticationResult:
         auth_header = connection.headers.get("Authorization", "")
         scheme, _, token = auth_header.partition(" ")
 
-        user: StubUser | None = None
+        principal: VerifiedPrincipal | None = None
         if scheme.lower() == "bearer" and token:
-            claims = _decode_jwt_unverified(token)
+            # Use the app's active config (shared via state) so verification uses the
+            # SAME keypair that signed the token. Falls back to the module singleton.
+            active_config: Config = getattr(connection.app.state, "config", None) or config
+            # TokenService is stateless for verification (no DB needed); pass None
+            # as the session — verify_access_token never touches it.
+            service = TokenService(db=None, config=active_config)  # type: ignore[arg-type]
+            try:
+                claims = service.verify_access_token(token)
+            except TokenError:
+                claims = None
             if claims is not None:
-                user = _user_from_claims(claims)
+                principal = _principal_from_claims(claims)
 
-        # `auth` carries the raw token for handlers that need it (none yet).
-        return AuthenticationResult(user=user, auth=token or None)
+        return AuthenticationResult(user=principal, auth=token or None)

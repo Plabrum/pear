@@ -3,6 +3,7 @@
 from logging.config import fileConfig
 
 from alembic.autogenerate import comparators
+from alembic_utils.pg_function import PGFunction as PGFunctionType
 from alembic_utils.pg_policy import PGPolicy as PGPolicyType
 from alembic_utils.replaceable_entity import register_entities
 from sqlalchemy import create_engine, inspect
@@ -11,10 +12,17 @@ from sqlalchemy.types import TypeDecorator
 
 # Import RLS operations so custom ops are registered with Alembic
 import app.platform.base.rls_operations  # noqa: F401
+
+# Import the concrete Pear RLS policy set for its registration side effect:
+# `register_pear_rls()` runs on import, appending all 31 PGPolicy entities to the
+# shared `RLS_POLICY_REGISTRY` and recording the 11 RLS tables in
+# `BaseDBModel.metadata.info["rls"]` (consumed by `compare_rls` to emit enable_rls).
+import app.platform.base.rls_policies  # noqa: F401
 from alembic import context
 from app.config import config as app_config
 from app.platform.base.models import BaseDBModel
 from app.platform.base.rls_comparator import compare_rls
+from app.platform.base.rls_functions import RLS_FUNCTION_REGISTRY
 from app.platform.base.rls_mixins import RLS_POLICY_REGISTRY
 from app.utils.discovery import discover_and_import
 
@@ -46,6 +54,12 @@ def get_existing_policies():
     return [p for p in RLS_POLICY_REGISTRY if p.on_entity.split(".")[-1] in existing_tables]
 
 
+# Register the RLS helper functions BEFORE the policies. alembic_utils
+# materializes each registered entity in a sandbox to diff it, so the functions
+# (`current_user_id`, `is_active_wingperson`) must exist before the policies that
+# call them are created. `current_user_id` is listed first in the registry, and
+# `is_active_wingperson` depends on it, so list-order is correct.
+register_entities(RLS_FUNCTION_REGISTRY, entity_types=[PGFunctionType])
 register_entities(get_existing_policies(), entity_types=[PGPolicyType])
 comparators.dispatch_for("table")(compare_rls)
 

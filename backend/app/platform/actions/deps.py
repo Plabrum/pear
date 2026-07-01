@@ -23,13 +23,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Config, config
 
-# Phase-2 integration: these symbols are now resolvable at runtime (users stub +
-# push stub + comms + state_machine all exist), so they are imported eagerly. This
-# is required because Litestar resolves `ActionDeps`'s dataclass type hints at
-# request time via `get_type_hints`, which evaluates forward refs in THIS module's
-# namespace — a TYPE_CHECKING-only import would raise NameError on every request.
-# TODO(Phase 3/4): `User` is currently an alias of `StubUser` (see
-# app/domain/users/models.py); it becomes the real DB-backed user model then.
+# These symbols are resolvable at runtime (users surface + push + comms +
+# state_machine all exist), so they are imported eagerly. This is required because
+# Litestar resolves `ActionDeps`'s dataclass type hints at request time via
+# `get_type_hints`, which evaluates forward refs in THIS module's namespace — a
+# TYPE_CHECKING-only import would raise NameError on every request. `User` is the
+# Phase-4 authenticated principal (app.platform.auth.principal.User), re-exported
+# from app.domain.users.models for the historical import path the DI resolves by.
 from app.domain.users.models import User
 from app.platform.actions.registry import ActionRegistry
 from app.platform.comms.service.emails import EmailService

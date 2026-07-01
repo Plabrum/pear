@@ -49,17 +49,26 @@ async def provide_transaction(db_session: AsyncSession, request: Request) -> Asy
     Pear has no organization concept — scope is relationship-based (dater <-> winger
     <-> match), so only `app.user_id` is set, sourced from the authenticated user's id.
 
-    TODO(Phase 4): Auth in this phase is a STUB — the user is derived from a decoded
-    (but NOT signature-verified) JWT `sub`, mirroring the current Hono authMiddleware.
-    Phase 4 replaces this with the self-hosted auth provider, verifies the token, and
-    wires the real `role = authenticated` / RLS GUC enforcement. Until then the
-    `SET LOCAL` calls below establish the contract the Phase-4 policies will read.
+    The connection already runs as the dedicated NON-superuser `pear_app` role
+    (`ASYNC_DATABASE_URL`), so there is no per-request `SET ROLE`: the role *is* the
+    non-superuser, non-owner role from the moment the connection is opened, and
+    FORCE RLS applies natively. We only set the per-request GUCs:
+
+    * `app.user_id` — the verified-token `sub` (a UUID), put on
+      `request.scope["user"]` by the ES256 auth middleware *after* verifying the
+      token's signature/exp/iss/aud. `public.current_user_id()` reads it.
+      Unauthenticated requests set none, so RLS fails closed (policies comparing
+      against `current_user_id()` deny).
+    * `app.is_system_mode = false` — defensively pinned off for ordinary requests.
+      Only the `AuthService` first-login bootstrap and system/worker jobs ever set
+      it true. `SET LOCAL` is transaction-scoped, so it cannot leak across pooled
+      connections; this is belt-and-suspenders against a stale GUC.
     """
     async with db_session.begin():
-        # RLS floor: downgrade the connection's role for the duration of the request.
-        await db_session.execute(text("SET LOCAL role = authenticated"))
+        # Trusted-operation escape is OFF for ordinary requests (tx-scoped).
+        await db_session.execute(text("SET LOCAL app.is_system_mode = false"))
         if request.scope.get("user") is not None:
-            # `request.user.id` is a UUID string sourced from the decoded JWT `sub`.
+            # `request.user.id` is the verified-token `sub` (a UUID).
             user_id = str(request.user.id)
             await db_session.execute(text(f"SET LOCAL app.user_id = {_quote_literal(user_id)}"))
         yield db_session
@@ -75,9 +84,10 @@ async def rls_transaction(db_session: AsyncSession, *, user_id: str) -> AsyncGen
     by committing inside. Use this helper to wrap each unit of work in its own
     short-lived transaction with the RLS session variables set.
 
-    TODO(Phase 4): see `provide_transaction` — role/GUC enforcement is stubbed.
+    Like `provide_transaction`, the connection is already the non-superuser
+    `pear_app` role, so no `SET ROLE` is needed — just the per-tx GUCs.
     """
     async with db_session.begin():
-        await db_session.execute(text("SET LOCAL role = authenticated"))
+        await db_session.execute(text("SET LOCAL app.is_system_mode = false"))
         await db_session.execute(text(f"SET LOCAL app.user_id = {_quote_literal(user_id)}"))
         yield db_session

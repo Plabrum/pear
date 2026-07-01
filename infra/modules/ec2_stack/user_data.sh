@@ -55,8 +55,17 @@ POSTGRES_DB=${db_name}
 POSTGRES_USER=${db_user}
 POSTGRES_PASSWORD=${db_password}
 DB_NAME=${db_name}
+# Admin / owner role (DB_USER): the api/worker run `alembic upgrade head` as this
+# role on start (scripts/start.sh), and the migrations create+grant the pear_app
+# role and own the schema objects. ADMIN_DB_URL is built from DB_USER/DB_PASSWORD.
 DB_USER=${db_user}
 DB_PASSWORD=${db_password}
+# App runtime role (DB_APP_USER): the NON-superuser, NON-owner login role the api
+# and worker SERVE as (ASYNC_DATABASE_URL is built from DB_APP_USER/DB_APP_PASSWORD),
+# so RLS is genuinely enforced. DB_APP_USER is non-secret and set here; the matching
+# DB_APP_PASSWORD is a SECRET and is merged in from Secrets Manager by deploy.sh
+# (do NOT commit it). Locally it defaults to `pear_app` (see app/config.py).
+DB_APP_USER=pear_app
 ENV=production
 AWS_REGION=${aws_region}
 S3_MEDIA_BUCKET=${s3_media_bucket}

@@ -5,6 +5,17 @@ dropped — only `app.user_id` / `app.is_system_mode` are set. Each test runs
 inside a SAVEPOINT on a connection that never commits; teardown rolls it back,
 leaving the schema clean (faster than truncating and avoids migration-state
 pollution).
+
+Role model (sloopquest non-superuser): there are TWO engines.
+
+  * `admin_engine` (ADMIN_DB_URL → the `postgres` owner) resets the schema, ensures
+    the `pear_app` login role exists, runs Alembic (which creates `pear_app` + its
+    grants), and builds the test-only `sample_widgets` table.
+  * `test_engine` (ASYNC_DATABASE_URL → the NON-superuser `pear_app` role) is what
+    every test runs against. Because `pear_app` is a non-owner, non-superuser role,
+    FORCE RLS is genuinely enforced — there is no superuser bypass. The honored
+    escape is `app.is_system_mode = true` (set by `db_session` for seeding), not a
+    privileged connection.
 """
 
 import os
@@ -20,6 +31,7 @@ from sqlalchemy.pool import NullPool
 
 from app.config import TestConfig
 from app.platform.base.models import BaseDBModel
+from app.platform.base.rls_grants import APP_ROLE
 
 # Importing the sample model attaches its mapper to `BaseDBModel.metadata` so the
 # `sample_widgets` table can be created in the TEST DB only. It lives under
@@ -35,21 +47,33 @@ def _admin_sync_url(test_config: TestConfig) -> str:
     return test_config.ADMIN_DB_URL.replace("postgresql://", "postgresql+psycopg://", 1)
 
 
-def _reset_schema(conn) -> None:
-    # Recreate public schema and ensure the `authenticated` role exists — the
-    # request/test transaction does `SET LOCAL role = authenticated` (RLS floor).
+def _ensure_app_role(conn, app_password: str) -> None:
+    """Idempotently create the NON-superuser `pear_app` login role + set password.
+
+    Roles are cluster-global, so this runs once as the owner before Alembic. The
+    migration also bootstraps the role, but doing it here too makes the fixture
+    self-sufficient on a bare cluster and keeps the password aligned with
+    `ASYNC_DATABASE_URL`'s credentials.
+    """
+    conn.execute(
+        text(
+            f"DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname='{APP_ROLE}') "
+            f"THEN CREATE ROLE {APP_ROLE} LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE; END IF; END $$;"
+        )
+    )
+    conn.execute(text(f"ALTER ROLE {APP_ROLE} PASSWORD '{app_password}'"))
+
+
+def _reset_schema(conn, app_password: str) -> None:
+    # Recreate public schema. The app connects as the NON-superuser `pear_app`
+    # role (no SET ROLE anymore), so ensure that role exists before Alembic and
+    # grant it schema access after recreation. The owner (`postgres`) retains ALL.
     conn.execute(text("DROP SCHEMA IF EXISTS public CASCADE"))
     conn.execute(text("CREATE SCHEMA public"))
     conn.execute(text("GRANT ALL ON SCHEMA public TO postgres"))
     conn.execute(text("GRANT ALL ON SCHEMA public TO public"))
-    conn.execute(
-        text(
-            "DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname='authenticated') "
-            "THEN CREATE ROLE authenticated NOLOGIN; END IF; END $$;"
-        )
-    )
-    conn.execute(text("GRANT authenticated TO postgres"))
-    conn.execute(text("GRANT ALL ON SCHEMA public TO authenticated"))
+    _ensure_app_role(conn, app_password)
+    conn.execute(text(f"GRANT USAGE ON SCHEMA public TO {APP_ROLE}"))
 
 
 @pytest.fixture(scope="session")
@@ -59,16 +83,28 @@ def test_config() -> TestConfig:
 
 @pytest.fixture(scope="session")
 def test_engine(test_config: TestConfig):
+    """Engine the tests run against — connects as the NON-superuser `pear_app`.
+
+    Because `pear_app` neither owns the tables nor is a superuser, RLS is
+    genuinely enforced (FORCE RLS) — no bypass. This is the whole point of the
+    sloopquest role model.
+    """
     return create_async_engine(test_config.ASYNC_DATABASE_URL, echo=False, poolclass=NullPool)
 
 
 @pytest.fixture(scope="session")
 def setup_database(test_engine, test_config: TestConfig):
-    """Drop schema, run Alembic migrations, yield, then clean up."""
+    """Drop schema, run Alembic migrations, yield, then clean up.
+
+    Runs as the admin/owner (`ADMIN_DB_URL`). Ensures `pear_app` exists BEFORE
+    Alembic (so the grants in the migrations have a role to grant to), runs
+    `alembic upgrade head` (which also creates `pear_app` + grants idempotently),
+    then re-grants schema privileges to `pear_app` after the schema recreation.
+    """
     admin_engine = create_engine(_admin_sync_url(test_config), poolclass=NullPool)
 
     with admin_engine.begin() as conn:
-        _reset_schema(conn)
+        _reset_schema(conn, test_config.DB_APP_PASSWORD)
 
     result = subprocess.run(
         ["uv", "run", "alembic", "upgrade", "head"],
@@ -84,29 +120,24 @@ def setup_database(test_engine, test_config: TestConfig):
     # The sample model lives outside app/, so Alembic never creates its table.
     # Build it here (against the admin engine) for the actions/state-machine
     # fixtures, mirroring the RLS + grants the prod migration applies to real
-    # tables. This keeps the prod initial migration free of any sample artifacts.
+    # tables: the policy uses the same `is_system_mode() OR (user_id = me)` shape,
+    # and CRUD is granted to the NON-superuser `pear_app` role the tests run as.
     with admin_engine.begin() as conn:
         BaseDBModel.metadata.create_all(
             bind=conn,
             tables=[BaseDBModel.metadata.tables[SampleWidget.__tablename__]],
         )
         conn.execute(text("ALTER TABLE public.sample_widgets ENABLE ROW LEVEL SECURITY"))
+        conn.execute(text("ALTER TABLE public.sample_widgets FORCE ROW LEVEL SECURITY"))
         conn.execute(
             text(
                 "CREATE POLICY user_scope_policy ON public.sample_widgets "
-                "AS PERMISSIVE FOR ALL USING ("
-                "  NULLIF(current_setting('app.is_system_mode', true), '')::boolean IS TRUE"
-                "  OR (NULLIF(current_setting('app.user_id', true), '') IS NOT NULL"
-                "      AND user_id = NULLIF(current_setting('app.user_id', true), '')::uuid))"
+                "AS PERMISSIVE FOR ALL TO public USING ("
+                "  public.is_system_mode()"
+                "  OR (user_id = public.current_user_id()))"
             )
         )
-        conn.execute(
-            text(
-                "DO $$ BEGIN IF EXISTS (SELECT FROM pg_roles WHERE rolname='authenticated') "
-                "THEN GRANT SELECT, INSERT, UPDATE, DELETE ON public.sample_widgets TO authenticated; "
-                "END IF; END $$;"
-            )
-        )
+        conn.execute(text(f"GRANT SELECT, INSERT, UPDATE, DELETE ON public.sample_widgets TO {APP_ROLE}"))
 
     yield
 
@@ -123,8 +154,10 @@ async def db_session(test_engine, setup_database) -> AsyncGenerator[AsyncSession
     """Function-scoped session in system mode for fixture creation.
 
     Each test runs inside a SAVEPOINT. The outer transaction is never committed —
-    it rolls back at the end of the test, undoing all changes. System mode
-    bypasses RLS so factories/fixtures can seed data freely.
+    it rolls back at the end of the test, undoing all changes. The connection is
+    the NON-superuser `pear_app` role, so RLS is enforced; `app.is_system_mode =
+    true` is the honored escape that lets factories/fixtures seed data freely
+    (this is now a genuine bypass, not superuser-driven).
     """
     connection = await test_engine.connect()
     transaction = await connection.begin()
@@ -157,7 +190,9 @@ async def transaction(db_session: AsyncSession, user_id: str) -> AsyncGenerator[
     """Session with RLS enforced for `user_id`.
 
     Use instead of `db_session` to test user-scoped queries. Seed fixtures via
-    `db_session` (system mode) before this takes effect.
+    `db_session` (system mode) before this takes effect. The connection is already
+    the non-superuser `pear_app` role, so there is no `SET ROLE` — just establish
+    the actor and turn the system escape off.
     """
     await db_session.execute(text(f"SET LOCAL app.user_id = '{user_id}'"))
     await db_session.execute(text("SET LOCAL app.is_system_mode = false"))

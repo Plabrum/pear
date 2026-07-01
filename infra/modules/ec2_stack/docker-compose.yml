@@ -25,6 +25,11 @@ services:
     restart: unless-stopped
     ports:
       - "8000:8000"
+    # `.env` carries BOTH role credentials: DB_USER/DB_PASSWORD (admin, used by the
+    # alembic-on-start step in scripts/start.sh) and DB_APP_USER/DB_APP_PASSWORD
+    # (the NON-superuser pear_app role the server serves as via ASYNC_DATABASE_URL,
+    # so RLS is genuinely enforced). config.py derives ADMIN_DB_URL vs
+    # ASYNC_DATABASE_URL from those two pairs.
     env_file: .env
     environment:
       DB_ENDPOINT: db
@@ -44,6 +49,9 @@ services:
     restart: unless-stopped
     command: ["./scripts/start-worker.sh"]
     stop_grace_period: 60s
+    # Same `.env` (both role credential pairs). The worker does NOT run migrations;
+    # it serves as the NON-superuser pear_app role (ASYNC_DATABASE_URL). SYSTEM
+    # tasks use the honored is_system_mode escape (see queue/transactions.py).
     env_file: .env
     environment:
       DB_ENDPOINT: db
