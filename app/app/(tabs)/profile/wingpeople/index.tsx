@@ -11,7 +11,9 @@ import { useGetApiWingpeopleSuspense } from '@/lib/api/generated/contacts/contac
 import { useActionExecutor } from '@/hooks/actions/use-action-executor';
 import { shortKey, type ActionDTO } from '@/lib/actions/types';
 import { InviteWingpersonSheet } from '@/components/wingpeople/InviteWingpersonSheet';
+import { WingerActivityFeed } from '@/components/wingpeople/WingerActivityFeed';
 import { SectionLabel } from '@/components/ui/SectionLabel';
+import { TextTabBar } from '@/components/ui/TextTabBar';
 import { colors } from '@/constants/theme';
 
 // Preserve this screen's slightly tighter section heading spacing.
@@ -292,6 +294,7 @@ function WingpeopleContent({ onOpenInvite }: ContentProps) {
 export default function WingpeopleScreen() {
   const router = useRouter();
   const [inviteVisible, setInviteVisible] = useState(false);
+  const [tab, setTab] = useState(0);
 
   return (
     <SafeAreaView className="flex-1 bg-canvas" edges={['top']}>
@@ -312,18 +315,26 @@ export default function WingpeopleScreen() {
         >
           Wingpeople
         </Text>
-        <Sprout
-          size="sm"
-          icon={<Ionicons name="add" size={14} color={colors.white} />}
-          onPress={() => setInviteVisible(true)}
-        >
-          Invite
-        </Sprout>
+        {tab === 0 && (
+          <Sprout
+            size="sm"
+            icon={<Ionicons name="add" size={14} color={colors.white} />}
+            onPress={() => setInviteVisible(true)}
+          >
+            Invite
+          </Sprout>
+        )}
       </View>
 
-      <Suspense fallback={<Splash variant="spinner" />}>
-        <WingpeopleContent onOpenInvite={() => setInviteVisible(true)} />
-      </Suspense>
+      <TextTabBar tabs={['Wingpeople', 'Winging Activity']} active={tab} setActive={setTab} />
+
+      {tab === 0 ? (
+        <Suspense fallback={<Splash variant="spinner" />}>
+          <WingpeopleContent onOpenInvite={() => setInviteVisible(true)} />
+        </Suspense>
+      ) : (
+        <WingerActivityFeed />
+      )}
 
       <InviteWingpersonSheet visible={inviteVisible} onClose={() => setInviteVisible(false)} />
     </SafeAreaView>
