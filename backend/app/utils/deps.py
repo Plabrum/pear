@@ -1,14 +1,3 @@
-"""Dependency registry for Litestar DI.
-
-Decorate provider functions with @dep("key") to register them.
-In factory.py, call discover_and_import(["deps.py"]) then get_dependencies().
-
-Example:
-    @dep("my_service")
-    def provide_my_service(transaction: AsyncSession) -> MyService:
-        return MyService(transaction)
-"""
-
 import inspect
 from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager

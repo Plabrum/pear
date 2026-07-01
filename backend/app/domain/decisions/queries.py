@@ -1,22 +1,3 @@
-"""SQLAlchemy reads + write helpers for the decisions domain.
-
-Ported from `supabase/functions/api/domains/decisions/queries.ts`. First arg is
-always `db: AsyncSession`; no Litestar/msgspec imports. RLS enforces *access*; the
-explicit `where` clauses are for correctness/relevance only.
-
-This module carries the MATCH-FORMATION machinery the legacy
-`create_match_if_mutual` Postgres trigger used to own:
-  * `find_mutual_match` — look up the matches row for a pair (ids ordered).
-  * `create_match_system` — insert the matches row under the honored system-mode
-    escape (`matches_insert WITH CHECK is_system_mode()`), mirroring the
-    SECURITY DEFINER trigger that bypassed RLS in Supabase.
-  * `push_tokens_for` / `dater_push_and_winger_name` — the push fan-out lookups.
-
-These live in `queries.py` (not the action body) because they span records and call
-platform infra (the system-mode escape), which is exactly the case the recipe carves
-a query module out for.
-"""
-
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -45,9 +26,8 @@ async def upsert_direct_decision(
 ) -> None:
     """Direct like/pass: upsert the actor's decision on the recipient.
 
-    Mirrors Hono's `onConflictDoUpdate` on (actor_id, recipient_id). The legacy
-    `create_match_if_mutual` DB trigger is now the action's on-approve side-effect
-    (see `actions.py`), not a trigger.
+    Upserts on (actor_id, recipient_id). Match formation is the action's
+    on-approve side-effect (see `actions.py`).
     """
     existing = (
         await db.execute(
@@ -115,9 +95,9 @@ async def insert_wing_suggestion(
       * None       -> normal suggestion the dater can act on (with optional note).
       * 'declined' -> winger declines the recipient on the dater's behalf.
 
-    Mirrors Hono's `onConflictDoNothing`: if the (actor, recipient) pair already
-    exists (the dater already decided on / was already suggested this recipient),
-    no row is written. Returns True only on a genuinely new insert.
+    On conflict, does nothing: if the (actor, recipient) pair already exists (the
+    dater already decided on / was already suggested this recipient), no row is
+    written. Returns True only on a genuinely new insert.
     """
     existing = (
         await db.execute(
@@ -164,8 +144,7 @@ async def find_mutual_match(db: AsyncSession, user_a: UUID, user_b: UUID) -> Mat
 async def both_sides_approved(db: AsyncSession, user_a: UUID, user_b: UUID) -> bool:
     """True when BOTH directions of the decision are 'approved' (mutual like).
 
-    This is the condition the legacy `create_match_if_mutual` trigger checked
-    before inserting a match row.
+    This is the condition checked before inserting a match row.
     """
     rows = (
         await db.execute(
@@ -186,8 +165,7 @@ async def create_match_system(db: AsyncSession, user_a: UUID, user_b: UUID) -> M
     """Insert the matches row under the honored system-mode escape.
 
     The `matches_insert` RLS policy is `WITH CHECK (public.is_system_mode())` — an
-    ordinary user can never forge a match. In Supabase this was the SECURITY DEFINER
-    `create_match_if_mutual` trigger; here we briefly enable `app.is_system_mode`
+    ordinary user can never forge a match. We briefly enable `app.is_system_mode`
     for just this INSERT (SET LOCAL is transaction-scoped, restored immediately
     after) so the match is created as a SYSTEM operation.
 

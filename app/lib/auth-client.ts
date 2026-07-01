@@ -1,13 +1,9 @@
 import * as SecureStore from 'expo-secure-store';
 
-// Self-hosted auth client (Phase 4A).
-//
-// Talks to the new backend at EXPO_PUBLIC_API_URL (the /auth/* endpoints).
+// Auth client. Talks to the backend at EXPO_PUBLIC_API_URL (the /auth/*
+// endpoints).
 // - refreshToken: persisted in SecureStore (rotating, opaque).
 // - accessToken: held in memory only (short-lived ES256 JWT).
-//
-// Does NOT use supabase-js. Storage + realtime keep their own supabase client
-// until Phase 6; only the auth layer moves here.
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000';
 

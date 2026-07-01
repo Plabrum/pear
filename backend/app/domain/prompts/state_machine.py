@@ -1,29 +1,3 @@
-"""Approval state machine for `prompt_responses`.
-
-The doc (docs/migration/05-domains.md) models the prompt-response approval flow as
-a state machine: PENDING -> APPROVED / PENDING -> REJECTED, owner-gated. The Phase-3
-`PromptResponse` model stores this as two booleans (`is_approved` / `is_rejected`)
-rather than a single status column, so we cannot drive it through the platform
-`StateMachineService` directly — that service reads/writes a single `state`
-attribute and reads `__tablename__` / `id` for the audit log.
-
-`_ResponseStateAdapter` bridges the gap: it projects the booleans onto
-`ApprovalState` and back. The platform service sets `adapter.state = to`, which the
-adapter's setter writes onto the underlying `PromptResponse` booleans. The audit
-log + STATE_CHANGED event are still emitted (keyed by the real row's table + id),
-so the approval is a first-class, logged transition — never a raw column assignment
-in the action.
-
-Topology:
-    PENDING --(dater)--> APPROVED   # the profile owner approves a comment
-    PENDING --(dater)--> REJECTED   # the profile owner rejects a comment
-    APPROVED / REJECTED             # terminal
-
-Role-gating: only a DATER may approve/reject (the profile owner). Per-object
-ownership ("this dater owns *this* prompt's profile") is enforced in the action's
-`is_available`, not on the transition (the transition only knows the caller role).
-"""
-
 from __future__ import annotations
 
 from typing import Any

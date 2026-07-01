@@ -1,5 +1,3 @@
-"""Comms async tasks — outbound email only."""
-
 import logging
 from datetime import UTC, datetime
 from uuid import UUID

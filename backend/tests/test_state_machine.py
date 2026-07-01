@@ -1,13 +1,3 @@
-"""Unit tests for the state machine framework (Pear roles, UUID ids).
-
-Uses the throwaway sample machine: DRAFT --(dater)--> ACTIVE, with ACTIVE
-terminal (so ACTIVE->DRAFT and any ACTIVE outbound edge is illegal). Pure unit
-tests — the session is mocked, so no DB is required.
-
-The sample machine lives under `tests/fixtures/sample_domain/` (not `app/domain/`)
-so it never reaches the prod model/state-machine registries.
-"""
-
 from typing import cast
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4

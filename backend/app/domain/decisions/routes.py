@@ -1,16 +1,3 @@
-"""Read endpoints for the decisions domain (READS ONLY).
-
-Ported from the GET handler in `supabase/functions/api/domains/decisions/route.ts`.
-All mutations live in `actions.py`.
-
-The single read — `GET /decisions/pending-suggestions` — is a custom-shaped feed (a
-filtered, joined aggregate, not a list/detail-by-id resource), so it is an explicit
-`@get` handler on a `Controller` taking the injected RLS-scoped `transaction` and
-authenticated `user` rather than the declarative `make_crud_controller`. RLS scopes
-visibility to the viewer's own pending suggestions; the query's `where` is for
-relevance/correctness.
-"""
-
 from __future__ import annotations
 
 from litestar import Controller, Router, get

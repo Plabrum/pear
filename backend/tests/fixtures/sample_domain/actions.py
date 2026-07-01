@@ -1,19 +1,3 @@
-"""Throwaway sample action — proves the actions framework end-to-end.
-
-`ActivateWidget` is a `BaseObjectAction` registered via `action_group_factory`.
-It is `is_available` only while the widget is in DRAFT (state gating), and its
-`execute` drives the sample state machine DRAFT -> ACTIVE through
-`deps.state_machine_service`. This exercises:
-
-  * action registration into the singleton `ActionRegistry`
-  * `is_available` state gating (UI visibility + execution authorization)
-  * inclusion in the discriminated `Action` union -> OpenAPI exposure
-
-Lives under `tests/fixtures/` so the prod action discovery
-(`discover_and_import(["actions.py", ...], base_path="app/domain")`) never picks it
-up. The tests import it explicitly to register the group before asserting.
-"""
-
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.platform.actions.base import (

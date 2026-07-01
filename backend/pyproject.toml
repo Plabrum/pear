@@ -24,6 +24,8 @@ dependencies = [
   "jinja2",
   "msgspec",
   "pyjwt[crypto]>=2.9",
+  # HTTP/2 for direct APNs (Apple requires HTTP/2). Pulls in `h2`.
+  "httpx[http2]>=0.27",
 ]
 
 [dependency-groups]
@@ -60,6 +62,9 @@ select = [
 # Domain response/request structs use camelCase field names to match the Hono/Zod
 # wire contract the mobile app's Orval hooks consume byte-for-byte (N815).
 "app/domain/*/schemas.py" = ["N815"]
+# The realtime WS frame structs likewise use camelCase (userId, onlineIds) to match
+# the client's existing realtime payloads byte-for-byte (N815).
+"app/platform/realtime/schemas.py" = ["N815"]
 # Read handlers take camelCase path params ({matchId}/{userId}) so the exported
 # OpenAPI path + parameter names match the old Hono spec the Orval client was
 # generated from byte-for-byte (N803: argument name should be lowercase).

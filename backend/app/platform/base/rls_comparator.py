@@ -1,9 +1,3 @@
-"""Alembic comparator for detecting RLS state changes.
-
-Checks whether tables that should have RLS actually have it enabled,
-and generates migrations to enable/disable RLS as needed.
-"""
-
 from __future__ import annotations
 
 from sqlalchemy import text

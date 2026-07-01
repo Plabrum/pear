@@ -1,17 +1,3 @@
-"""Tests for the ported `wing-pool` domain.
-
-The original Hono domain shipped no `*.test.ts`, so these cover the contract the
-port must preserve:
-  * is_active_wingperson — the 403 gate: True for the active contact, False for an
-    unrelated dater.
-  * fetch_wing_pool — the dater-scoped pool (matches the DATER's prefs, excludes
-    the dater AND the winger, excludes the dater's already-decided candidates).
-  * row_to_wing_profile — snake->camel + the firstPhoto field (vs discover's array).
-
-Reads run against the seeded `graph` under the system-mode `db_session` (RLS is
-covered separately by tests/test_rls.py).
-"""
-
 from __future__ import annotations
 
 from datetime import date
@@ -25,6 +11,7 @@ from app.domain.decisions.models import Decision
 from app.domain.discover.queries import fetch_wing_pool, is_active_wingperson
 from app.domain.wing_pool.transformers import row_to_wing_profile
 from tests.fixtures.graph import DomainGraph
+from tests.fixtures.media import local_media
 
 # `asyncio_mode = "auto"` runs `async def test_*` without a marker.
 
@@ -110,7 +97,7 @@ async def test_wing_profile_maps_to_camel_case(graph: DomainGraph, db_session: A
         page_offset=0,
     )
     row = next(r for r in rows if r.user_id == graph.dater_b.id)
-    dto = row_to_wing_profile(row)
+    dto = await row_to_wing_profile(row, local_media())
 
     assert dto.profileId == graph.dating_profile_b.id
     assert dto.userId == graph.dater_b.id

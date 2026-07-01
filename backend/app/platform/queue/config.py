@@ -1,9 +1,3 @@
-"""SAQ queue configuration.
-
-Wires up the queue startup hook, auto-discovers task modules, and builds the
-QueueConfig list consumed by SAQPlugin in factory.py.
-"""
-
 import logging
 from datetime import UTC, datetime
 from typing import cast
@@ -16,6 +10,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.config import config
 from app.platform.comms.clients.email import LocalEmailClient, SESEmailClient
+from app.platform.push.client import build_push_client
 from app.platform.queue.enums import TaskStatus
 from app.platform.queue.models import Task
 from app.platform.queue.registry import get_registry
@@ -48,7 +43,11 @@ async def queue_startup(ctx: AppContext) -> None:  # type: ignore[override]
     ctx["config"] = config
     ctx["queue"] = ctx["worker"].queue
     ctx["email_client"] = LocalEmailClient() if config.IS_DEV else SESEmailClient(config)
-    logger.info("Queue worker started — DB sessionmaker & email client injected into context")
+    # Direct-APNs push client (LocalPushClient in dev/test or when APNs creds are
+    # absent) — used by the fan-out SEND_PUSH task. The 1:1 inline sends from
+    # actions use the request-scoped client instead.
+    ctx["push_client"] = build_push_client(config)
+    logger.info("Queue worker started — DB sessionmaker, email & push clients injected into context")
 
 
 async def queue_shutdown(ctx: AppContext) -> None:  # type: ignore[override]

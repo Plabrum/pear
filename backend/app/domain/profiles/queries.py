@@ -1,16 +1,3 @@
-"""SQLAlchemy reads for the profiles domain.
-
-Ported from `supabase/functions/api/domains/profiles/queries.ts`. These are
-join/aggregation-heavy reads that span photos, prompts, prompt_responses and
-their authors — exactly the case the recipe carves out for a `queries.py`
-(`db: AsyncSession` first arg, no Litestar/msgspec imports). RLS enforces *access*;
-the explicit `where` clauses are for correctness/relevance only.
-
-The bundle assembled here matches the Hono query bundle: the base dating profile,
-its photos (each with the suggester's chosen name), and its prompts (each with the
-template question + the response thread, where each response carries its author).
-"""
-
 from __future__ import annotations
 
 from uuid import UUID
@@ -36,16 +23,20 @@ async def fetch_dating_profile_base(db: AsyncSession, user_id: UUID) -> DatingPr
     ).scalar_one_or_none()
 
 
-async def _fetch_photos(db: AsyncSession, dating_profile_id: UUID) -> PhotoBundle:
+async def _fetch_photos(db: AsyncSession, dating_profile_id: UUID, *, approved_only: bool = False) -> PhotoBundle:
     suggester = aliased(Profile)
-    rows = (
-        await db.execute(
-            select(ProfilePhoto, suggester.chosen_name)
-            .outerjoin(suggester, suggester.id == ProfilePhoto.suggester_id)
-            .where(ProfilePhoto.dating_profile_id == dating_profile_id)
-            .order_by(asc(ProfilePhoto.display_order))
-        )
-    ).all()
+    stmt = (
+        select(ProfilePhoto, suggester.chosen_name)
+        .outerjoin(suggester, suggester.id == ProfilePhoto.suggester_id)
+        .where(ProfilePhoto.dating_profile_id == dating_profile_id)
+        .order_by(asc(ProfilePhoto.display_order))
+    )
+    if approved_only:
+        # Storage-RLS "approved-public read" intent: a PUBLIC viewer only ever sees
+        # (and gets a presigned URL for) approved photos. The owner's own view
+        # (approved_only=False) still shows pending photos in the editor.
+        stmt = stmt.where(ProfilePhoto.approved_at.is_not(None))
+    rows = (await db.execute(stmt)).all()
     return [(photo, name) for photo, name in rows]
 
 
@@ -99,6 +90,7 @@ async def fetch_public_profile(
     base = await fetch_dating_profile_base(db, user_id)
     if base is None:
         return profile, None, [], []
-    photos = await _fetch_photos(db, base.id)
+    # Public viewers only see approved photos (approved-public read intent).
+    photos = await _fetch_photos(db, base.id, approved_only=True)
     prompts = await _fetch_prompts(db, base.id)
     return profile, base, photos, prompts

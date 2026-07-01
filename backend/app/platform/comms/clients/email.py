@@ -1,5 +1,3 @@
-"""Email client implementations."""
-
 import logging
 import uuid
 from abc import ABC, abstractmethod

@@ -21,6 +21,6 @@ export async function registerPushToken(userId: string) {
   if (!Device.isDevice) return;
   const { status } = await Notifications.requestPermissionsAsync();
   if (status !== 'granted') return;
-  const token = (await Notifications.getExpoPushTokenAsync()).data;
+  const token = (await Notifications.getDevicePushTokenAsync()).data;
   await updateMyProfile(userId, { pushToken: token });
 }

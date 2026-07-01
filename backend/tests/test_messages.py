@@ -1,25 +1,3 @@
-"""Tests for the ported `messages` domain.
-
-Ports the contract exercised by the Hono `messages` domain (which shipped no
-`*.test.ts`) — the reads and the two gated mutations:
-
-  * Reads (the GET handlers' query+transformer path):
-      - `fetch_messages_for_match` / `row_to_message` -> /matches/{matchId}/messages
-        (chronological order, sender chosen_name attached, limit/offset)
-      - `fetch_conversations` / `row_to_conversation` -> /conversations
-        (per-match last message + inbound unread count, most-recent-first)
-      - `is_viewer_in_match` (the participant gate that backs the 404)
-  * Gated actions (writes):
-      - happy path: `SendMessage` inserts a row + pushes the recipient;
-        `MarkMessagesRead` flips inbound unread messages to read.
-      - gate denial: both actions' `is_available` is False for a non-party (the
-        unrelated `dater_c`), which the action router surfaces as PermissionDenied.
-
-Reads run against the seeded `graph` under the system-mode `db_session` (RLS is
-covered separately by tests/test_rls.py). Actions are driven directly with a
-hand-built `ActionDeps`, mirroring tests/test_profiles.py.
-"""
-
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock
@@ -47,7 +25,14 @@ from tests.fixtures.graph import DomainGraph
 # `asyncio_mode = "auto"` (pyproject.toml) runs `async def test_*` without a marker.
 
 
-def _deps(session: AsyncSession, *, user_id, role: Role = Role.DATER, push: object | None = None) -> ActionDeps:
+def _deps(
+    session: AsyncSession,
+    *,
+    user_id,
+    role: Role = Role.DATER,
+    push: object | None = None,
+    realtime: object | None = None,
+) -> ActionDeps:
     """ActionDeps backed by the test session and a given actor."""
     return ActionDeps(
         transaction=session,
@@ -57,6 +42,8 @@ def _deps(session: AsyncSession, *, user_id, role: Role = Role.DATER, push: obje
         push=push if push is not None else MagicMock(send=AsyncMock()),
         email=MagicMock(),
         state_machine_service=StateMachineService(transaction=session),
+        realtime=realtime if realtime is not None else MagicMock(publish_message_after_commit=MagicMock()),
+        media=MagicMock(),
     )
 
 
@@ -160,6 +147,29 @@ async def test_send_message_inserts_and_pushes(graph: DomainGraph, db_session: A
     assert body == "Hey there, nice to match!"
 
 
+async def test_send_message_publishes_to_match_channel_after_commit(
+    graph: DomainGraph, db_session: AsyncSession
+) -> None:
+    """The send action schedules a realtime broadcast of the new message to the
+    match channel (the after-commit publish).
+    """
+    realtime = MagicMock(publish_message_after_commit=MagicMock())
+    deps = _deps(db_session, user_id=graph.dater_a.id, realtime=realtime)
+
+    result = await SendMessage.execute(graph.match, SendMessageData(body="live!"), db_session, deps)
+
+    # Broadcast was scheduled once, for THIS match, carrying the inserted message DTO.
+    realtime.publish_message_after_commit.assert_called_once()
+    tx_arg, match_id_arg, message_dto = realtime.publish_message_after_commit.call_args.args
+    assert tx_arg is db_session
+    assert match_id_arg == graph.match.id
+    # The DTO is the camelCase Message the client consumes (matchId/senderId/body).
+    assert message_dto.id == result.created_id
+    assert message_dto.matchId == graph.match.id
+    assert message_dto.senderId == graph.dater_a.id
+    assert message_dto.body == "live!"
+
+
 async def test_send_message_truncates_long_preview(graph: DomainGraph, db_session: AsyncSession) -> None:
     graph.dater_b.push_token = "ExpoPushToken[recipient]"
     await db_session.flush()
@@ -170,7 +180,7 @@ async def test_send_message_truncates_long_preview(graph: DomainGraph, db_sessio
     await SendMessage.execute(graph.match, SendMessageData(body=long_body), db_session, deps)
 
     _token, _title, body = push.send.await_args.args
-    # Hono truncates to 77 chars + ellipsis when the body exceeds 80.
+    # The preview truncates to 77 chars + ellipsis when the body exceeds 80.
     assert body == "x" * 77 + "…"
 
 

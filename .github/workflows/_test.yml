@@ -1,5 +1,21 @@
 name: Test Backend (Reusable)
 
+# Runs the backend pytest suite against a throwaway postgres:17 + redis.
+#
+# Role model: the suite connects at runtime as the NON-superuser `pear_app` role
+# so FORCE RLS is genuinely enforced. That role is NOT created here —
+# `backend/tests/fixtures/database.py::setup_database` creates `pear_app`
+# (idempotent CREATE ROLE … LOGIN NOSUPERUSER) while connected as the `postgres`
+# owner, BEFORE running Alembic, then grants it schema access. So CI only has to
+# stand up postgres with the `postgres` superuser + the `pear` DB; the fixture
+# bootstraps `pear_app` and the password the app URL uses.
+#
+# DB wiring: `TestConfig` (app/config.py) builds both URLs against port 5435 with
+# DB_NAME=pear, owner postgres/postgres and app user pear_app/pear_app. The
+# postgres service below maps 5435:5432 with matching credentials, so the suite's
+# defaults resolve correctly. The TEST_*/DB_* env below pins those values
+# explicitly so a future change to the config defaults can't silently break CI.
+
 on:
   workflow_call:
 
@@ -28,6 +44,23 @@ jobs:
         ports:
           - 6379:6379
 
+    env:
+      ENV: testing
+      # Run queued SAQ tasks inline so the suite needs no live worker.
+      QUEUE_SYNC: "true"
+      REDIS_URL: redis://localhost:6379
+      # Test DB: matches the postgres service above (5435:5432, db `pear`).
+      DB_ENDPOINT: localhost
+      DB_PORT: "5435"
+      DB_NAME: pear
+      # Owner/admin role — runs Alembic + creates the pear_app role + grants.
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      # App-runtime role — the NON-superuser the suite connects as (RLS enforced).
+      # The fixture creates this role with this exact password before Alembic.
+      DB_APP_USER: pear_app
+      DB_APP_PASSWORD: pear_app
+
     steps:
       - uses: actions/checkout@v4
 
@@ -51,12 +84,22 @@ jobs:
         run: cd backend && uv sync --dev
 
       - name: Run tests
-        env:
-          ENV: testing
         run: cd backend && uv run pytest -v
 
       - name: Lint
         run: cd backend && uv run ruff check .
 
-      - name: Semgrep
-        run: uvx semgrep --config=semgrep/ --error backend/
+      - name: Format check
+        run: cd backend && uv run ruff format --check .
+
+      # Living-code convention guards. Both fail the job on any violation.
+      #   - Reference ban: semgrep flags internal codenames, migration-plan
+      #     breadcrumbs, and provenance comments across backend/ + app/. The
+      #     semgrep/ config lives at the repo root, so this runs from there.
+      #   - Module-docstring + reference guard: AST-based check over backend/app
+      #     and backend/tests (belt-and-suspenders with the semgrep reference ban).
+      - name: Convention guard (semgrep reference ban)
+        run: uvx semgrep --config semgrep/ --error backend/ app/
+
+      - name: Convention guard (no module docstrings)
+        run: cd backend && uv run python scripts/check_conventions.py

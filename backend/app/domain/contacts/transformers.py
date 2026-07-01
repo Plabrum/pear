@@ -1,12 +1,3 @@
-"""Query rows -> camelCase msgspec structs for the contacts domain.
-
-Ported from `supabase/functions/api/domains/contacts/transformers.ts`. The Hono
-transformers map Drizzle rows (snake_case) onto the Zod response shapes (camelCase);
-here we map plain row dataclasses (assembled in `queries.py`) onto the msgspec
-structs. `created_at` (a Postgres `timestamptz`) is rendered as an ISO-8601 string
-to match the JSON contract the mobile app already consumes.
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -24,10 +15,16 @@ from app.domain.contacts.schemas import (
 )
 from app.domain.dating_profiles.enums import Interest
 from app.domain.profiles.enums import Gender
+from app.platform.media.client import BaseMediaClient
 
 
 def _iso(value: datetime | None) -> str:
     return value.isoformat() if value is not None else ""
+
+
+def _avatar_url(key: str | None, media: BaseMediaClient) -> str | None:
+    """Avatar keys resolve to a public-read URL (no presign needed)."""
+    return media.public_url(key) if key else None
 
 
 # ── Row shapes (the loose tuples `queries.py` assembles) ─────────────────────
@@ -74,7 +71,7 @@ class SentInvitationRow:
 # ── Row -> struct mappers ────────────────────────────────────────────────────
 
 
-def row_to_wingperson(row: WingpersonRow) -> Wingperson:
+def row_to_wingperson(row: WingpersonRow, media: BaseMediaClient) -> Wingperson:
     return Wingperson(
         id=row.id,
         createdAt=_iso(row.created_at),
@@ -83,7 +80,7 @@ def row_to_wingperson(row: WingpersonRow) -> Wingperson:
                 id=row.winger_id,
                 chosenName=row.winger_chosen_name,
                 gender=row.winger_gender,
-                avatarUrl=row.winger_avatar_url,
+                avatarUrl=_avatar_url(row.winger_avatar_url, media),
             )
             if row.winger_id is not None
             else None
@@ -99,7 +96,7 @@ def row_to_incoming_invitation(row: IncomingInvitationRow) -> IncomingInvitation
     )
 
 
-def row_to_winging_for(row: WingingForDaterRow) -> WingingForRow:
+def row_to_winging_for(row: WingingForDaterRow, media: BaseMediaClient) -> WingingForRow:
     return WingingForRow(
         id=row.id,
         createdAt=_iso(row.created_at),
@@ -107,7 +104,7 @@ def row_to_winging_for(row: WingingForDaterRow) -> WingingForRow:
             WingingForDater(
                 id=row.dater_id,
                 chosenName=row.dater_chosen_name,
-                avatarUrl=row.dater_avatar_url,
+                avatarUrl=_avatar_url(row.dater_avatar_url, media),
                 interests=row.dater_interests,
                 bio=row.dater_bio,
             )

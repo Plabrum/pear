@@ -1,20 +1,3 @@
-"""Fixed-window rate limiter for the unauthenticated auth endpoints.
-
-`/auth/otp/start` and `/auth/magic-link/request` are unauthenticated and trigger
-external side effects (an SMS / an email), so they are defended at the app layer
-on top of whatever the provider enforces. This is a simple fixed-window counter
-keyed by a caller identity (e.g. `otp:<phone>:<ip>`): the first `limit` hits in a
-`window_seconds` window pass; the rest are denied until the window rolls over.
-
-Two backends selected by ENV, mirroring the other auth clients:
-  * `RedisRateLimiter` — production: an INCR + EXPIRE on a windowed key.
-  * `InMemoryRateLimiter` — dev/testing: process-local counters with manual
-    window expiry, so local/e2e auth needs no live Redis.
-
-`allow(key)` returns True if the call is within budget, False if it should be
-rejected (the route maps False -> 429).
-"""
-
 from __future__ import annotations
 
 import time

@@ -1,21 +1,3 @@
-"""Declarative read-CRUD controller factory.
-
-Ported from sloopquest, trimmed for Pear:
-  - PKs are UUID (not Sqid) — detail route binds `id:uuid`.
-  - NO organization scoping. `scope` is "user" (rows owned by the current user via a
-    `user_id` column) or "none" (no implicit scoping — rely on RLS + base_query_modifier).
-  - DROPPED: actions hydration, time-series data endpoints, and trigram/FTS search.
-    Those SaaS-heavy platform modules are not ported.
-
-The `user` dependency is the authenticated actor; it is typed loosely (`Any`) here
-because the concrete `User` model is owned by a later phase/agent. The auth guard is
-injected via `extra_guards` rather than hard-imported, so this module has no
-dependency on the (Phase-4) auth layer.
-
-list_*  -> POST /            (body: ListRequest, returns PagedResponse[ListT])
-detail_* -> GET /{id:uuid}   (returns DetailT)
-"""
-
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Literal, get_type_hints

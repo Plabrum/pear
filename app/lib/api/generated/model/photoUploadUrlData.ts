@@ -8,4 +8,5 @@
 export interface PhotoUploadUrlData {
   datingProfileId: string;
   filename: string;
+  contentType?: string;
 }

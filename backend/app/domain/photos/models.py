@@ -1,20 +1,3 @@
-"""ProfilePhoto model — a photo on a dater's profile.
-
-Ports `public.profile_photos` from the Supabase schema:
-  * 20260228000000_schema.sql          — base table (dating_profile_id, suggester_id,
-                                          storage_url, display_order, approved_at)
-  * 20260531000000_winger_activity_rejection.sql — adds `rejected_at`
-
-Key deviations from the SQL (per the migration plan):
-  * The table's own `id` UUID PK + `created_at` are inherited from BaseDBModel
-    (`updated_at` / `deleted_at` are additive and harmless).
-  * `suggester_id` is a real FK to profiles.id with `ON DELETE SET NULL`; a null
-    value means the photo was self-uploaded by the dater.
-  * Photo approval flow: `approved_at` null = pending; `rejected_at` non-null =
-    the dater rejected a winger-suggested photo.
-  * DB triggers / RLS are not ported here (Phase 4).
-"""
-
 from datetime import datetime
 from uuid import UUID
 

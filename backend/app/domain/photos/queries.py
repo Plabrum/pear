@@ -1,14 +1,3 @@
-"""SQLAlchemy reads for the photos domain.
-
-Ported from `supabase/functions/api/domains/photos/queries.ts`. These are the
-join/aggregation reads the recipe carves out for a `queries.py` (`db: AsyncSession`
-first arg, no Litestar/msgspec imports): the caller's own photos joined to the
-suggester's chosen name, plus the ownership / active-wingperson authorization
-lookups the create + upload-url paths need.
-
-RLS enforces *access*; the explicit `where` clauses are for correctness/relevance.
-"""
-
 from __future__ import annotations
 
 from uuid import UUID
@@ -30,9 +19,8 @@ PhotoRow = tuple[ProfilePhoto, str | None]
 async def fetch_own_photos(db: AsyncSession, user_id: UUID) -> list[PhotoRow]:
     """All photos on the caller's dating profile, each with the suggester name.
 
-    Mirrors Hono's `fetchOwnPhotos`: join photo -> dating_profile (to scope to the
-    caller) and left-join the suggester profile for its `chosen_name`, ordered by
-    `display_order` ascending.
+    Join photo -> dating_profile (to scope to the caller) and left-join the suggester
+    profile for its `chosen_name`, ordered by `display_order` ascending.
     """
     suggester = aliased(Profile)
     rows = (
@@ -92,7 +80,7 @@ async def fetch_dater_push_and_suggester_name(
 ) -> tuple[str | None, str | None]:
     """Return `(dater push_token, suggester chosen_name)` for the suggestion push.
 
-    Mirrors Hono's `getDaterPushAndSuggesterName` — a single fetch over both ids.
+    A single fetch over both ids.
     """
     rows = (
         await db.execute(

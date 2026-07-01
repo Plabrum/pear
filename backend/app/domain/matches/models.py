@@ -1,22 +1,3 @@
-"""Match model — a mutual match between two users.
-
-Ports `public.matches` from 20260228000000_schema.sql:
-
-    user_a_id / user_b_id = the two matched users
-
-Constraints (mirrored from the SQL):
-  * unique_match      — UNIQUE (user_a_id, user_b_id)
-  * ordered_match_ids — CHECK (user_a_id < user_b_id)
-
-The ordered check enforces user_a_id < user_b_id so the pair is unique regardless
-of insertion order — the app must sort the two ids before inserting.
-
-Deviations from the SQL (per the migration plan):
-  * `id` UUID PK + `created_at` are inherited from BaseDBModel.
-  * FK ondelete semantics mirror the SQL: both ids CASCADE.
-  * Matches are created by server-side logic (Phase 5) — no trigger ported here.
-"""
-
 from uuid import UUID
 
 import sqlalchemy as sa

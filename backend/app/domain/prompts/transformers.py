@@ -1,15 +1,3 @@
-"""snake_case ORM rows -> camelCase msgspec structs.
-
-Ported from `supabase/functions/api/domains/prompts/transformers.ts`. Maps
-SQLAlchemy ORM objects onto the msgspec response structs. Datetime columns render
-as ISO-8601 strings to match the Postgres `timestamptz` -> JSON contract the
-mobile app already consumes.
-
-The query layer hands these functions ORM objects plus the joined author profile
-(nullable, like the Hono LEFT JOIN onto `profiles`) and, for prompts, the joined
-template question + the response threads.
-"""
-
 from __future__ import annotations
 
 from datetime import date, datetime
@@ -22,6 +10,7 @@ from app.domain.prompts.schemas import (
     PromptResponseAuthor,
     PromptTemplate as PromptTemplateSchema,
 )
+from app.platform.media.client import BaseMediaClient
 
 
 def _iso(value: datetime | date | None) -> str:
@@ -30,11 +19,18 @@ def _iso(value: datetime | date | None) -> str:
     return value.isoformat()
 
 
+def _avatar_url(key: str | None, media: BaseMediaClient) -> str | None:
+    """Avatar keys resolve to a public-read URL (no presign needed)."""
+    return media.public_url(key) if key else None
+
+
 def row_to_prompt_template(row: PromptTemplate) -> PromptTemplateSchema:
     return PromptTemplateSchema(id=row.id, question=row.question)
 
 
-def row_to_prompt_response(response: PromptResponse, author: Profile | None) -> PromptResponseSchema:
+def row_to_prompt_response(
+    response: PromptResponse, author: Profile | None, media: BaseMediaClient
+) -> PromptResponseSchema:
     return PromptResponseSchema(
         id=response.id,
         profilePromptId=response.profile_prompt_id,
@@ -46,7 +42,7 @@ def row_to_prompt_response(response: PromptResponse, author: Profile | None) -> 
             PromptResponseAuthor(
                 id=author.id,
                 chosenName=author.chosen_name,
-                avatarUrl=author.avatar_url,
+                avatarUrl=_avatar_url(author.avatar_url, media),
             )
             if author is not None
             else None
@@ -63,6 +59,7 @@ def row_to_profile_prompt(
     prompt: ProfilePrompt,
     question: str,
     responses: ResponseBundle,
+    media: BaseMediaClient,
 ) -> ProfilePromptSchema:
     return ProfilePromptSchema(
         id=prompt.id,
@@ -70,5 +67,5 @@ def row_to_profile_prompt(
         answer=prompt.answer,
         createdAt=_iso(prompt.created_at),
         template=PromptTemplateSchema(id=prompt.prompt_template_id, question=question),
-        responses=[row_to_prompt_response(r, author) for r, author in responses],
+        responses=[row_to_prompt_response(r, author, media) for r, author in responses],
     )

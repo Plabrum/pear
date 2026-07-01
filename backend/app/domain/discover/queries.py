@@ -1,28 +1,3 @@
-"""SQLAlchemy reads for the FEED cluster (discover / wing-pool / likes-you).
-
-Ported from the three Hono query files:
-  * supabase/functions/api/domains/discover/queries.ts   (fetchDiscoverPool)
-  * supabase/functions/api/domains/wing-pool/queries.ts   (fetchWingPool, isActiveWingperson)
-  * supabase/functions/api/domains/likes-you/queries.ts   (fetchLikesYouPool, fetchLikesYouCount)
-
-The three feeds share one *preference filter*: the viewer's (or dater's) own
-`dating_profiles` row scopes candidates by city, interested-gender, age range and
-religious preference, and excludes candidates the viewer has already decided on.
-`build_preference_filters` is the single source of that SQL so the feeds can never
-diverge; `wing_pool` and `likes_you` import it from here.
-
-RLS enforces *access*; these filters are *relevance* (the recipe's explicit
-distinction). First arg is always `db: AsyncSession`, no Litestar/msgspec imports.
-
-Enum-storage note: the Phase-3 models store enum members as their `.name` in TEXT
-columns (and TEXT[] arrays), not as Postgres native enums. So `profiles.gender`
-holds e.g. `'MALE'` and `dating_profiles.interested_gender` holds `'{MALE,FEMALE}'`;
-both sides use the same `.name` encoding, so the Hono `gender = any(interested)` /
-`interested = '{}'` comparisons port directly. `func.any(...)` over the gender
-array compares against `Profile.gender`, whose `TextEnum` bind/result handling
-keeps both sides on the `.name` form.
-"""
-
 from __future__ import annotations
 
 from typing import Any
@@ -63,8 +38,8 @@ from app.domain.wing_pool.transformers import WingPoolRow
 def age_expr() -> ColumnElement[int]:
     """`extract(year from age(date_of_birth))::int` — a candidate's integer age.
 
-    Ports the Hono `ageExpr`; `age(timestamp)` returns an interval whose whole
-    `year` part is the years-of-age value.
+    `age(timestamp)` returns an interval whose whole `year` part is the
+    years-of-age value.
     """
     return sa_cast(func.extract("year", func.age(Profile.date_of_birth)), Integer)
 
@@ -72,8 +47,7 @@ def age_expr() -> ColumnElement[int]:
 def first_photo_expr() -> ColumnElement[Any]:
     """Correlated subquery: the candidate's first approved photo URL (or NULL).
 
-    Ports the wing-pool / likes-you `firstPhotoExpr`: lowest display_order among
-    the candidate's approved photos.
+    Lowest display_order among the candidate's approved photos.
     """
     return (
         select(ProfilePhoto.storage_url)
@@ -89,9 +63,8 @@ def first_photo_expr() -> ColumnElement[Any]:
 
 
 def photos_array_expr() -> ColumnElement[Any]:
-    """Correlated subquery: all approved photo URLs ordered by display_order.
-
-    Ports the discover `photosExpr` (`coalesce(array_agg(... order by ...), '{}')`).
+    """Correlated subquery: all approved photo URLs ordered by display_order
+    (`coalesce(array_agg(... order by ...), '{}')`).
     """
     return (
         select(
@@ -126,9 +99,9 @@ def build_preference_filters(
     `decided_actor_id` is the actor whose prior non-null decisions exclude a
     candidate (the viewer for discover/likes-you, the dater for wing-pool).
 
-    Mirrors the Hono filter list exactly: active + `open` candidate, same city, the
-    interested-gender match (empty array = "any"), age within `[ageFrom, ageTo]`,
-    religion preference, and "candidate not already decided on".
+    Filters: active + `open` candidate, same city, the interested-gender match
+    (empty array = "any"), age within `[ageFrom, ageTo]`, religion preference, and
+    "candidate not already decided on".
     """
     age = age_expr()
     filters: list[ColumnElement[bool]] = [
@@ -171,12 +144,11 @@ async def fetch_discover_pool(
     winger_only: bool = False,
     likes_you_only: bool = False,
 ) -> list[DiscoverRow]:
-    """Port of Hono `fetchDiscoverPool`.
+    """The dater swipe feed.
 
-    The dater swipe feed: candidates matching the viewer's preferences, with the
-    pending-suggestion wing note + suggester surfaced, and the optional
-    filterWingerId / wingerOnly / likesYouOnly EXISTS branches. Ordered
-    suggestions-first then newest, paginated.
+    Candidates matching the viewer's preferences, with the pending-suggestion wing
+    note + suggester surfaced, and the optional filterWingerId / wingerOnly /
+    likesYouOnly EXISTS branches. Ordered suggestions-first then newest, paginated.
     """
     vdp = aliased(DatingProfile, name="vdp")
 
@@ -185,7 +157,7 @@ async def fetch_discover_pool(
 
     # The pending winger-suggestion for (viewer -> candidate): wing note, suggester
     # id, suggester chosen name. Each is an independent correlated scalar subquery
-    # (NULL when there is no pending suggestion), mirroring the Hono SQL.
+    # (NULL when there is no pending suggestion).
     wing_note_sq = (
         select(Decision.note)
         .where(
@@ -332,7 +304,7 @@ async def fetch_discover_pool(
 
 
 async def is_active_wingperson(db: AsyncSession, winger_id: UUID, dater_id: UUID) -> bool:
-    """Port of Hono `isActiveWingperson`: an ACTIVE contact (dater -> winger)."""
+    """True when there is an ACTIVE contact (dater -> winger)."""
     stmt = (
         select(literal_column("1"))
         .select_from(Contact)
@@ -354,11 +326,11 @@ async def fetch_wing_pool(
     page_size: int,
     page_offset: int,
 ) -> list[WingPoolRow]:
-    """Port of Hono `fetchWingPool`.
+    """The dater-scoped candidate pool a winger can suggest.
 
-    The dater-scoped candidate pool a winger can suggest: candidates matching the
-    DATER's preferences, excluding the dater and the winger, excluding candidates
-    the dater already decided on. Ordered newest, paginated.
+    Candidates matching the DATER's preferences, excluding the dater and the
+    winger, excluding candidates the dater already decided on. Ordered newest,
+    paginated.
     """
     ddp = aliased(DatingProfile, name="ddp")
     age = age_expr()
@@ -418,7 +390,7 @@ def _build_likes_you_filters(
     vdp: Any,
     age: ColumnElement[int],
 ) -> list[ColumnElement[bool]]:
-    """Port of Hono `buildLikesYouFilters` over aliases `lk` (the like) + `vdp`.
+    """Build the likes-you filters over aliases `lk` (the like) + `vdp`.
 
     `lk.recipient_id = viewer` AND `lk.decision = approved`, the viewer's
     preference filters against the candidate, "not yet decided by viewer", and "no
@@ -471,12 +443,11 @@ async def fetch_likes_you_pool(
     page_size: int,
     page_offset: int,
 ) -> list[LikesYouRow]:
-    """Port of Hono `fetchLikesYouPool`.
+    """Profiles whose `approved` decision targets the viewer.
 
-    Profiles whose `approved` decision targets the viewer, still available (same
-    preference filters, not yet matched, not yet decided-by-viewer), with the
-    optional pending winger-suggestion (note + suggester) left-joined. Ordered by
-    most-recent like, paginated.
+    Still available (same preference filters, not yet matched, not yet
+    decided-by-viewer), with the optional pending winger-suggestion (note +
+    suggester) left-joined. Ordered by most-recent like, paginated.
     """
     lk = aliased(Decision, name="lk")
     vdp = aliased(DatingProfile, name="vdp")
@@ -543,7 +514,7 @@ async def fetch_likes_you_pool(
 
 
 async def fetch_likes_you_count(db: AsyncSession, viewer_id: UUID) -> int:
-    """Port of Hono `fetchLikesYouCount`: count of the same likes-you pool."""
+    """Count of the same likes-you pool."""
     lk = aliased(Decision, name="lk")
     vdp = aliased(DatingProfile, name="vdp")
     age = age_expr()

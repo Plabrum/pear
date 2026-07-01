@@ -1,14 +1,3 @@
-"""Tests for the outbound email platform.
-
-Covers:
-  * EmailService.send_magic_link_email renders the magic_link template, persists a
-    QUEUED Message row, and dispatches the SEND_EMAIL task.
-  * LocalEmailClient logs the message (dev/test) instead of delivering.
-
-`dispatch_task` is patched so the test asserts the enqueue contract without a
-live SAQ worker, Redis, or the inline-task's `email_client` ctx injection.
-"""
-
 import logging
 from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID, uuid4

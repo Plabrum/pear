@@ -1,23 +1,3 @@
-"""Tests for the ported `winger-activity` + `winger-tabs` domains.
-
-Neither Hono domain shipped a `*.test.ts`; these pytest cases preserve the contract
-the port must keep — both are read-only feeds, so there are no actions to gate.
-
-  winger-activity reads (GET /winger-activity/{people,photos,prompts}):
-    * fetch_people_activity / transform_suggestion — status folding across
-      pending / matched / not_accepted, scoped to suggested_by = winger.
-    * fetch_photos_activity / transform_photo — status folding across
-      pending / approved / not_accepted, scoped to suggester_id = winger.
-    * fetch_prompts_activity / transform_prompt — status folding across
-      pending / accepted / not_accepted, scoped to user_id (author) = winger.
-  winger-tabs reads (GET /winger-tabs):
-    * fetch_winger_tabs / rows_to_winger_tabs — distinct wingers with a pending
-      (decision IS NULL) suggestion for the viewer, deduped newest-first.
-
-Reads/seeding run under the system-mode `db_session` (RLS is covered separately by
-tests/test_rls.py). The transformer status-folding cases run as pure unit tests.
-"""
-
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -43,6 +23,11 @@ from app.domain.winger_activity.transformers import (
 from app.domain.winger_tabs.queries import WingerTabRow, fetch_winger_tabs
 from app.domain.winger_tabs.transformers import rows_to_winger_tabs
 from tests.fixtures.graph import DomainGraph
+from tests.fixtures.media import local_media
+
+# Deterministic fake-URL media client — `storage_url` keys resolve to presigned
+# GET URLs (no AWS). Used by the transform_photo cases.
+_media = local_media()
 
 # `asyncio_mode = "auto"` (pyproject.toml) runs `async def test_*` without a marker.
 
@@ -140,9 +125,11 @@ async def test_fetch_photos_activity(graph: DomainGraph, db_session: AsyncSessio
     assert row.approved_at is None
     assert row.rejected_at is None
 
-    dto = transform_photo(row)
+    dto = await transform_photo(row, _media)
     assert dto.daterId == graph.dater_a.id
-    assert dto.storageUrl == graph.pending_photo.storage_url
+    # storageUrl is now a presigned GET URL wrapping the stored key.
+    assert dto.storageUrl.startswith("http")
+    assert graph.pending_photo.storage_url in dto.storageUrl
     assert dto.status == "pending"
 
 
@@ -271,13 +258,13 @@ def _photo(approved: datetime | None, rejected: datetime | None) -> PhotoRow:
     )
 
 
-def test_transform_photo_status_matrix() -> None:
+async def test_transform_photo_status_matrix() -> None:
     now = datetime(2026, 1, 2, tzinfo=UTC)
     # rejected wins over approved
-    assert transform_photo(_photo(now, now)).status == "not_accepted"
-    assert transform_photo(_photo(None, now)).status == "not_accepted"
-    assert transform_photo(_photo(now, None)).status == "approved"
-    assert transform_photo(_photo(None, None)).status == "pending"
+    assert (await transform_photo(_photo(now, now), _media)).status == "not_accepted"
+    assert (await transform_photo(_photo(None, now), _media)).status == "not_accepted"
+    assert (await transform_photo(_photo(now, None), _media)).status == "approved"
+    assert (await transform_photo(_photo(None, None), _media)).status == "pending"
 
 
 def _prompt(is_approved: bool, is_rejected: bool) -> PromptRow:

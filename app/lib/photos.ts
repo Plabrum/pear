@@ -2,8 +2,9 @@ import * as ImagePicker from 'expo-image-picker';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { toast } from 'sonner-native';
 
-import { supabase } from '@/lib/supabase';
-import { updateMyProfile } from '@/lib/api/actions';
+import { getAvatarUploadUrl, updateMyProfile } from '@/lib/api/actions';
+
+const AVATAR_CONTENT_TYPE = 'image/jpeg';
 
 export async function pickAndResizePhoto(opts?: {
   width?: number;
@@ -31,23 +32,31 @@ export async function pickAndResizePhoto(opts?: {
   return saved.uri;
 }
 
+// Avatar upload (S3 presigned PUT, public-read key).
+// Asks the API for a presigned upload URL rooted in the caller's own id, `PUT`s
+// the resized JPEG bytes straight to S3, then PATCHes the profile with
+// `avatarUrl = key` (the DB stores the S3 KEY; reads resolve it to the stable
+// public URL). `userId` is the caller's own profile id (Profile.id === userId).
 export async function uploadAvatar(userId: string, uri: string): Promise<void> {
-  const path = `${userId}.jpg`;
-  const arrayBuffer = await fetch(uri).then((res) => res.arrayBuffer());
-
-  const { error: uploadError } = await supabase.storage
-    .from('avatars')
-    .upload(path, arrayBuffer, { contentType: 'image/jpeg', upsert: true });
-
-  if (uploadError) throw uploadError;
-
-  const { data } = supabase.storage.from('avatars').getPublicUrl(path);
-  await updateMyProfile(userId, { avatarUrl: `${data.publicUrl}?t=${Date.now()}` });
+  const { uploadUrl, key } = await getAvatarUploadUrl({
+    filename: `${userId}.jpg`,
+    contentType: AVATAR_CONTENT_TYPE,
+  });
+  // Raw PUT straight to S3 — NO Authorization header, the presigned URL IS the grant.
+  const blob = await fetch(uri).then((res) => res.blob());
+  const putRes = await fetch(uploadUrl, {
+    method: 'PUT',
+    body: blob,
+    headers: { 'Content-Type': AVATAR_CONTENT_TYPE },
+  });
+  if (!putRes.ok) throw new Error(`S3 PUT failed: ${putRes.status}`);
+  // Persist the KEY; the avatar resolves to its stable public URL on reads.
+  await updateMyProfile(userId, { avatarUrl: key });
 }
 
-export function getPhotoUrl(storagePath: string | null): string | null {
-  if (!storagePath) return null;
-  if (storagePath.startsWith('http')) return storagePath;
-  const { data } = supabase.storage.from('profile-photos').getPublicUrl(storagePath);
-  return data.publicUrl;
+// Read endpoints already return ready-to-load URLs in `storageUrl` (a short-lived
+// presigned GET for photos; a stable public URL for avatars), so this is now a
+// thin pass-through. Kept so callsites don't have to special-case null.
+export function getPhotoUrl(storageUrl: string | null): string | null {
+  return storageUrl ?? null;
 }

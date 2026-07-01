@@ -1,10 +1,3 @@
-"""Row dataclass + snake_case -> camelCase mapper for the wing-pool feed.
-
-Ported from `supabase/functions/api/domains/wing-pool/transformers.ts`. The query
-in `app/domain/discover/queries.py` (shared FEED-cluster module) assembles
-`WingPoolRow`; `row_to_wing_profile` maps it onto the camelCase `WingProfile`.
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -13,6 +6,7 @@ from uuid import UUID
 from app.domain.dating_profiles.enums import City, DatingStatus, Interest
 from app.domain.profiles.enums import Gender
 from app.domain.wing_pool.schemas import WingProfile
+from app.platform.media.client import BaseMediaClient
 
 
 @dataclass
@@ -26,10 +20,11 @@ class WingPoolRow:
     bio: str | None
     dating_status: DatingStatus
     interests: list[Interest]
-    first_photo: str | None
+    first_photo: str | None  # S3 key (approved only) — presigned at transform time
 
 
-def row_to_wing_profile(row: WingPoolRow) -> WingProfile:
+async def row_to_wing_profile(row: WingPoolRow, media: BaseMediaClient) -> WingProfile:
+    first_photo = await media.presign_download(row.first_photo) if row.first_photo is not None else None
     return WingProfile(
         profileId=row.profile_id,
         userId=row.user_id,
@@ -40,5 +35,5 @@ def row_to_wing_profile(row: WingPoolRow) -> WingProfile:
         bio=row.bio,
         datingStatus=row.dating_status,
         interests=row.interests,
-        firstPhoto=row.first_photo,
+        firstPhoto=first_photo,
     )

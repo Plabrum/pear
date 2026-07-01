@@ -1,21 +1,3 @@
-"""Read endpoints for the messages domain (READS ONLY).
-
-Ported from the GET handlers in `supabase/functions/api/domains/messages/route.ts`.
-All mutations (send / mark-read) live in `actions.py`.
-
-Both reads are custom-shaped (a parent-filtered message list under a match path, and
-a per-match conversation aggregate), so they are explicit `@get` handlers on a
-`Controller` rather than the declarative `make_crud_controller` (which assumes
-list-by-body + detail-by-row-id). Each handler takes the injected RLS-scoped
-`transaction` and the authenticated `user`.
-
-Access is RLS-enforced (the messages/matches SELECT policies gate the viewer to
-matches they are party to). The list-messages handler additionally calls
-`is_viewer_in_match` and raises `MatchNotFoundError` (404) when the viewer is not a
-party — preserving the Hono route's explicit 404 for "match not found OR not party",
-which collapses the empty-result case into a not-found rather than an empty array.
-"""
-
 from __future__ import annotations
 
 from uuid import UUID
@@ -53,7 +35,7 @@ class MessagesController(Controller):
         if not allowed:
             raise MatchNotFoundError()
 
-        # Clamp to the Hono Zod bounds (limit 1..200, offset >= 0).
+        # Clamp to bounds (limit 1..200, offset >= 0).
         limit = max(1, min(limit, 200))
         offset = max(0, offset)
 

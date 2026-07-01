@@ -1,21 +1,3 @@
-"""Policies-as-code: register RLS policies declaratively via model mixins.
-
-This module ports the sloopquest MACHINERY only. Pear has NO organization concept
-(it is relationship-scoped: dater <-> winger <-> match), so the org mixins/policies
-are dropped. A single minimal, generic `UserScopedMixin` is kept as an example of
-how a model opts a table into RLS and registers a policy.
-
-The concrete Pear policies (relationship-aware: a winger may read their dater's
-rows, matched users may read each other's messages, etc.) are Phase 4 work — they
-will be authored as additional `PGPolicy` entries appended to `RLS_POLICY_REGISTRY`,
-consumed by the Alembic env via `register_entities(RLS_POLICY_REGISTRY, ...)`.
-
-Active scope is communicated to Postgres via the session variable set by
-`provide_transaction` (requests) and `rls_transaction` (long-lived handlers):
-    app.user_id        — current user (UUID, set from the decoded JWT `sub`)
-    app.is_system_mode — bypass for migrations and system jobs / system-role transitions
-"""
-
 from typing import Any
 
 from alembic_utils.pg_policy import PGPolicy
@@ -45,8 +27,8 @@ class UserScopedMixin:
 
     Does NOT add columns — the model must define its own `user_id` FK.
     Registers a generic user-scoped RLS policy: only the owning user (or system
-    mode) can access rows. Real Pear relationship-aware policies land in Phase 4;
-    this stays minimal/generic.
+    mode) can access rows. Relationship-aware policies live in `rls_policies.py`;
+    this mixin stays minimal/generic.
     """
 
     def __init_subclass__(cls, **kwargs: Any) -> None:

@@ -4,17 +4,28 @@
  * Litestar API
  * OpenAPI spec version: 1.0.0
  */
-import { useSuspenseQuery } from '@tanstack/react-query';
+import { useMutation, useSuspenseQuery } from '@tanstack/react-query';
 import type {
   DataTag,
+  MutationFunction,
   QueryClient,
   QueryFunction,
   QueryKey,
+  UseMutationOptions,
+  UseMutationResult,
   UseSuspenseQueryOptions,
   UseSuspenseQueryResult,
 } from '@tanstack/react-query';
 
-import type { GetApiProfilesUserId400, OwnDatingProfile, Profile, PublicProfile } from '../model';
+import type {
+  AvatarUploadUrlData,
+  AvatarUploadUrlResponse,
+  GetApiProfilesUserId400,
+  OwnDatingProfile,
+  PostApiProfilesMeAvatarUploadUrl400,
+  Profile,
+  PublicProfile,
+} from '../model';
 
 import { pearFetch } from '../../http';
 
@@ -128,6 +139,92 @@ export function useGetApiProfilesMeSuspense<
   return { ...query, queryKey: queryOptions.queryKey };
 }
 
+/**
+ * @summary AvatarUploadUrl
+ */
+export const getPostApiProfilesMeAvatarUploadUrlUrl = () => {
+  return `/api/profiles/me/avatar-upload-url`;
+};
+
+export const postApiProfilesMeAvatarUploadUrl = async (
+  avatarUploadUrlData: AvatarUploadUrlData,
+  options?: RequestInit
+): Promise<AvatarUploadUrlResponse> => {
+  return pearFetch<AvatarUploadUrlResponse>(getPostApiProfilesMeAvatarUploadUrlUrl(), {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(avatarUploadUrlData),
+  });
+};
+
+export const getPostApiProfilesMeAvatarUploadUrlMutationOptions = <
+  TError = PostApiProfilesMeAvatarUploadUrl400,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof postApiProfilesMeAvatarUploadUrl>>,
+    TError,
+    { data: AvatarUploadUrlData },
+    TContext
+  >;
+  request?: SecondParameter<typeof pearFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof postApiProfilesMeAvatarUploadUrl>>,
+  TError,
+  { data: AvatarUploadUrlData },
+  TContext
+> => {
+  const mutationKey = ['postApiProfilesMeAvatarUploadUrl'];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof postApiProfilesMeAvatarUploadUrl>>,
+    { data: AvatarUploadUrlData }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return postApiProfilesMeAvatarUploadUrl(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PostApiProfilesMeAvatarUploadUrlMutationResult = NonNullable<
+  Awaited<ReturnType<typeof postApiProfilesMeAvatarUploadUrl>>
+>;
+export type PostApiProfilesMeAvatarUploadUrlMutationBody = AvatarUploadUrlData;
+export type PostApiProfilesMeAvatarUploadUrlMutationError = PostApiProfilesMeAvatarUploadUrl400;
+
+/**
+ * @summary AvatarUploadUrl
+ */
+export const usePostApiProfilesMeAvatarUploadUrl = <
+  TError = PostApiProfilesMeAvatarUploadUrl400,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof postApiProfilesMeAvatarUploadUrl>>,
+      TError,
+      { data: AvatarUploadUrlData },
+      TContext
+    >;
+    request?: SecondParameter<typeof pearFetch>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof postApiProfilesMeAvatarUploadUrl>>,
+  TError,
+  { data: AvatarUploadUrlData },
+  TContext
+> => {
+  return useMutation(getPostApiProfilesMeAvatarUploadUrlMutationOptions(options), queryClient);
+};
 /**
  * @summary GetPublicProfile
  */

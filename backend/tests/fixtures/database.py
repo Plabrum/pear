@@ -1,23 +1,3 @@
-"""Database fixtures with savepoint-based test isolation.
-
-Adapted from sloopquest. Pear has NO organization concept, so the org GUC is
-dropped — only `app.user_id` / `app.is_system_mode` are set. Each test runs
-inside a SAVEPOINT on a connection that never commits; teardown rolls it back,
-leaving the schema clean (faster than truncating and avoids migration-state
-pollution).
-
-Role model (sloopquest non-superuser): there are TWO engines.
-
-  * `admin_engine` (ADMIN_DB_URL → the `postgres` owner) resets the schema, ensures
-    the `pear_app` login role exists, runs Alembic (which creates `pear_app` + its
-    grants), and builds the test-only `sample_widgets` table.
-  * `test_engine` (ASYNC_DATABASE_URL → the NON-superuser `pear_app` role) is what
-    every test runs against. Because `pear_app` is a non-owner, non-superuser role,
-    FORCE RLS is genuinely enforced — there is no superuser bypass. The honored
-    escape is `app.is_system_mode = true` (set by `db_session` for seeding), not a
-    privileged connection.
-"""
-
 import os
 import subprocess
 from collections.abc import AsyncGenerator
@@ -87,7 +67,7 @@ def test_engine(test_config: TestConfig):
 
     Because `pear_app` neither owns the tables nor is a superuser, RLS is
     genuinely enforced (FORCE RLS) — no bypass. This is the whole point of the
-    sloopquest role model.
+    non-superuser role model.
     """
     return create_async_engine(test_config.ASYNC_DATABASE_URL, echo=False, poolclass=NullPool)
 

@@ -4,21 +4,19 @@ from enum import StrEnum, auto
 class ActionGroupType(StrEnum):
     """Types of action groups.
 
-    Placeholder set — Pear domains register their own action groups here as they
-    are implemented (Phase 5). Each domain's `actions.py` adds the member it needs
-    and wires it via `action_group_factory`.
+    Each domain's `actions.py` adds the member it needs and wires it via
+    `action_group_factory`.
     """
 
     TEST_ACTIONS = auto()
-    # Throwaway — registered by tests/fixtures/sample_domain/actions.py (TESTS ONLY)
-    # to prove the action registration + is_available gating + OpenAPI exposure
-    # path. Not discovered by prod (lives outside app/domain/). Drop in Phase 5.
+    # Registered by tests/fixtures/sample_domain/actions.py (TESTS ONLY) to prove
+    # the action registration + is_available gating + OpenAPI exposure path. Not
+    # discovered by prod (lives outside app/domain/).
     SAMPLE_WIDGET_ACTIONS = auto()
 
-    # ── Phase 5 domain action groups ─────────────────────────────────────────
+    # ── Domain action groups ──────────────────────────────────────────────────
     # Each domain adds the member(s) its actions.py registers via
-    # action_group_factory. (profiles is the template; the Integrate stage adds
-    # the remaining domains' members.)
+    # action_group_factory.
     PROFILE_ACTIONS = auto()
     DATING_PROFILE_ACTIONS = auto()
     CONTACT_ACTIONS = auto()

@@ -1,14 +1,3 @@
-"""Read endpoint for the wing-pool domain (READS ONLY).
-
-Ported from `supabase/functions/api/domains/wing-pool/route.ts` (GET /wing-pool).
-Query-string-driven feed -> explicit `@get` handler on a Controller. The handler
-asserts the caller is an ACTIVE wingperson for the requested dater (raising
-`NotActiveWingpersonError` => 403, matching the Hono `HTTPException(403)`), then
-runs the ported `fetch_wing_pool` and maps rows -> camelCase structs. No mutations.
-
-`operation_id="getApiWingPool"` keeps the Orval-generated hook name stable.
-"""
-
 from __future__ import annotations
 
 from uuid import UUID
@@ -23,6 +12,7 @@ from app.domain.wing_pool.schemas import WingProfile
 from app.domain.wing_pool.transformers import row_to_wing_profile
 from app.platform.auth.guards import requires_session
 from app.platform.auth.principal import User
+from app.platform.media.client import BaseMediaClient
 
 
 class WingPoolController(Controller):
@@ -35,6 +25,7 @@ class WingPoolController(Controller):
         self,
         user: User,
         transaction: AsyncSession,
+        media: BaseMediaClient,
         dater_id: UUID = Parameter(query="daterId"),
         page_size: int = Parameter(query="pageSize", default=20, ge=1, le=100),
         page_offset: int = Parameter(query="pageOffset", default=0, ge=0),
@@ -50,7 +41,7 @@ class WingPoolController(Controller):
             page_size=page_size,
             page_offset=page_offset,
         )
-        return [row_to_wing_profile(r) for r in rows]
+        return [await row_to_wing_profile(r, media) for r in rows]
 
 
 wing_pool_router = Router(

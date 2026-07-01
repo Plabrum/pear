@@ -1,19 +1,3 @@
-"""msgspec schemas for the profiles domain.
-
-Ported from `supabase/functions/api/domains/profiles/schemas.ts`. Field names are
-camelCase to match the Hono Zod output byte-for-byte — the mobile app's Orval hooks
-consume these. Enum-typed fields use the domain `Enum` classes directly; msgspec
-serializes an Enum by its `.value`, which is exactly the wire format the Zod enums
-emit (`'open'`, `'Boston'`, `'Male'`, …).
-
-Output structs: `Profile` / `OwnDatingProfile` / `PublicProfile` (+ their nested
-shapes). Input structs (consumed by the actions layer): `UpdateProfileData` /
-`CreateDatingProfileData` / `UpdateDatingProfileData`. Inputs use `msgspec.UNSET`
-for optional-and-omittable fields so a PATCH can distinguish "absent" (leave as-is)
-from "explicitly null" (clear the column) — mirroring Hono's `.optional()` vs the
-value being present.
-"""
-
 from __future__ import annotations
 
 from uuid import UUID
@@ -191,8 +175,7 @@ class PublicProfile(BaseSchema):
 def fields_set(data: msgspec.Struct) -> dict[str, object]:
     """Return only the explicitly-provided (non-UNSET) fields of an input struct.
 
-    Mirrors the Hono queries' `if (fields.x !== undefined) set.x = …` pattern: a
-    PATCH only touches columns the caller actually sent. `None` is a real value
+    A PATCH only touches columns the caller actually sent. `None` is a real value
     (clear the column); `UNSET` means "absent — leave as-is".
     """
     out: dict[str, object] = {}

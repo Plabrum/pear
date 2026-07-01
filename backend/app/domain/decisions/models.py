@@ -1,26 +1,3 @@
-"""Decision model — swipes (likes/passes) and wingperson suggestions.
-
-Ports `public.decisions` from 20260228000000_schema.sql:
-
-    actor_id     = the dater the decision belongs to
-    recipient_id = the profile being decided on
-    decision     = approved | declined | NULL (NULL = pending wingperson suggestion)
-    suggested_by = the winger who suggested this card (nullable)
-    note         = optional message from the wingperson shown in Discover (nullable)
-
-Constraints (mirrored from the SQL):
-  * unique_actor_recipient — UNIQUE (actor_id, recipient_id)
-  * no_self_decision       — CHECK (actor_id <> recipient_id)
-
-Deviations from the SQL (per the migration plan):
-  * `id` UUID PK + `created_at` are inherited from BaseDBModel.
-  * `decision` is TEXT via `TextEnum`, not a Postgres native enum; the column is
-    nullable (Mapped[DecisionType | None]) — NULL = a suggestion not yet acted on.
-  * FK ondelete semantics mirror the SQL: actor_id / recipient_id CASCADE,
-    suggested_by SET NULL.
-  * The create_match_if_mutual trigger is NOT ported (Phase 5).
-"""
-
 from uuid import UUID
 
 import sqlalchemy as sa

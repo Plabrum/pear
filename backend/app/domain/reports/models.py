@@ -1,16 +1,3 @@
-"""ProfileReport model — a user reporting another user's profile.
-
-Ports `public.profile_reports` from 20260512000000_profile_reports.sql.
-
-Deviations from the SQL (per the migration plan):
-  * `id` UUID PK + `created_at` are inherited from BaseDBModel (the SQL declared
-    them ad-hoc; `updated_at`/`deleted_at` are additive and harmless).
-  * The SQL's FKs point at `auth.users(id)`; here both `reporter_id` and
-    `reported_id` retarget the relocated identity anchor `profiles.id`, keeping
-    the SQL's `on delete cascade`.
-  * The "Users can insert their own reports" RLS policy is NOT ported (Phase 4).
-"""
-
 from uuid import UUID
 
 import sqlalchemy as sa

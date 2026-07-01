@@ -1,27 +1,3 @@
-"""Contacts state machine — the wingperson-invitation lifecycle.
-
-`wingperson_status` IS a state machine; this models it as one so legality lives in
-the topology + role gating instead of scattered `if status == …` checks (the
-05-domains.md "gate actions on state" payoff).
-
-Topology (states -> outbound edges):
-
-    INVITED --(winger)--> ACTIVE       # accept       (winger only)
-    INVITED --(winger)--> REMOVED      # decline      (winger only)
-    INVITED --(dater)-->  REMOVED      # cancel-invite (dater)
-    ACTIVE  --(dater)-->  REMOVED      # remove active (dater)
-    REMOVED               (terminal)
-
-Role-gating lives on each `Transition` (DATER vs WINGER); per-object preconditions
-(the *current* status) are the machine's own topology — `is_available()` on each
-action narrows further so the client gets a clean "can't accept an active contact".
-
-The Contact model exposes a `state` synonym onto `wingperson_status`, so it drives
-the same `StateMachineService` machinery as any `StateMachineMixin` model — actions
-call `deps.state_machine_service.transition(contact_machine, obj, target, actor=…)`
-and never assign the status column directly.
-"""
-
 from __future__ import annotations
 
 from app.domain.contacts.enums import WingpersonStatus

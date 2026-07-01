@@ -1,13 +1,3 @@
-"""snake_case query rows -> camelCase msgspec structs for the matches domain.
-
-Ported from `supabase/functions/api/domains/matches/transformers.ts`. The matches
-list and sheet are aggregate reads (the "other user" summary is assembled from the
-match + the other profile + their dating profile + first photo), so the row inputs
-here are plain tuples/dataclasses produced by `queries.py` rather than single ORM
-objects. Datetime columns render as ISO-8601 strings to match the Postgres
-`timestamptz`->JSON contract the mobile app already consumes.
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -24,6 +14,7 @@ from app.domain.matches.schemas import (
     MatchSummary,
     MatchSummaryOther,
 )
+from app.platform.media.client import BaseMediaClient
 
 
 def _iso(value: datetime | None) -> str:
@@ -44,7 +35,7 @@ class MatchRow:
     city: City | None
     bio: str | None
     interests: list[Interest] | None
-    first_photo: str | None
+    first_photo: str | None  # S3 key (approved only) — presigned at transform time
 
 
 @dataclass
@@ -63,7 +54,10 @@ class MatchPromptRow:
     template_question: str | None
 
 
-def row_to_match(row: MatchRow) -> MatchSummary:
+async def row_to_match(row: MatchRow, media: BaseMediaClient) -> MatchSummary:
+    # `first_photo` is the other user's first APPROVED photo key (the query filters
+    # approved_at IS NOT NULL), so presigning it is safe. None stays None.
+    first_photo = await media.presign_download(row.first_photo) if row.first_photo is not None else None
     other = MatchSummaryOther(
         id=row.other_user_id,
         chosenName=row.chosen_name,
@@ -72,7 +66,7 @@ def row_to_match(row: MatchRow) -> MatchSummary:
         city=row.city,
         bio=row.bio,
         interests=list(row.interests) if row.interests is not None else [],
-        firstPhoto=row.first_photo,
+        firstPhoto=first_photo,
     )
     return MatchSummary(
         matchId=row.match_id,

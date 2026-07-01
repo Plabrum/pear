@@ -1,21 +1,3 @@
-"""TokenService — ES256 access tokens + rotating, revocable refresh tokens.
-
-Access tokens are stateless: a short-lived (~15m) ES256 JWT with claims
-``{sub, role, iat, exp, iss, aud}``, verified against the public key. Refresh
-tokens are the stateful layer — opaque random strings handed to the client once,
-stored only as a SHA-256 hash, chained via ``replaced_by`` so rotation can detect
-reuse: presenting a token that is already revoked/rotated revokes the whole chain.
-
-Keys load from ``config.JWT_SIGNING_KEY`` / ``config.JWT_PUBLIC_KEY`` (PEM). In
-tests `TestConfig` injects an ephemeral keypair, so nothing here needs a real
-secret.
-
-The service is constructed per request with the RLS-scoped transaction; all
-refresh-token DB work goes through that session. (Refresh-token rows are inserted
-/ read in system mode contexts where needed — see route handlers — but the
-service itself just uses whatever session it is handed.)
-"""
-
 from __future__ import annotations
 
 import hashlib

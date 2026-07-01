@@ -1,16 +1,3 @@
-"""Auth dependency providers (Phase 4 — REAL auth).
-
-Registers:
-  * `token_service` — ES256 issue/verify + refresh rotation, bound to the
-    request transaction.
-  * `auth_service` — identity bootstrap + session issuance.
-  * `user` (`provide_current_user`) — the authenticated principal: loads the
-    `Profile` for the middleware-verified `sub` under the RLS-scoped transaction
-    and builds the rich `User` (id + role + chosen_name).
-  * `email` / `state_machine_service` — thin DI-name aliases the actions layer
-    resolves by (underlying services owned by comms / state_machine).
-"""
-
 from typing import Any
 
 from litestar import Request

@@ -1,18 +1,3 @@
-"""Apple Sign-In identity-token verification.
-
-`POST /auth/apple` sends Apple's `identityToken`; we verify it server-side:
-fetch Apple's JWKS (cached), verify the RS256 signature, validate
-`iss == https://appleid.apple.com`, `aud == config.APPLE_CLIENT_ID`, and `exp`,
-then return the stable `sub` (+ email/email_verified when present — Apple delivers
-email only on first authorization).
-
-**Test/dev injection:** when `config.APPLE_TEST_PUBLIC_KEY` is set (PEM), a
-locally-signed token is verified against that key instead of Apple's JWKS, so the
-suite can mint Apple tokens with a known keypair and exercise valid / wrong-aud /
-expired / tampered cases without network access. `config.APPLE_ISSUER` is likewise
-overridable in tests.
-"""
-
 from __future__ import annotations
 
 import logging

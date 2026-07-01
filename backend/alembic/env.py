@@ -1,5 +1,3 @@
-"""Alembic environment — loads app config and runs migrations."""
-
 from logging.config import fileConfig
 
 from alembic.autogenerate import comparators

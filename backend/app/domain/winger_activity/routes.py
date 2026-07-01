@@ -1,21 +1,3 @@
-"""Read endpoints for the winger-activity domain (READS ONLY).
-
-Ported from `supabase/functions/api/domains/winger-activity/route.ts`:
-  * GET /winger-activity/people  -> cards the winger suggested + match outcomes
-  * GET /winger-activity/photos  -> photos the winger suggested + approval status
-  * GET /winger-activity/prompts -> prompt responses the winger authored + status
-
-Each is a limit-bounded feed of the caller's own contributions folded with their
-outcomes — custom-shaped aggregates, not list/detail-by-id resources — so they are
-explicit `@get` handlers on a `Controller` taking the injected RLS-scoped
-`transaction` and authenticated `user` rather than the declarative
-`make_crud_controller`. There is no `actions.py`: this domain is read-only.
-
-`operation_id`s (`getApiWingerActivityPeople` / `...Photos` / `...Prompts`) keep the
-Orval hook names stable across the Hono -> Litestar cutover. The `limit` query param
-mirrors the Hono Zod (`int, 1..100, default 50`).
-"""
-
 from __future__ import annotations
 
 from litestar import Controller, Router, get
@@ -39,6 +21,7 @@ from app.domain.winger_activity.transformers import (
 )
 from app.platform.auth.guards import requires_session
 from app.platform.auth.principal import User
+from app.platform.media.client import BaseMediaClient
 
 
 class WingerActivityController(Controller):
@@ -61,10 +44,11 @@ class WingerActivityController(Controller):
         self,
         user: User,
         transaction: AsyncSession,
+        media: BaseMediaClient,
         limit: int = Parameter(query="limit", default=50, ge=1, le=100),
     ) -> list[PhotoActivityRow]:
         rows = await fetch_photos_activity(transaction, user.id, limit)
-        return [transform_photo(r) for r in rows]
+        return [await transform_photo(r, media) for r in rows]
 
     @get("/prompts", operation_id="getApiWingerActivityPrompts")
     async def get_prompts(

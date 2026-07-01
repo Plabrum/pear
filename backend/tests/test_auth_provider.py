@@ -1,33 +1,3 @@
-"""End-to-end auth-provider suite (Phase 4 self-hosted auth).
-
-Drives every login method (phone OTP, Apple, magic link) plus the token-core
-routes (refresh / logout / me) through a real `AsyncTestClient` against the test
-Postgres + the savepoint `db_session`, so the full chain runs:
-
-    route -> verify external credential -> find_or_create_identity ->
-    issue_session -> ES256 access token + rotating refresh token
-
-Wiring notes (the contract `test_login_methods.py` references):
-  * `auth_app` builds the real Litestar app via `create_app(test_config)`, then
-    overrides the `db_session` DI dependency to yield the test's savepoint
-    session. `provide_transaction` opens a nested `db_session.begin()` per
-    request; because the savepoint session uses
-    `join_transaction_mode="create_savepoint"` and the outer transaction is never
-    committed, every request's writes survive across the request (so a minted
-    refresh token is visible to the next `/auth/refresh`) but roll back at test
-    end — full isolation, no truncation.
-  * The Apple verifier uses an INJECTED EC public key on `test_config`
-    (`APPLE_TEST_PUBLIC_KEY`); the suite signs Apple tokens with the matching
-    private key, so valid / wrong-aud / expired / tampered cases run offline.
-  * OTP uses the `LocalOtpClient` (fixed `DEV_OTP_CODE`).
-  * Magic-link uses the in-memory store; the route's `dispatch_task` is patched so
-    the QUEUED email "sends" inline-equivalently (we assert on the persisted
-    Message row + exactly-one dispatch) without needing the SEND_EMAIL task's
-    `email_client` ctx injection.
-
-Run: `ENV=testing QUEUE_SYNC=1 uv run pytest tests/test_auth_provider.py`
-"""
-
 from __future__ import annotations
 
 import time
@@ -153,15 +123,15 @@ async def auth_app(
     monkeypatch.setattr("app.platform.comms.service.emails.dispatch_task", _fake_dispatch)
 
     # Request-scoped transaction on the savepoint session — mirrors the production
-    # `provide_transaction` (app/utils/deps.py) under the sloopquest role model:
-    # the connection is the NON-superuser `pear_app` role (no `SET ROLE` anymore),
-    # and for an authenticated request we set `app.user_id` + pin the escape OFF.
+    # `provide_transaction` (app/utils/deps.py) under the non-superuser role model:
+    # the connection is the NON-superuser `pear_app` role (no `SET ROLE`), and for
+    # an authenticated request we set `app.user_id` + pin the escape OFF.
     #
     # Unauthenticated login routes (otp/check, apple, magic-link) set no
     # `app.user_id`; their first-login `profiles` INSERT succeeds because
     # `AuthService.find_or_create_identity` turns on the honored
     # `app.is_system_mode` escape itself — a genuine bypass, NOT a superuser
-    # connection. That is the bug fix this suite exercises end-to-end.
+    # connection. That is the bootstrap behavior this suite exercises end-to-end.
     async def _test_transaction(request: Request) -> AsyncGenerator[AsyncSession]:
         # Switch the RLS actor in place on the shared savepoint session, then RESTORE
         # system mode on exit so the next request/assertion (and fixture seeding) is

@@ -1,15 +1,3 @@
-"""Throwaway sample state machine — proves the StateMachine abstraction.
-
-Topology:
-    DRAFT  --(dater)-->  ACTIVE      # legal
-    ACTIVE               (terminal)  # no outbound edges -> ACTIVE->DRAFT is illegal
-
-`StateMachineService.transition(..., to=ACTIVE)` succeeds from DRAFT for a dater;
-transitioning back to DRAFT (or to ACTIVE from ACTIVE) raises
-`InvalidTransitionError`. Auto-registers into `STATE_MACHINE_REGISTRY` on
-construction. Lives under `tests/fixtures/` so it never ships to prod.
-"""
-
 from typing import Any
 
 from app.platform.state_machine.machine import State, StateMachine, Transition

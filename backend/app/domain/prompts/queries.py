@@ -1,14 +1,3 @@
-"""SQLAlchemy reads for the prompts domain.
-
-Ported from `supabase/functions/api/domains/prompts/queries.ts`. Join-heavy reads
-(profile prompts + their template + the response thread with each response's
-author) and a handful of relationship predicates the create-response action needs
-(prompt owner lookup, active-wingperson check, matched-with check) — exactly the
-case the recipe carves out for a `queries.py` (`db: AsyncSession` first arg, no
-Litestar/msgspec imports). RLS enforces *access*; these `where` clauses are for
-correctness/relevance only.
-"""
-
 from __future__ import annotations
 
 from uuid import UUID
@@ -29,13 +18,13 @@ from app.domain.prompts.transformers import ResponseBundle
 
 
 async def fetch_prompt_templates(db: AsyncSession) -> list[PromptTemplate]:
-    """All templates, ordered by question (matches the Hono `orderBy(asc(question))`)."""
+    """All templates, ordered by question."""
     rows = (await db.execute(select(PromptTemplate).order_by(asc(PromptTemplate.question)))).scalars().all()
     return list(rows)
 
 
 async def fetch_onboarding_prompt_templates(db: AsyncSession, count: int) -> list[PromptTemplate]:
-    """A random selection of `count` templates (Hono `orderBy(random()) limit(count)`)."""
+    """A random selection of `count` templates."""
     rows = (await db.execute(select(PromptTemplate).order_by(func.random()).limit(count))).scalars().all()
     return list(rows)
 
@@ -154,7 +143,7 @@ async def is_matched_with(db: AsyncSession, viewer_id: UUID, other_user_id: UUID
 
 
 async def fetch_prompt_response_author(db: AsyncSession, response: PromptResponse) -> Profile | None:
-    """The author profile of a response (the Hono LEFT JOIN onto profiles)."""
+    """The author profile of a response (LEFT JOIN onto profiles)."""
     return (await db.execute(select(Profile).where(Profile.id == response.user_id).limit(1))).scalar_one_or_none()
 
 

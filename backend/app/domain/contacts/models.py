@@ -1,20 +1,3 @@
-"""Contact model — the dater ↔ winger address-book relationship.
-
-Ports `public.contacts` from 20260228000000_schema.sql:
-
-    user_id      = the dater (who wants a wingperson)
-    phone_number = phone used to send the invite SMS
-    winger_id    = set once the invitee creates an account and accepts (nullable)
-    wingperson_status = invited | active | removed
-
-Deviations from the SQL (per the migration plan):
-  * `id` UUID PK + `created_at` are inherited from BaseDBModel (the SQL's ad-hoc
-    `created_at` is subsumed; `updated_at`/`deleted_at` are additive and harmless).
-  * `wingperson_status` is TEXT via `TextEnum`, not a Postgres native enum.
-  * FK ondelete semantics mirror the SQL: user_id CASCADE, winger_id SET NULL.
-  * The auto_link_pending_contacts trigger is NOT ported (Phase 4/5).
-"""
-
 from uuid import UUID
 
 import sqlalchemy as sa

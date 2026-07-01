@@ -1,17 +1,3 @@
-"""Message model — a chat message within a match.
-
-Ports `public.messages` from 20260228000000_schema.sql:
-
-    match_id  = the match this message belongs to
-    sender_id = the profile who sent it
-    body      = message text
-    is_read   = read receipt (default false)
-
-Deviations from the SQL (per the migration plan):
-  * `id` UUID PK + `created_at` are inherited from BaseDBModel.
-  * FK ondelete semantics mirror the SQL: match_id CASCADE, sender_id CASCADE.
-"""
-
 from uuid import UUID
 
 import sqlalchemy as sa

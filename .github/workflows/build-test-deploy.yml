@@ -3,6 +3,16 @@ name: Build · Test · Deploy
 # Deploy target is controlled by var.deploy_target in infra/variables.tf.
 # Default: ec2 (docker-compose on a single t3.small).
 # To switch to the ECS path: change the default to "ecs" and open a PR.
+#
+# SCOPE: this pipeline deploys the BACKEND only (backend/** → image+deploy,
+# infra/** → terraform). The mobile app (app/**) ships separately via EAS Build /
+# EAS Update — it is NOT built or deployed here, and app/** changes do not trigger
+# this workflow (see the detect-changes path filters below).
+#
+# AUTH: every AWS-touching job assumes the GitHub OIDC role `secrets.OIDC_ROLE_ARN`
+# (no long-lived keys). That role's policy must allow: ECR push (build job),
+# Terraform state + resource management (infrastructure job), and — for the EC2
+# deploy job — `ssm:SendCommand` + `ssm:GetCommandInvocation` (see deploy-ec2).
 
 on:
   push:
@@ -89,6 +99,11 @@ jobs:
       terraform_action: "apply"
     secrets: inherit
 
+  # Runs /opt/pear/deploy.sh on the box over SSM (no SSH, no open ports). The OIDC
+  # role MUST grant `ssm:SendCommand` (start the deploy) + `ssm:GetCommandInvocation`
+  # (poll for Success/Failed) — without both, this job hangs or 403s. Gated on
+  # backend_changed via build-image: infra-only changes update Terraform config but
+  # do NOT redeploy containers — use workflow_dispatch with both toggles on for that.
   deploy-ec2:
     needs: [build-image, infrastructure]
     if: always() && needs.infrastructure.outputs.deploy_target != 'ecs' && needs.build-image.result == 'success' && needs.infrastructure.result == 'success'

@@ -1,32 +1,3 @@
-"""Mutations for the photos domain — all writes live here as registered actions.
-
-Ported from the POST/PATCH/DELETE handlers in
-`supabase/functions/api/domains/photos/route.ts`:
-
-  * CreatePhoto  (POST   /photos)               -> BaseTopLevelAction[CreatePhotoData]
-  * ApprovePhoto (POST   /photos/{id}/approve)  -> BaseObjectAction (state: -> APPROVED)
-  * RejectPhoto  (POST   /photos/{id}/reject)   -> BaseObjectAction (state: -> REJECTED)
-  * DeletePhoto  (DELETE /photos/{id})          -> BaseObjectAction
-  * ReorderPhoto (PATCH  /photos/{id}/reorder)  -> BaseObjectAction[ReorderPhotoData]
-
-Each `execute` mutates the ORM directly under the request's RLS-scoped transaction;
-the action machinery commits on return and rolls back on raise. User-facing failures
-are raised as typed `ApplicationError` subclasses, reproducing the Hono `HTTPException`
-status codes (403 / 404). The framework raises `PermissionDeniedException` (403)
-automatically when an action's `is_available` returns False.
-
-Approval is a state transition: `ApprovePhoto` / `RejectPhoto` set `target_state` and
-go through `StateMachineService.transition` (see `state_machine.py`) — they NEVER
-assign `approved_at` / `rejected_at` directly. The machine's `on_enter` writes those
-columns and `transition` enforces the "only on a pending photo" precondition (an
-illegal edge raises `InvalidTransitionError`, 409).
-
-Registration: imported at boot by `discover_and_import([...], base_path="app/domain")`,
-which runs `action_group_factory(...)` to register the group + decorates each action
-class into the singleton `ActionRegistry`. The `ActionGroupType.PHOTO_ACTIONS` member
-is added to `app.platform.actions.enums` by the Integrate stage.
-"""
-
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -151,7 +122,7 @@ class ApprovePhoto(BaseObjectAction[ProfilePhoto, EmptyActionData]):
     ) -> ActionExecutionResponse:
         owner_id = await _photo_owner_id(transaction, obj)
         if owner_id != deps.user.id:
-            # Matches Hono's 404 when the owner-scoped UPDATE matched no rows.
+            # 404 when the owner-scoped lookup matched no rows for this caller.
             raise PhotoNotFoundError()
 
         await deps.state_machine_service.transition(
@@ -193,8 +164,10 @@ class RejectPhoto(BaseObjectAction[ProfilePhoto, EmptyActionData]):
         if owner_id != deps.user.id:
             raise PhotoNotFoundError()
 
-        # The machine's RejectedState.on_enter sets rejected_at (+ Phase-6 storage
-        # delete). We never assign the timestamp column directly.
+        # The machine's RejectedState.on_enter sets rejected_at. We never assign the
+        # timestamp column directly.
+        # Capture the S3 key before the transition so we can delete the bytes after.
+        storage_key = obj.storage_url
         await deps.state_machine_service.transition(
             photo_approval_machine,
             obj,
@@ -202,6 +175,13 @@ class RejectPhoto(BaseObjectAction[ProfilePhoto, EmptyActionData]):
             actor=deps.user,
         )
         await transaction.flush()
+        # The rejection ROW stays (it feeds the winger-activity rejection feed), but
+        # the image bytes are unwanted — delete the S3 object. Log-and-swallow: a
+        # failed delete leaks one object, never a broken DB reference. `media` is
+        # always injected on the request path; the None-guard only covers unit tests
+        # that build ActionDeps without it.
+        if deps.media is not None:
+            await deps.media.delete(storage_key)
         return ActionExecutionResponse(
             message="Photo rejected",
             invalidate_queries=["photos"],
@@ -237,10 +217,15 @@ class DeletePhoto(BaseObjectAction[ProfilePhoto, EmptyActionData]):
         if owner_id != deps.user.id and obj.suggester_id != deps.user.id:
             raise PhotoNotFoundError()
 
-        # TODO(Phase 6): delete the photo bytes from object storage before/after
-        # removing the row (Hono's removeProfilePhoto).
+        storage_key = obj.storage_url
         await transaction.delete(obj)
         await transaction.flush()
+        # Remove the S3 object after the row is gone.
+        # Log-and-swallow inside `media.delete`: a leaked object is harmless. `media`
+        # is always injected on the request path; the None-guard only covers unit
+        # tests that build ActionDeps without it.
+        if deps.media is not None:
+            await deps.media.delete(storage_key)
         return ActionExecutionResponse(
             message="Photo deleted",
             invalidate_queries=["photos"],

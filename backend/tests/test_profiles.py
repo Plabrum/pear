@@ -1,24 +1,3 @@
-"""Tests for the ported `profiles` domain.
-
-The original Hono domain shipped no `*.test.ts`, so these are authored fresh to
-cover the contract the port must preserve:
-
-  * Reads (the GET handlers' query+transformer path):
-      - `fetch_profile` / `row_to_profile`              -> /profiles/me
-      - `fetch_own_dating_profile` / `dating_profile_to_own` (photos + prompts +
-         response threads + ripeness)                   -> /dating-profiles/me
-      - `fetch_public_profile` / `bundle_to_public_profile` -> /profiles/{userId}
-  * Gated actions (writes):
-      - happy path: UpdateProfile / UpdateDatingProfile mutate the row;
-        CreateDatingProfile inserts one.
-      - gate denial: UpdateProfile.is_available is False for someone else's row;
-        CreateDatingProfile raises 409 when a profile already exists.
-
-Reads run against the seeded `graph` under the system-mode `db_session` (RLS is
-covered separately by tests/test_rls.py). Actions are driven directly with a
-hand-built `ActionDeps` against `db_session`, mirroring tests/test_actions.py.
-"""
-
 from __future__ import annotations
 
 from unittest.mock import MagicMock
@@ -59,6 +38,7 @@ from app.platform.auth.principal import User
 from app.platform.state_machine.machine import StateMachineService
 from app.platform.state_machine.roles import Role
 from tests.fixtures.graph import DomainGraph
+from tests.fixtures.media import local_media
 
 # `asyncio_mode = "auto"` (pyproject.toml) runs `async def test_*` without a marker.
 
@@ -82,7 +62,7 @@ def _deps(session: AsyncSession, *, user_id, role: Role = Role.DATER) -> ActionD
 async def test_get_own_profile(graph: DomainGraph, db_session: AsyncSession) -> None:
     row = await fetch_profile(db_session, graph.dater_a.id)
     assert row is not None
-    dto = row_to_profile(row)
+    dto = row_to_profile(row, local_media())
 
     assert dto.id == graph.dater_a.id
     assert dto.chosenName == graph.dater_a.chosen_name
@@ -95,7 +75,7 @@ async def test_get_own_dating_profile_bundle(graph: DomainGraph, db_session: Asy
     bundle = await fetch_own_dating_profile(db_session, graph.dater_a.id)
     assert bundle is not None
     base, photos, prompts = bundle
-    dto = dating_profile_to_own(base, photos, prompts)
+    dto = await dating_profile_to_own(base, photos, prompts, local_media())
 
     assert dto.userId == graph.dater_a.id
     assert dto.city == City.BOSTON
@@ -128,7 +108,7 @@ async def test_get_public_profile(graph: DomainGraph, db_session: AsyncSession) 
     bundle = await fetch_public_profile(db_session, graph.dater_b.id)
     assert bundle is not None
     profile, base, photos, prompts = bundle
-    dto = bundle_to_public_profile(profile, base, photos, prompts)
+    dto = await bundle_to_public_profile(profile, base, photos, prompts, local_media())
 
     assert dto.id == graph.dater_b.id
     assert dto.chosenName == graph.dater_b.chosen_name

@@ -1,33 +1,3 @@
-"""Mutations for the messages domain — all writes live here as registered actions.
-
-Ported from the POST handlers in
-`supabase/functions/api/domains/messages/route.ts`:
-
-  * `SendMessage`       (POST /matches/{matchId}/messages)      -> BaseObjectAction[Match, SendMessageData]
-  * `MarkMessagesRead`  (POST /matches/{matchId}/messages/read) -> BaseObjectAction[Match, EmptyActionData]
-
-Both act ON A MATCH: the action route's `object_id` is the match id, the group's
-`model_type` is `Match`, so the framework loads the match (RLS-scoped) and gates each
-action via `is_available(match, deps)` — the viewer must be a party to the match.
-This reproduces the Hono `isViewerInMatch` 404 (a non-party match is invisible under
-RLS, so `get_object` returns None and the framework raises NotFound; a visible match
-the viewer is somehow not on is denied by `is_available`).
-
-Messages have no status workflow (no approval / lifecycle enum), so there is NO
-state machine for this domain — `is_read` is a plain boolean flipped in bulk by the
-mark-read action, mirroring the Hono `UPDATE ... SET is_read = true`.
-
-Each `execute` mutates the ORM directly under the request's RLS-scoped transaction;
-the action machinery commits on return and rolls back on raise. User-facing failures
-are raised as typed `ApplicationError` subclasses (never ad-hoc responses).
-
-Registration: imported at boot by `discover_and_import(["actions.py", ...],
-base_path="app/domain")`, which runs `action_group_factory(...)` to register the
-group + decorates each action class into the singleton `ActionRegistry`. The
-`ActionGroupType.MESSAGE_ACTIONS` member is added to `app.platform.actions.enums` by
-the Integrate stage; this module imports it from there.
-"""
-
 from __future__ import annotations
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -40,6 +10,7 @@ from app.domain.messages.queries import (
     mark_messages_read,
 )
 from app.domain.messages.schemas import SendMessageData
+from app.domain.messages.transformers import row_to_message
 from app.platform.actions.base import (
     BaseObjectAction,
     EmptyActionData,
@@ -98,8 +69,14 @@ class SendMessage(BaseObjectAction[Match, SendMessageData]):
                 preview = data.body if len(data.body) <= 80 else data.body[:77] + "…"
                 await deps.push.send(recipient_token, f"New message from {sender_name}", preview)
 
-        # TODO(Phase 6): broadcast the new message over the realtime channel so the
-        # recipient's open conversation updates live (Supabase Realtime today).
+        # Live messages: broadcast the new message to the match channel AFTER COMMIT
+        # so a subscribed peer's open conversation updates live. The publish is
+        # registered as a one-shot `after_commit` listener — a rolled-back request
+        # broadcasts nothing, and a subscriber never sees an id before the row is
+        # durable. `realtime` is always injected on the request path; the guard is
+        # only for unit tests that build ActionDeps without it.
+        if deps.realtime is not None:
+            deps.realtime.publish_message_after_commit(transaction, obj.id, row_to_message(row))
 
         return ActionExecutionResponse(
             message="Message sent",

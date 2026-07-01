@@ -1,26 +1,3 @@
-"""Tests for the ported `prompts` domain.
-
-The original Hono domain shipped no `*.test.ts`, so these are authored fresh to
-cover the contract the port must preserve:
-
-  * Reads (the GET handlers' query+transformer path):
-      - `fetch_prompt_templates` / `row_to_prompt_template`     -> /prompt-templates
-      - `fetch_onboarding_prompt_templates`                     -> /prompt-templates/onboarding
-      - `fetch_own_profile_prompts` / `row_to_profile_prompt`   -> /profile-prompts/me
-        (prompt + template question + response thread + author)
-  * Gated actions (writes):
-      - happy path: CreateProfilePrompt / DeleteProfilePrompt; CreatePromptResponse
-        (owner, wingperson, match); ApprovePromptResponse (owner, via the state
-        machine); DeletePromptResponse (author + owner).
-      - gate denial: ApprovePromptResponse.is_available is False for a winger;
-        CreatePromptResponse raises 403 for an unrelated user; approve/delete raise
-        404 when the caller does not own the prompt's profile.
-
-Reads run against the seeded `graph` under the system-mode `db_session` (RLS is
-covered separately by tests/test_rls.py). Actions are driven directly with a
-hand-built `ActionDeps`, mirroring tests/test_profiles.py.
-"""
-
 from __future__ import annotations
 
 from unittest.mock import MagicMock
@@ -67,6 +44,7 @@ from app.platform.state_machine.machine import StateMachineService
 from app.platform.state_machine.models import StateTransitionLog
 from app.platform.state_machine.roles import Role
 from tests.fixtures.graph import DomainGraph
+from tests.fixtures.media import local_media
 
 # `asyncio_mode = "auto"` (pyproject.toml) runs `async def test_*` without a marker.
 
@@ -91,7 +69,7 @@ async def test_list_prompt_templates(graph: DomainGraph, db_session: AsyncSessio
     rows = await fetch_prompt_templates(db_session)
     assert len(rows) > 0
     dtos = [row_to_prompt_template(r) for r in rows]
-    # Ordered by question text (matches the Hono asc(question)).
+    # Ordered ascending by question text.
     questions = [d.question for d in dtos]
     assert questions == sorted(questions)
     assert all(d.id is not None and d.question for d in dtos)
@@ -104,7 +82,7 @@ async def test_onboarding_prompt_templates_limit(graph: DomainGraph, db_session:
 
 async def test_get_own_profile_prompts_bundle(graph: DomainGraph, db_session: AsyncSession) -> None:
     bundles = await fetch_own_profile_prompts(db_session, graph.dater_a.id)
-    dtos = [row_to_profile_prompt(p, q, r) for p, q, r in bundles]
+    dtos = [row_to_profile_prompt(p, q, r, local_media()) for p, q, r in bundles]
 
     # graph seeds 1 prompt with 1 (pending) response carrying its winger author.
     assert len(dtos) == 1

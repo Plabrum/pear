@@ -1,13 +1,3 @@
-"""SQLAlchemy reads for the matches domain.
-
-Ported from `supabase/functions/api/domains/matches/queries.ts`. First arg is
-always `db: AsyncSession`; no Litestar/msgspec imports. These are join/aggregation-
-heavy reads (the "other user" summary, a correlated first-photo subquery, a
-has-messages EXISTS, the sheet's wing-note + prompt threads) — exactly the case the
-recipe carves a `queries.py` out for. RLS enforces *access* (participant-only on
-matches); the explicit `where` clauses are for correctness/relevance.
-"""
-
 from __future__ import annotations
 
 from uuid import UUID
@@ -29,7 +19,7 @@ from app.domain.prompts.models import ProfilePrompt, PromptTemplate
 async def fetch_matches(db: AsyncSession, viewer_id: UUID) -> list[MatchRow]:
     """All matches for the viewer, newest first, with the other user's summary.
 
-    Mirrors the Hono aggregate: the other profile + their dating profile (city/bio/
+    The aggregate folds in the other profile + their dating profile (city/bio/
     interests), a year-based age from date_of_birth, the first approved photo, and
     whether any messages exist in the match.
     """
@@ -136,9 +126,8 @@ async def fetch_match_other_user_id(db: AsyncSession, viewer_id: UUID, match_id:
 async def fetch_wing_note_for_match(db: AsyncSession, viewer_id: UUID, other_user_id: UUID) -> WingNoteRow | None:
     """The wingperson note attached to the viewer's decision on the other user.
 
-    Mirrors the Hono query: the decision row where the viewer is the actor, the
-    other user the recipient, and a note is present — joined to the suggesting
-    winger's profile name.
+    The decision row where the viewer is the actor, the other user the recipient,
+    and a note is present — joined to the suggesting winger's profile name.
     """
     winger = aliased(Profile)
     row = (

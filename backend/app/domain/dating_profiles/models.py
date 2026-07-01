@@ -1,17 +1,3 @@
-"""DatingProfile model — a dater's configurable dating profile.
-
-Ports `public.dating_profiles` from 20260228000000_schema.sql (with the city enum
-collapsed to Boston / New York by 20260301000000_update_city_enum.sql).
-
-Deviations from the SQL (per the migration plan):
-  * The table's own `id` UUID PK + `created_at`/`updated_at` are inherited from
-    BaseDBModel (the SQL declared them ad-hoc; the set_updated_at trigger is not
-    ported — onupdate=now() on BaseDBModel.updated_at covers it).
-  * Enum columns / arrays are TEXT (TextEnum), not Postgres native enums.
-  * `user_id` is a real FK to profiles.id with a UNIQUE constraint (one dating
-    profile per user), matching the SQL `unique references public.profiles (id)`.
-"""
-
 from uuid import UUID
 
 import sqlalchemy as sa

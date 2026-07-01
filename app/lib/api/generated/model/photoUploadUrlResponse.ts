@@ -6,6 +6,6 @@
  */
 
 export interface PhotoUploadUrlResponse {
-  path: string;
-  uploadToken: string;
+  uploadUrl: string;
+  key: string;
 }

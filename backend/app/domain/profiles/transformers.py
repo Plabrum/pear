@@ -1,12 +1,3 @@
-"""snake_case ORM rows -> camelCase msgspec structs.
-
-Ported from `supabase/functions/api/domains/profiles/transformers.ts`. The Hono
-transformers map Drizzle rows (snake_case) onto the Zod response shapes (camelCase);
-here we map SQLAlchemy ORM objects onto the msgspec structs. Datetime columns are
-rendered as ISO-8601 strings to match the Postgres `timestamptz`->JSON contract the
-mobile app already consumes.
-"""
-
 from __future__ import annotations
 
 from datetime import date, datetime
@@ -29,6 +20,7 @@ from app.domain.profiles.schemas import (
     PublicProfilePrompt,
 )
 from app.domain.prompts.models import ProfilePrompt, PromptResponse
+from app.platform.media.client import BaseMediaClient
 
 
 def _iso(value: datetime | date | None) -> str | None:
@@ -37,11 +29,16 @@ def _iso(value: datetime | date | None) -> str | None:
     return value.isoformat()
 
 
-def row_to_profile(row: ProfileModel) -> Profile:
+def _avatar_url(key: str | None, media: BaseMediaClient) -> str | None:
+    """Resolve an avatar key to its public-read URL (avatars are public; no presign)."""
+    return media.public_url(key) if key else None
+
+
+def row_to_profile(row: ProfileModel, media: BaseMediaClient) -> Profile:
     return Profile(
         id=row.id,
         chosenName=row.chosen_name,
-        avatarUrl=row.avatar_url,
+        avatarUrl=_avatar_url(row.avatar_url, media),
         phoneNumber=row.phone_number,
         dateOfBirth=_iso(row.date_of_birth),
         gender=row.gender,
@@ -50,10 +47,10 @@ def row_to_profile(row: ProfileModel) -> Profile:
     )
 
 
-def _photo_to_own(photo: ProfilePhoto, suggester_name: str | None) -> OwnProfilePhoto:
+async def _photo_to_own(photo: ProfilePhoto, suggester_name: str | None, media: BaseMediaClient) -> OwnProfilePhoto:
     return OwnProfilePhoto(
         id=photo.id,
-        storageUrl=photo.storage_url,
+        storageUrl=await media.presign_download(photo.storage_url),
         displayOrder=photo.display_order,
         approvedAt=_iso(photo.approved_at),
         suggesterId=photo.suggester_id,
@@ -67,6 +64,7 @@ def _prompt_to_own(
     prompt: ProfilePrompt,
     question: str,
     responses: list[tuple[PromptResponse, ProfileModel | None]],
+    media: BaseMediaClient,
 ) -> OwnProfilePrompt:
     return OwnProfilePrompt(
         id=prompt.id,
@@ -84,7 +82,7 @@ def _prompt_to_own(
                     PromptResponseAuthor(
                         id=author.id,
                         chosenName=author.chosen_name,
-                        avatarUrl=author.avatar_url,
+                        avatarUrl=_avatar_url(author.avatar_url, media),
                     )
                     if author is not None
                     else None
@@ -102,7 +100,7 @@ def compute_ripeness(
     interests: list,
     city: object,
 ) -> int:
-    """Port of the Hono `computeRipeness`: a 0-100 profile-completeness score."""
+    """A 0-100 profile-completeness score."""
     approved_photos = [p for p in photos if p.approvedAt is not None]
     photo_score = min(len(approved_photos) / 6, 1) * 30
     prompt_score = min(len(prompts) / 3, 1) * 25
@@ -120,13 +118,14 @@ ResponseBundle = list[tuple[PromptResponse, ProfileModel | None]]
 PromptBundle = list[tuple[ProfilePrompt, str, ResponseBundle]]
 
 
-def dating_profile_to_own(
+async def dating_profile_to_own(
     base: DatingProfile,
     photos: PhotoBundle,
     prompts: PromptBundle,
+    media: BaseMediaClient,
 ) -> OwnDatingProfile:
-    mapped_photos = [_photo_to_own(photo, name) for photo, name in photos]
-    mapped_prompts = [_prompt_to_own(p, q, r) for p, q, r in prompts]
+    mapped_photos = [await _photo_to_own(photo, name, media) for photo, name in photos]
+    mapped_prompts = [_prompt_to_own(p, q, r, media) for p, q, r in prompts]
     return OwnDatingProfile(
         id=base.id,
         userId=base.user_id,
@@ -148,16 +147,29 @@ def dating_profile_to_own(
     )
 
 
-def bundle_to_public_profile(
+async def bundle_to_public_profile(
     profile: ProfileModel,
     base: DatingProfile | None,
     photos: PhotoBundle,
     prompts: PromptBundle,
+    media: BaseMediaClient,
 ) -> PublicProfile:
+    # The query already restricts a public bundle to APPROVED photos, so presigning
+    # every one here cannot leak a pending/rejected image.
+    public_photos = [
+        PublicProfilePhoto(
+            id=photo.id,
+            storageUrl=await media.presign_download(photo.storage_url),
+            displayOrder=photo.display_order,
+            approvedAt=_iso(photo.approved_at),
+            suggesterId=photo.suggester_id,
+        )
+        for photo, _ in photos
+    ]
     return PublicProfile(
         id=profile.id,
         chosenName=profile.chosen_name,
-        avatarUrl=profile.avatar_url,
+        avatarUrl=_avatar_url(profile.avatar_url, media),
         datingProfile=(
             PublicDatingProfile(
                 id=base.id,
@@ -165,16 +177,7 @@ def bundle_to_public_profile(
                 city=base.city,
                 interests=list(base.interests),
                 religion=base.religion,
-                photos=[
-                    PublicProfilePhoto(
-                        id=photo.id,
-                        storageUrl=photo.storage_url,
-                        displayOrder=photo.display_order,
-                        approvedAt=_iso(photo.approved_at),
-                        suggesterId=photo.suggester_id,
-                    )
-                    for photo, _ in photos
-                ],
+                photos=public_photos,
                 prompts=[
                     PublicProfilePrompt(
                         id=prompt.id,

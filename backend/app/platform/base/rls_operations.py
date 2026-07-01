@@ -1,10 +1,3 @@
-"""Custom Alembic operations for Row-Level Security management.
-
-Usage in migrations:
-    op.enable_rls('public', 'profiles')
-    op.disable_rls('public', 'profiles')
-"""
-
 from __future__ import annotations
 
 from alembic.autogenerate import renderers

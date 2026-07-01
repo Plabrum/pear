@@ -1,12 +1,3 @@
-"""msgspec schemas for the likes-you domain (READS ONLY).
-
-Ported from `supabase/functions/api/domains/likes-you/schemas.ts`. camelCase field
-names match the Hono Zod output byte-for-byte. `LikesYouProfile` is the pool item
-(Hono `LikesYouResponse` is an array of these); `LikesYouCountResponse` is the
-`/likes-you/count` body. The Hono `LikesYouQuery` becomes typed paging params on
-the pool handler.
-"""
-
 from __future__ import annotations
 
 from uuid import UUID

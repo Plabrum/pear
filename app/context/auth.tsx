@@ -13,10 +13,9 @@ import {
   type AuthUser,
 } from '@/lib/auth-client';
 
-// Session shape kept compatible with the previous supabase Session so the
-// routing gate (app/_layout.tsx reads session.user.id) and screens keep
-// working. `user` carries our backend's AuthUser fields; `phone` stays
-// optional for the onboarding default.
+// Session shape consumed by the routing gate (app/_layout.tsx reads
+// session.user.id) and screens. `user` carries the backend's AuthUser fields;
+// `phone` stays optional for the onboarding default.
 export type Session = {
   user: AuthUser & { phone?: string | null };
 };

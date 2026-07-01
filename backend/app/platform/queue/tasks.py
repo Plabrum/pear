@@ -1,5 +1,3 @@
-"""Built-in tasks for the queue infrastructure."""
-
 import logging
 
 from app.platform.queue.enums import TaskName

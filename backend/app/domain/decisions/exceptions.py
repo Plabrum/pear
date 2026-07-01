@@ -1,15 +1,3 @@
-"""Typed, user-facing errors for the decisions domain.
-
-Subclass `ApplicationError` so the handler registered in `factory.py`
-(`exception_to_http_response`) renders them as `{"detail": …}` with the right
-status. The class name is the contract — no ad-hoc response strings in handlers.
-These reproduce the explicit `HTTPException` status codes from the Hono route:
-
-  * 400 — deciding on yourself / suggesting the dater to themselves.
-  * 404 — no pending suggestion to act on.
-  * 403 — caller is not an active wingperson for this dater (also enforced by RLS).
-"""
-
 from app.utils.exceptions import ApplicationError
 
 

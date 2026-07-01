@@ -1,19 +1,3 @@
-"""Prompt models — Hinge-style profile prompts and comment threads.
-
-Ports three tables from 20260228000000_schema.sql (plus the is_rejected column
-added by 20260531000000_winger_activity_rejection.sql):
-
-  * public.prompt_templates  — predefined questions (seed/reference data)
-  * public.profile_prompts   — a dater's chosen prompt + their answer
-  * public.prompt_responses  — wingperson/match comments on a prompt (approval flow)
-
-Key deviations from the SQL (per the migration plan):
-  * `id` / `created_at` / `updated_at` are inherited from BaseDBModel; the SQL's
-    ad-hoc `created_at` columns are subsumed (soft-delete `deleted_at` is additive).
-  * No DB triggers/functions are ported (Phase 3 is tables only).
-  * Relationships use lazy="raise" so callers must joinedload explicitly.
-"""
-
 from uuid import UUID
 
 import sqlalchemy as sa
@@ -74,7 +58,7 @@ class PromptResponse(BaseDBModel):
         default=False,
         server_default=sa.false(),
     )
-    # is_rejected boolean not null default false (winger_activity_rejection)
+    # is_rejected boolean not null default false
     is_rejected: Mapped[bool] = mapped_column(
         sa.Boolean,
         nullable=False,

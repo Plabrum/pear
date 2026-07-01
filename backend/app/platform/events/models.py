@@ -1,11 +1,3 @@
-"""Append-only event log.
-
-Trimmed from sloopquest: organization_id dropped (Pear has no org concept),
-EventConsumerFailure dropped (no async-consumer/SAQ path), integer PKs replaced
-with UUIDs inherited from BaseDBModel. Backs the state-transition log and a
-generic activity feed (Pear's winger-activity).
-"""
-
 from __future__ import annotations
 
 from typing import Any

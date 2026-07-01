@@ -1,12 +1,3 @@
-"""snake_case ORM rows -> camelCase msgspec structs for the decisions domain.
-
-Ported from `supabase/functions/api/domains/decisions/transformers.ts`. Maps the
-SQLAlchemy `Match` ORM object onto the `Match` response struct, and the pending
-suggestion read rows (a `Decision` joined to the suggesting winger's profile name)
-onto `PendingSuggestion`. Datetime columns render as ISO-8601 strings to match the
-Postgres `timestamptz`->JSON contract the mobile app already consumes.
-"""
-
 from __future__ import annotations
 
 from datetime import datetime

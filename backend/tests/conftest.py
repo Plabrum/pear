@@ -1,10 +1,3 @@
-"""Pytest configuration.
-
-Forces ENV=testing (TestConfig -> port 5435) and QUEUE_SYNC inline before any
-app imports, discovers all models so SQLAlchemy metadata is fully populated, then
-re-exports every fixture. Mirrors sloopquest's conftest, minus org/Sqid setup.
-"""
-
 import os
 
 os.environ.setdefault("ENV", "testing")

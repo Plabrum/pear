@@ -1,10 +1,3 @@
-"""TextEnum — stores a Python Enum as its .name in a TEXT column.
-
-Avoids PostgreSQL native ENUM types, which require a migration every time
-a value is added or removed. The `@compiles` hook makes the column render as
-plain TEXT in Alembic autogenerate output.
-"""
-
 from enum import Enum
 from typing import Any
 

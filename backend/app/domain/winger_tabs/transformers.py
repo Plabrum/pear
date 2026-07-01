@@ -1,10 +1,3 @@
-"""snake_case query rows -> camelCase msgspec structs for the winger-tabs domain.
-
-Ported from `supabase/functions/api/domains/winger-tabs/transformers.ts`. Collapses
-the newest-first rows to *distinct* wingers, preserving first-seen (i.e. most
-recent) order — exactly the Hono `Set`-based dedupe.
-"""
-
 from __future__ import annotations
 
 from app.domain.winger_tabs.queries import WingerTabRow

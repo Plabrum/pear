@@ -1,10 +1,3 @@
-"""State machine models: StateMachineMixin and StateTransitionLog.
-
-Adapted from sloopquest: integer object/actor ids replaced with UUIDs,
-organization scoping dropped, actor_id made nullable for SYSTEM transitions.
-`created_at` is inherited from BaseDBModel (not redeclared).
-"""
-
 from enum import Enum
 from typing import Any
 from uuid import UUID

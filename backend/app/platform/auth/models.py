@@ -1,25 +1,3 @@
-"""Auth provider models — identities and refresh tokens.
-
-Phase 4 owns auth end-to-end (no Supabase), so the two stateful pieces Supabase
-Auth used to hold for us live here:
-
-  * ``auth_identities`` — maps an external login (phone / apple / email) to a
-    `profiles.id`. ``(provider, provider_subject)`` is unique: one external
-    identity resolves to exactly one profile, but a profile may have several
-    rows (link Apple/email to an existing phone account by verified contact).
-  * ``refresh_tokens`` — the rotating, revocable session layer. Access tokens
-    are stateless signed JWTs; refresh tokens are stored *hashed* (never raw),
-    chained via ``replaced_by`` so a presented-but-already-rotated token can
-    revoke the whole chain (reuse detection).
-
-`profiles.id` (UUID) stays the identity anchor — first-login bootstrap creates a
-`profiles` row and an `auth_identities` row pointing at it, replacing the old
-Supabase ``on_auth_user_created`` trigger.
-
-Both subclass `BaseDBModel`, so `id`/`created_at`/`updated_at`/`deleted_at` are
-inherited; the spec'd `created_at` on `refresh_tokens` is that inherited column.
-"""
-
 from datetime import datetime
 from uuid import UUID
 

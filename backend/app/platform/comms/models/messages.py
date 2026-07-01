@@ -1,14 +1,3 @@
-"""Outbound email message model (queued → SES).
-
-Pear's comms platform is outbound-only: there is no inbound parsing, no SES
-webhook, and no EmailThread/Message threading. A row is created QUEUED by
-``EmailService`` and transitioned to SENT/FAILED by the ``SEND_EMAIL`` task.
-
-``user_id`` is a soft reference to the sending/recipient user. It is intentionally
-NOT a DB foreign key in this phase — the user/profile tables land in Phase 3, and
-the relationship-aware RLS policies that would scope this table land in Phase 4.
-"""
-
 from datetime import datetime
 from uuid import UUID
 
@@ -21,8 +10,13 @@ from app.utils.textenum import TextEnum
 
 
 class Message(BaseDBModel):
+    """Outbound email message. Created QUEUED by ``EmailService`` and transitioned
+    to SENT/FAILED by the ``SEND_EMAIL`` task. Outbound-only — no inbound parsing
+    or threading."""
+
     __tablename__ = "email_messages"
 
+    # Soft reference to the sending/recipient user; intentionally not a DB foreign key.
     user_id: Mapped[UUID | None] = mapped_column(sa.Uuid, index=True)
     direction: Mapped[MessageDirection] = mapped_column(TextEnum(MessageDirection), nullable=False)
     state: Mapped[MessageState] = mapped_column(TextEnum(MessageState), nullable=False)

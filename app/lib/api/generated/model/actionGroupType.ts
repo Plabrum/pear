@@ -8,9 +8,8 @@
 /**
  * Types of action groups.
 
-Placeholder set — Pear domains register their own action groups here as they
-are implemented (Phase 5). Each domain's `actions.py` adds the member it needs
-and wires it via `action_group_factory`.
+Each domain's `actions.py` adds the member it needs and wires it via
+`action_group_factory`.
 
  */
 export type ActionGroupType = (typeof ActionGroupType)[keyof typeof ActionGroupType];

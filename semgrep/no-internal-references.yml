@@ -1,0 +1,95 @@
+# Living-code convention guard: ban internal/provenance references.
+#
+# These rules fail CI (severity: ERROR) when source code leaks references to the
+# internal codename, a migration/porting narrative, or provenance comments. The
+# code that ships should read as if it was always written this way — no "ported
+# from", no "Phase N" breadcrumbs, no pointers at a migration plan.
+#
+# Patterns are matched case-insensitively against Python and TS/TSX source.
+# Word boundaries are used where a bare substring would catch innocent words
+# (e.g. "ported from" must not fire inside "exported from" / "imported from").
+#
+# Scope: invoke against `backend/ app/`. Generated output, the legacy supabase/
+# tree, vendored deps, virtualenvs, and Alembic revision files are excluded via
+# paths.exclude below so this never trips on code we don't author by hand.
+
+rules:
+  - id: no-internal-codename-sloopquest
+    languages: [python, ts]
+    severity: ERROR
+    message: >-
+      Internal codename "sloopquest" must not appear in shipped source. Rewrite
+      the comment/identifier without referencing the internal project name.
+    patterns:
+      - pattern-regex: (?i)\bsloopquest\b
+    paths:
+      exclude:
+        - "**/node_modules/**"
+        - "**/.venv/**"
+        - "**/__pycache__/**"
+        - "**/app/lib/api/generated/**"
+        - "**/app/types/database.ts"
+        - "**/backend/scripts/check_conventions.py"
+        - "**/supabase/**"
+        - "**/backend/alembic/versions/**"
+        - "**/*.json"
+
+  - id: no-migration-doc-reference
+    languages: [python, ts]
+    severity: ERROR
+    message: >-
+      Do not point at a migration document ("docs/migration" / "migration plan").
+      The code should stand on its own without a migration narrative.
+    patterns:
+      - pattern-regex: (?i)(docs/migration|\bmigration plan\b)
+    paths:
+      exclude:
+        - "**/node_modules/**"
+        - "**/.venv/**"
+        - "**/__pycache__/**"
+        - "**/app/lib/api/generated/**"
+        - "**/app/types/database.ts"
+        - "**/backend/scripts/check_conventions.py"
+        - "**/supabase/**"
+        - "**/backend/alembic/versions/**"
+        - "**/*.json"
+
+  - id: no-phase-breadcrumb
+    languages: [python, ts]
+    severity: ERROR
+    message: >-
+      Remove "Phase N" breadcrumbs. Phase numbers are migration-plan artifacts and
+      have no meaning in the shipped codebase.
+    patterns:
+      - pattern-regex: (?i)\bPhase\s+[0-9]
+    paths:
+      exclude:
+        - "**/node_modules/**"
+        - "**/.venv/**"
+        - "**/__pycache__/**"
+        - "**/app/lib/api/generated/**"
+        - "**/app/types/database.ts"
+        - "**/backend/scripts/check_conventions.py"
+        - "**/supabase/**"
+        - "**/backend/alembic/versions/**"
+        - "**/*.json"
+
+  - id: no-provenance-comment
+    languages: [python, ts]
+    severity: ERROR
+    message: >-
+      Remove provenance comments ("ported from" / "cloned from" / "adapted from").
+      Where code came from is not part of what it does.
+    patterns:
+      - pattern-regex: (?i)\b(ported|cloned|adapted)\s+from\b
+    paths:
+      exclude:
+        - "**/node_modules/**"
+        - "**/.venv/**"
+        - "**/__pycache__/**"
+        - "**/app/lib/api/generated/**"
+        - "**/app/types/database.ts"
+        - "**/backend/scripts/check_conventions.py"
+        - "**/supabase/**"
+        - "**/backend/alembic/versions/**"
+        - "**/*.json"

@@ -1,26 +1,3 @@
-"""Mutations for the contacts (wingperson roster) domain — all writes live here.
-
-Ported from the POST/DELETE handlers in
-`supabase/functions/api/domains/contacts/route.ts`:
-
-  * `InviteWingperson` (POST   /wingpeople/invite)      -> BaseTopLevelAction
-  * `AcceptInvite`     (POST   /wingpeople/{id}/accept) -> BaseObjectAction (winger)
-  * `DeclineInvite`    (POST   /wingpeople/{id}/decline)-> BaseObjectAction (winger)
-  * `RemoveWingperson` (DELETE /wingpeople/{id})        -> BaseObjectAction (dater)
-
-The three status-changing actions go THROUGH the contacts state machine
-(`deps.state_machine_service.transition(contact_machine, obj, target, actor=…)`)
-and set `target_state` — they NEVER assign `wingperson_status` directly. The state
-machine enforces topology + role (winger vs dater); each action's `is_available`
-narrows to the right current status so the client gets clean gating.
-
-Registration: imported at boot by `discover_and_import(["actions.py", …],
-base_path="app/domain")`, which runs `action_group_factory(...)` to register the
-group + decorates each action into the singleton `ActionRegistry`. The
-`ActionGroupType.CONTACT_ACTIONS` member is added to `app.platform.actions.enums`
-by the Integrate stage (this module imports it from there).
-"""
-
 from __future__ import annotations
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -65,14 +42,12 @@ class InviteWingperson(BaseTopLevelAction[InviteWingpersonData]):
         deps: ActionDeps,
     ) -> ActionExecutionResponse:
         # If a profile already exists with that phone number, link winger_id
-        # immediately. This replicates the intent of the dropped Supabase
-        # `auto_link_pending_contacts` trigger for the case where the invitee is
-        # already a Pear user.
+        # immediately — the case where the invitee is already a Pear user.
         #
-        # TODO(Phase 6 / auth): the *other* half of auto_link_pending_contacts —
-        # linking pre-existing pending contacts when a NEW phone registers — should
-        # also fire at profile/phone-set time (a hook in the auth/profiles flow),
-        # not only here at invite time. Kept in the invite action for now.
+        # TODO: the other half of auto-linking — linking pre-existing pending
+        # contacts when a NEW phone registers — should also fire at
+        # profile/phone-set time (a hook in the auth/profiles flow), not only here
+        # at invite time. Kept in the invite action for now.
         winger_id = await find_profile_id_by_phone(transaction, data.phoneNumber)
 
         contact = Contact(

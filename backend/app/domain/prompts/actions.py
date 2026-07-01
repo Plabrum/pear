@@ -1,36 +1,3 @@
-"""Mutations for the prompts domain — all writes live here as registered actions.
-
-Ported from the POST/DELETE handlers in
-`supabase/functions/api/domains/prompts/route.ts`:
-
-  * `CreateProfilePrompt`   (POST   /profile-prompts)               -> BaseTopLevelAction
-  * `DeleteProfilePrompt`   (DELETE /profile-prompts/{id})          -> BaseObjectAction
-  * `CreatePromptResponse`  (POST   /prompt-responses)              -> BaseTopLevelAction
-  * `ApprovePromptResponse` (POST   /prompt-responses/{id}/approve) -> BaseObjectAction (SM)
-  * `DeletePromptResponse`  (DELETE /prompt-responses/{id})         -> BaseObjectAction
-
-Each `execute` mutates the ORM directly under the request's RLS-scoped transaction;
-the surrounding action machinery commits on return and rolls back on raise.
-User-facing failures are raised as typed `ApplicationError` subclasses (404 / 403),
-reproducing the Hono `HTTPException` status codes — never ad-hoc responses.
-
-`ApprovePromptResponse` is a state transition: it never assigns `is_approved`
-directly but drives PENDING -> APPROVED through `StateMachineService` (see
-`state_machine.py`), so the approval is logged + emits a STATE_CHANGED event.
-`target_state` is set so the client renders it as a transition.
-
-`is_available` is synchronous (the framework's security floor for both UI
-visibility and execution authorization). Where the precise owner predicate needs a
-join (does *this* dater own the prompt's profile), `is_available` gates the
-sync-resolvable part (role + author + pending) and `execute` performs the async
-owner verification, raising the same typed error the Hono handler returned.
-
-Registration: imported at boot by `discover_and_import([...], base_path="app/domain")`,
-which runs `action_group_factory(...)`. The `ActionGroupType.PROFILE_PROMPT_ACTIONS`
-/ `PROMPT_RESPONSE_ACTIONS` members are added to `app.platform.actions.enums` by the
-Integrate stage.
-"""
-
 from __future__ import annotations
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -139,11 +106,11 @@ class DeleteProfilePrompt(BaseObjectAction[ProfilePrompt, EmptyActionData]):
     ) -> ActionExecutionResponse:
         owner_id = await fetch_profile_prompt_owner(transaction, obj.id)
         if owner_id != deps.user.id:
-            # Mirrors Hono's "Profile prompt not found for this caller" (404).
+            # "Profile prompt not found for this caller" (404).
             raise ProfilePromptNotFoundError()
 
         # Soft delete (the codebase hides `deleted_at IS NOT NULL` from every SELECT)
-        # — the Hono hard DELETE's observable contract (the row disappears) is preserved.
+        # — the observable contract (the row disappears) is preserved.
         obj.soft_delete()
         await transaction.flush()
         return ActionExecutionResponse(
@@ -218,7 +185,7 @@ class ApprovePromptResponse(BaseObjectAction[PromptResponse, EmptyActionData]):
         deps: ActionDeps,
     ) -> ActionExecutionResponse:
         if not await is_response_profile_owner(transaction, obj, deps.user.id):
-            # Mirrors Hono's "Prompt response not found for this caller" (404).
+            # "Prompt response not found for this caller" (404).
             raise ProfilePromptNotFoundError()
 
         # Drive the approval through the state machine (logs + emits an event)
@@ -264,11 +231,11 @@ class DeletePromptResponse(BaseObjectAction[PromptResponse, EmptyActionData]):
         is_author = obj.user_id == caller_id
         is_owner = is_author or await is_response_profile_owner(transaction, obj, caller_id)
         if not is_owner:
-            # Mirrors Hono's "Prompt response not found for this caller" (404).
+            # "Prompt response not found for this caller" (404).
             raise ProfilePromptNotFoundError()
 
         # Soft delete — the soft-delete SELECT filter hides the row afterward,
-        # preserving the Hono hard DELETE's observable contract.
+        # preserving the observable contract (the row disappears).
         obj.soft_delete()
         await transaction.flush()
         return ActionExecutionResponse(

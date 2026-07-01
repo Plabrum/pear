@@ -1,31 +1,3 @@
-"""Login-method routes — the three ways into Pear (phone OTP, Apple, magic link).
-
-These attach to `auth_router` via `LOGIN_METHOD_ROUTES` (spread in `routes.py`).
-Every method converges on the same two AuthService calls once it has verified an
-external credential and resolved a stable subject:
-
-    profile, _created = await auth_service.find_or_create_identity(<provider>, <subject>, ...)
-    return await auth_service.issue_session(profile)      # -> SessionOut
-
-`SessionOut` (a msgspec struct) is returned directly — Litestar serializes it to
-the `{accessToken, refreshToken, user}` contract. The 204 endpoints
-(`otp/start`, `magic-link/request`) return `None`.
-
-Subjects per the contract:
-  * phone -> the E.164 phone number.
-  * apple -> `AppleIdentity.subject` (Apple's stable `sub`).
-  * email -> the normalized email address.
-
-Unauthenticated paths added here MUST also be listed in
-`factory.AUTH_PUBLIC_PATHS` so the ES256 middleware does not reject them for
-lacking a bearer token (they already are).
-
-Transaction note: a raised exception rolls the request transaction back; a
-*returned* response commits. The rate-limit / bad-credential paths raise (no DB
-writes to keep), and the magic-link request raises on over-limit so the queued
-email is NOT dispatched (dispatch happens after commit).
-"""
-
 from __future__ import annotations
 
 from typing import Any

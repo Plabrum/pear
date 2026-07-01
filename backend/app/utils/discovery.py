@@ -1,18 +1,3 @@
-"""Auto-discovery utility for importing Python modules by filename pattern.
-
-Used to trigger decorator-based registration and __init_subclass__ registration
-(e.g. models, deps, actions) at startup without requiring explicit imports.
-
-In factory.py the app boots its registries by walking both the platform layer
-and every domain:
-
-    from app.utils.discovery import discover_and_import
-
-    discover_and_import(["models.py", "models/**/*.py"], base_path="app")
-    discover_and_import(["deps.py"], base_path="app")
-    discover_and_import(["actions.py", "actions/**/*.py"], base_path="app/domain")
-"""
-
 import logging
 from importlib import import_module
 from pathlib import Path

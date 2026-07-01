@@ -1,56 +1,3 @@
-"""Policies-as-code: the concrete Pear RLS policy set (Phase 4 — B1).
-
-This is the relationship-scoped (dater <-> winger <-> match) policy set, ported
-**verbatim** from the Supabase migrations — they are the source of truth:
-
-    profiles            -> supabase/migrations/20260227000000_init.sql
-    dating_profiles     -> supabase/migrations/20260228000000_schema.sql
-    profile_photos      -> 20260228000000_schema.sql + 20260426030000_winger_photo_rls.sql
-    prompt_templates    -> 20260228000000_schema.sql
-    profile_prompts     -> 20260228000000_schema.sql
-    prompt_responses    -> 20260228000000_schema.sql
-    contacts            -> 20260228000000_schema.sql
-    decisions           -> 20260228000000_schema.sql
-    matches             -> 20260228000000_schema.sql
-    messages            -> 20260228000000_schema.sql
-    profile_reports     -> 20260512000000_profile_reports.sql
-
-The only mechanical substitution is `auth.uid()` -> `public.current_user_id()`
-(see `rls_functions.py`). One semantic translation: comparisons against the
-Supabase `wingperson_status = 'active'` literal become the `TextEnum` `.name`
-(`'ACTIVE'`), because the backend stores enum *names*, not Supabase labels — the
-literal is interpolated from `WingpersonStatus.ACTIVE.name` so it cannot drift.
-
-System-mode escape
-------------------
-Every condition is additionally wrapped `public.is_system_mode() OR (<cond>)` so
-trusted system operations (the `AuthService` first-login bootstrap, which sets
-`app.is_system_mode = true` before any `app.user_id` exists, plus system/worker
-jobs) can write through the policies. This is the sloopquest pattern: the system
-escape is a real, honored bypass rather than relying on a superuser connection.
-The Supabase condition is preserved verbatim inside the parentheses. The two
-public-read policies whose condition is already `USING (true)` (profiles SELECT,
-prompt_templates SELECT) are left as-is — there is nothing to escape. Because
-`public.is_system_mode()` is false by default (unset GUC), the wrapper does NOT
-weaken fail-closed behavior for ordinary sessions.
-
-How this is consumed
---------------------
-Importing this module (it is imported for its side effects by `alembic/env.py`,
-which already imports `RLS_POLICY_REGISTRY` from `rls_mixins`) appends every
-`PGPolicy` below to the shared `RLS_POLICY_REGISTRY` and records each table in
-`BaseDBModel.metadata.info["rls"]` so the `compare_rls` comparator emits the
-`op.enable_rls(...)` (ENABLE + FORCE) calls. The Migration agent does NOT
-hand-write these — autogenerate diffs them from the registry.
-
-NOTE: every policy is granted `TO pear_app` — the dedicated NON-superuser,
-NON-owner LOGIN role the app connects as for ALL runtime work (no per-request
-`SET ROLE` anymore; see `rls_grants.py` / `app/utils/deps.py`). `FORCE ROW LEVEL
-SECURITY` matters because, although `pear_app` is not the table owner (so RLS
-would apply anyway), `compare_rls` always pairs ENABLE with FORCE so an owner
-connection cannot accidentally bypass the policies.
-"""
-
 from __future__ import annotations
 
 from alembic_utils.pg_policy import PGPolicy
@@ -89,7 +36,7 @@ def _policy(table: str, signature: str, definition: str) -> PGPolicy:
 
 
 # ── profiles ─────────────────────────────────────────────────────────────────
-# 20260227000000_init.sql: public select; insert own; update own.
+# Public select; insert own; update own.
 _PROFILES = [
     _policy(
         "profiles",
@@ -125,7 +72,7 @@ _PROFILES = [
 
 
 # ── dating_profiles ──────────────────────────────────────────────────────────
-# 20260228000000_schema.sql
+# Select an active profile or your own; insert/update/delete your own.
 _DATING_PROFILES = [
     _policy(
         "dating_profiles",
@@ -171,9 +118,7 @@ _DATING_PROFILES = [
 
 
 # ── profile_photos ───────────────────────────────────────────────────────────
-# SELECT/UPDATE from 20260228000000_schema.sql.
-# INSERT/DELETE superseded by 20260426030000_winger_photo_rls.sql (owner OR
-# active wingperson can insert; owner OR suggester can delete).
+# Owner OR active wingperson can insert; owner OR suggester can delete.
 _PROFILE_PHOTOS = [
     _policy(
         "profile_photos",
@@ -254,7 +199,7 @@ _PROFILE_PHOTOS = [
 
 
 # ── prompt_templates ─────────────────────────────────────────────────────────
-# 20260228000000_schema.sql: readable by any authenticated user (seed data).
+# Readable by any authenticated user (seed data).
 _PROMPT_TEMPLATES = [
     _policy(
         "prompt_templates",
@@ -270,7 +215,6 @@ _PROMPT_TEMPLATES = [
 
 
 # ── profile_prompts ──────────────────────────────────────────────────────────
-# 20260228000000_schema.sql
 _PROFILE_PROMPTS = [
     _policy(
         "profile_prompts",
@@ -340,8 +284,8 @@ _PROFILE_PROMPTS = [
 
 
 # ── prompt_responses ─────────────────────────────────────────────────────────
-# 20260228000000_schema.sql: visible to sender or profile owner; insert as self;
-# only the profile owner can update (approval).
+# Visible to sender or profile owner; insert as self; only the profile owner can
+# update (approval).
 _PROMPT_RESPONSES = [
     _policy(
         "prompt_responses",
@@ -394,8 +338,7 @@ _PROMPT_RESPONSES = [
 
 
 # ── contacts ─────────────────────────────────────────────────────────────────
-# 20260228000000_schema.sql: party-to (dater OR winger) select/update;
-# dater-only insert/delete.
+# Party-to (dater OR winger) select/update; dater-only insert/delete.
 _CONTACTS = [
     _policy(
         "contacts",
@@ -441,9 +384,9 @@ _CONTACTS = [
 
 
 # ── decisions ────────────────────────────────────────────────────────────────
-# 20260228000000_schema.sql: visible to actor/recipient/suggester; insert as
-# actor OR as an active wingperson on the dater's behalf; actor-only update.
-# NOTE the `wingperson_status = 'active'` literal -> '{_ACTIVE}' (TextEnum name).
+# Visible to actor/recipient/suggester; insert as actor OR as an active
+# wingperson on the dater's behalf; actor-only update. The active-wingperson check
+# compares against the `TextEnum` name (`'{_ACTIVE}'`, i.e. WingpersonStatus.ACTIVE.name).
 _DECISIONS = [
     _policy(
         "decisions",
@@ -494,12 +437,9 @@ _DECISIONS = [
 
 
 # ── matches ──────────────────────────────────────────────────────────────────
-# 20260228000000_schema.sql: participant-only select.
+# Participant-only select.
 #
-# Inserts are server-side: in Supabase a `SECURITY DEFINER` trigger
-# (`create_match_if_mutual`) created the match row, bypassing RLS — so there was
-# no INSERT policy. Under the sloopquest model that "definer bypass" maps to the
-# honored system-mode escape: match creation runs as a SYSTEM operation (the
+# Inserts are server-side: match creation runs as a SYSTEM operation (the
 # worker/queue path sets `app.is_system_mode = true`). The INSERT policy therefore
 # permits *only* system mode — an ordinary user (escape off) can never forge a
 # match row. There is intentionally no user branch.
@@ -530,8 +470,7 @@ _MATCHES = [
 
 
 # ── messages ─────────────────────────────────────────────────────────────────
-# 20260228000000_schema.sql: read/send only within a match you participate in;
-# sender-only update (mark read).
+# Read/send only within a match you participate in; sender-only update (mark read).
 _MESSAGES = [
     _policy(
         "messages",
@@ -580,9 +519,7 @@ _MESSAGES = [
 
 
 # ── profile_reports ──────────────────────────────────────────────────────────
-# 20260512000000_profile_reports.sql: insert your own report only.
-# Phase 5 (reports domain port) adds the matching SELECT policy: the Hono/Supabase
-# original needed only INSERT (PostgREST returned nothing), but the SQLAlchemy ORM
+# Insert your own report only, plus a matching SELECT policy: the SQLAlchemy ORM
 # emits `INSERT ... RETURNING` for server-side defaults (created_at/updated_at), and
 # under FORCE RLS that RETURNING read requires a SELECT policy — without one Postgres
 # rejects the insert as "new row violates row-level security policy". A reporter may

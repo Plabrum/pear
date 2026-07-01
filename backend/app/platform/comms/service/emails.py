@@ -1,5 +1,3 @@
-"""Email service — template rendering + queued dispatch."""
-
 import logging
 from typing import Any
 from uuid import UUID

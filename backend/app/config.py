@@ -57,8 +57,23 @@ class Config:
     # ─── AWS ──────────────────────────────────────────────────────────────────
     AWS_REGION: str = os.getenv("AWS_REGION", "us-east-1")
 
-    # ─── S3 ───────────────────────────────────────────────────────────────────
+    # ─── S3 / media storage ─────────────────────────────────────────────────────
+    # Private bucket holding all user media (profile photos + avatars). Reads are
+    # served via short-lived presigned GET URLs (photos, approval-gated) or a
+    # public-read base URL (avatars). Writes go through presigned PUT URLs so image
+    # bytes never transit the API box. In local/testing the `LocalS3Client` is
+    # selected by ENV and returns deterministic fake URLs (no AWS needed).
     S3_MEDIA_BUCKET: str = os.getenv("S3_MEDIA_BUCKET", "pear-media")
+    # TTL (seconds) for issued presigned GET/PUT URLs. Short for reads (a screen's
+    # worth of viewing) so a leaked URL expires quickly.
+    S3_PRESIGN_TTL_SECONDS: int = int(os.getenv("S3_PRESIGN_TTL_SECONDS", "900"))
+    # Public base URL for avatar objects (a CloudFront distribution or the bucket's
+    # public read endpoint in prod). Avatars are public-read, so they need no
+    # presign. Empty in local/testing — `LocalS3Client` synthesizes a base.
+    S3_PUBLIC_BASE_URL: str = os.getenv("S3_PUBLIC_BASE_URL", "")
+    # Local-only: where `LocalS3Client` roots its fake URLs (and, optionally, where a
+    # local upload sink could persist bytes). Never used in prod.
+    LOCAL_MEDIA_BASE_URL: str = os.getenv("LOCAL_MEDIA_BASE_URL", "http://localhost:8000/_local-media")
 
     # ─── Email templates ──────────────────────────────────────────────────────
     EMAIL_TEMPLATES_DIR: str = os.getenv("EMAIL_TEMPLATES_DIR", "email_templates")
@@ -69,7 +84,7 @@ class Config:
     SES_CONFIGURATION_SET: str = os.getenv("SES_CONFIGURATION_SET", "")
     EMAIL_FROM: str = os.getenv("EMAIL_FROM", "noreply@pear.local")
 
-    # ─── JWT (we issue our own tokens — Phase 4) ───────────────────────────────
+    # ─── JWT (we issue our own tokens) ─────────────────────────────────────────
     # ES256 keypair (PEM). Signing key (private) from Secrets Manager; public key
     # verifies. In tests `TestConfig` generates an ephemeral keypair so no real
     # secret is needed (see `TestConfig.__post_init__`).
@@ -82,7 +97,7 @@ class Config:
     # Refresh token lifetime (opaque, rotating, server-side stored). Default 30d.
     REFRESH_TOKEN_TTL_SECONDS: int = int(os.getenv("REFRESH_TOKEN_TTL_SECONDS", str(60 * 60 * 24 * 30)))
 
-    # ─── Twilio (phone OTP — Phase 4) ──────────────────────────────────────────
+    # ─── Twilio (phone OTP) ────────────────────────────────────────────────────
     # In local/testing these are unused — `LocalOtpClient` is selected instead and
     # accepts a fixed dev code (`DEV_OTP_CODE`).
     TWILIO_ACCOUNT_SID: str = os.getenv("TWILIO_ACCOUNT_SID", "")
@@ -91,7 +106,7 @@ class Config:
     # Fixed code the LocalOtpClient accepts for any phone in local/testing.
     DEV_OTP_CODE: str = os.getenv("DEV_OTP_CODE", "000000")
 
-    # ─── Apple Sign-In (Phase 4) ───────────────────────────────────────────────
+    # ─── Apple Sign-In ─────────────────────────────────────────────────────────
     # Service/app id — the `aud` we validate on Apple identity tokens.
     APPLE_CLIENT_ID: str = os.getenv("APPLE_CLIENT_ID", "")
     # Apple OIDC issuer + JWKS endpoint (overridable so tests can inject a key).
@@ -101,7 +116,7 @@ class Config:
     # tokens (bypasses the JWKS fetch). Empty in prod — JWKS is used.
     APPLE_TEST_PUBLIC_KEY: str = os.getenv("APPLE_TEST_PUBLIC_KEY", "")
 
-    # ─── Magic link (email login — Phase 4) ────────────────────────────────────
+    # ─── Magic link (email login) ──────────────────────────────────────────────
     # Public base URL of the API; the GET verify hop 302s into the app scheme.
     API_BASE_URL: str = os.getenv("API_BASE_URL", "http://localhost:8000")
     # App deep-link scheme target for the email-link return hop.
@@ -111,16 +126,35 @@ class Config:
     # Dev bypass: this email logs in instantly without sending mail (empty = off).
     DEV_MAGIC_LINK_EMAIL: str = os.getenv("DEV_MAGIC_LINK_EMAIL", "")
 
-    # ─── APNs (direct push — Phase 6) ──────────────────────────────────────────
+    # ─── APNs (direct push) ────────────────────────────────────────────────────
+    # Token-based auth (.p8 key). One key covers the whole team and never expires;
+    # the same key works for both sandbox and production hosts — only the *host*
+    # differs (see APNS_USE_SANDBOX). In local/testing the LocalPushClient is
+    # selected (logs instead of delivering), so these may be empty.
     APNS_KEY: str = os.getenv("APNS_KEY", "")  # .p8 file contents
     APNS_KEY_ID: str = os.getenv("APNS_KEY_ID", "")
     APNS_TEAM_ID: str = os.getenv("APNS_TEAM_ID", "")
+    # The `apns-topic` header — the app's bundle id.
+    APNS_TOPIC: str = os.getenv("APNS_TOPIC", "com.plabrum.wingmate")
+    # Dev-client (Expo development) builds mint *sandbox* device tokens, which only
+    # the sandbox host accepts; TestFlight / App Store builds mint *production*
+    # tokens for the production host. Defaults to True unless ENV=production, so a
+    # staging/dev backend talks to sandbox; flip to False in prod.
+    APNS_USE_SANDBOX: bool = os.getenv(
+        "APNS_USE_SANDBOX",
+        "false" if os.getenv("ENV", "development") == "production" else "true",
+    ).lower() in {"1", "true", "yes"}
+
+    @property
+    def APNS_HOST(self) -> str:
+        """The APNs host to POST to: sandbox for dev-client tokens, prod otherwise."""
+        return "api.sandbox.push.apple.com" if self.APNS_USE_SANDBOX else "api.push.apple.com"
 
     @property
     def IS_DEV(self) -> bool:
         return self.ENV == "development"
 
-    # ─── Database roles (sloopquest non-superuser model) ───────────────────────
+    # ─── Database roles (non-superuser model) ──────────────────────────────────
     # Two distinct roles, two distinct URLs:
     #   * the APP role (`DB_APP_USER`, default `pear_app`) is a NON-superuser,
     #     NON-owner LOGIN role the runtime (API requests, worker tasks, websockets)

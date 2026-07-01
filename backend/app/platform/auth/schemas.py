@@ -1,11 +1,3 @@
-"""Auth request/response DTOs (msgspec structs — Litestar's native codec).
-
-The wire contract uses camelCase to match the mobile client
-(`accessToken`/`refreshToken`/`chosenName`). The token-core routes (refresh /
-logout / me) live here; the login-method request shapes (OTP / Apple / magic
-link) are added by the Methods agent in this same module.
-"""
-
 from __future__ import annotations
 
 from uuid import UUID

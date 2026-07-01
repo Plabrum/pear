@@ -2,14 +2,16 @@ import { useState } from 'react';
 import { toast } from 'sonner-native';
 
 import { addPhoto, getPhotoUploadUrl } from '@/lib/api/actions';
-import { supabase } from '@/lib/supabase';
 
-// Unified profile-photo upload flow. Asks the API for a signed upload token
-// (server picks the storage folder — owner for self-uploads, dater for
-// wingperson suggestions), uploads the file body, then writes the
-// profile_photos metadata row. On metadata-write failure, best-effort removes
-// the storage object to avoid orphans. Owns its own pending state and error
-// toast — callsites await `upload(...)` and branch on the boolean.
+const CONTENT_TYPE = 'image/jpeg';
+
+// Unified profile-photo upload flow (S3 presigned PUT).
+// Asks the API for a presigned upload URL (the server picks the storage key —
+// owner for self-uploads, dater folder for wingperson suggestions — and gates
+// the write), `PUT`s the resized JPEG bytes straight to S3, then writes the
+// profile_photos metadata row with `storageUrl = key` (the DB stores the S3 KEY,
+// never a URL). Owns its own pending state and error toast — callsites await
+// `upload(...)` and branch on the boolean.
 export function useUploadProfilePhoto() {
   const [isPending, setIsPending] = useState(false);
 
@@ -20,27 +22,25 @@ export function useUploadProfilePhoto() {
     displayOrder: number
   ): Promise<boolean> => {
     setIsPending(true);
-    let uploadedPath: string | null = null;
     try {
-      const { path, uploadToken } = await getPhotoUploadUrl({
+      const { uploadUrl, key } = await getPhotoUploadUrl({
         datingProfileId,
         filename,
+        contentType: CONTENT_TYPE,
       });
-      const arrayBuffer = await fetch(uri).then((r) => r.arrayBuffer());
-      const { error: upErr } = await supabase.storage
-        .from('profile-photos')
-        .uploadToSignedUrl(path, uploadToken, arrayBuffer, { contentType: 'image/jpeg' });
-      if (upErr) throw upErr;
-      uploadedPath = path;
-      await addPhoto({ datingProfileId, storageUrl: path, displayOrder });
+      // Raw PUT straight to S3 — NO Authorization header, the presigned URL IS the
+      // grant. The image bytes never transit our API box.
+      const blob = await fetch(uri).then((r) => r.blob());
+      const putRes = await fetch(uploadUrl, {
+        method: 'PUT',
+        body: blob,
+        headers: { 'Content-Type': CONTENT_TYPE },
+      });
+      if (!putRes.ok) throw new Error(`S3 PUT failed: ${putRes.status}`);
+      // Persist the KEY as the photo's storageUrl; reads issue a presigned GET URL.
+      await addPhoto({ datingProfileId, storageUrl: key, displayOrder });
       return true;
     } catch {
-      if (uploadedPath) {
-        await supabase.storage
-          .from('profile-photos')
-          .remove([uploadedPath])
-          .catch(() => {});
-      }
       toast.error('Failed to upload photo. Please try again.');
       return false;
     } finally {

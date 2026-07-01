@@ -1,24 +1,3 @@
-"""Tests for the ported `discover` domain.
-
-The original Hono domain shipped `route.test.ts` (handler-level: status + the
-snake->camel mapping of wing note / suggester). That maps onto the Litestar port's
-query+transformer path, which is what we exercise here against the seeded `graph`
-under the system-mode `db_session` (RLS is covered separately by tests/test_rls.py).
-
-Coverage:
-  * fetch_discover_pool returns the viewer's preference-matched candidates,
-    suggestions-first, with the wing note + suggester surfaced (the Hono
-    "maps wing note and suggester when present" assertion).
-  * row_to_discover_profile maps snake_case -> camelCase + enum .value wire form.
-  * the likesYouOnly / wingerOnly EXISTS branches narrow the pool.
-  * the age filter and the already-decided exclusion drop candidates.
-
-Age note: the `graph` fixture seeds ages via a process-global faker whose state
-advances with every call, so a candidate's exact age depends on test-selection
-order. To keep these deterministic, age-sensitive tests pin the relevant DOBs and
-widen the viewer's preferred range first (`_normalize_ages`).
-"""
-
 from __future__ import annotations
 
 from datetime import date
@@ -32,6 +11,7 @@ from app.domain.discover.queries import fetch_discover_pool
 from app.domain.discover.transformers import row_to_discover_profile
 from app.domain.profiles.enums import Gender
 from tests.fixtures.graph import DomainGraph
+from tests.fixtures.media import local_media
 
 # `asyncio_mode = "auto"` (pyproject.toml) runs `async def test_*` without a marker.
 
@@ -92,7 +72,7 @@ async def test_discover_row_maps_to_camel_case(graph: DomainGraph, db_session: A
     await _normalize_ages(graph, db_session)
     rows = await fetch_discover_pool(db_session, viewer_id=graph.dater_a.id, page_size=20, page_offset=0)
     suggested = next(r for r in rows if r.user_id == graph.dater_b.id)
-    dto = row_to_discover_profile(suggested)
+    dto = await row_to_discover_profile(suggested, local_media())
 
     assert dto.profileId == graph.dating_profile_b.id
     assert dto.userId == graph.dater_b.id

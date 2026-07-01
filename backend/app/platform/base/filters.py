@@ -1,12 +1,3 @@
-"""Filter and sort definitions for CRUD list endpoints.
-
-Filter structs use msgspec tagged unions so the client sends:
-    {"type": "text", "column": "name", "operation": "contains", "value": "smith"}
-
-apply_filter() and apply_sorts() silently skip unknown or disallowed columns
-to avoid leaking schema information.
-"""
-
 from __future__ import annotations
 
 from datetime import datetime

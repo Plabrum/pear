@@ -1,19 +1,3 @@
-"""Tests for the ported `likes-you` domain.
-
-The original Hono domain shipped no `*.test.ts`, so these cover the relevance-filter
-contract the port must preserve (these are *relevance* filters; RLS access is
-covered by tests/test_rls.py):
-  * fetch_likes_you_pool — profiles whose `approved` decision targets the viewer,
-    still available: same preference filters, not yet matched, not yet
-    decided-by-viewer.
-  * the match exclusion (the graph's matched liker is hidden) — the key denial.
-  * the decided-by-viewer exclusion.
-  * fetch_likes_you_count — count of the same pool.
-  * row_to_likes_you_profile — snake->camel incl. the optional pending suggestion.
-
-Reads run against the seeded `graph` under the system-mode `db_session`.
-"""
-
 from __future__ import annotations
 
 from datetime import date
@@ -25,6 +9,7 @@ from app.domain.decisions.models import Decision
 from app.domain.discover.queries import fetch_likes_you_count, fetch_likes_you_pool
 from app.domain.likes_you.transformers import row_to_likes_you_profile
 from tests.fixtures.graph import DomainGraph
+from tests.fixtures.media import local_media
 
 # `asyncio_mode = "auto"` runs `async def test_*` without a marker.
 
@@ -108,7 +93,7 @@ async def test_likes_you_row_maps_to_camel_case(graph: DomainGraph, db_session: 
     await db_session.flush()
 
     rows = await fetch_likes_you_pool(db_session, viewer_id=graph.dater_a.id, page_size=20, page_offset=0)
-    dto = row_to_likes_you_profile(rows[0])
+    dto = await row_to_likes_you_profile(rows[0], local_media())
 
     assert dto.userId == graph.dater_c.id
     assert dto.chosenName == graph.dater_c.chosen_name

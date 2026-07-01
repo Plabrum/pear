@@ -1,39 +1,3 @@
-"""Mutations for the decisions domain — all writes live here as registered actions.
-
-Ported from the POST handlers in
-`supabase/functions/api/domains/decisions/route.ts`:
-
-  * `RecordDirectDecision` (POST /decisions)                -> BaseTopLevelAction
-  * `ActOnSuggestion`      (POST /decisions/suggestions/act) -> BaseTopLevelAction
-  * `CreateSuggestion`     (POST /decisions/suggestions)     -> BaseTopLevelAction
-
-All three are TOP-LEVEL actions: they key off the (actor, recipient) composite, not
-a single object_id, so there is no row to load up front (Hono upserts/inserts by
-composite too). Each `execute` mutates the ORM directly under the request's
-RLS-scoped transaction; the action machinery commits on return and rolls back on
-raise. User-facing failures are raised as typed `ApplicationError` subclasses,
-reproducing the Hono `HTTPException` status codes — never ad-hoc responses.
-
-MATCH FORMATION (the legacy `create_match_if_mutual` trigger): when a decision
-results in BOTH directions being 'approved', `_finalize_match` creates the matches
-row under the honored system-mode escape (the `matches_insert WITH CHECK
-is_system_mode()` policy) and fires the match push to both users. This keeps the
-mutual-match side-effect in one declarative place, as the Hono route did inline.
-
-The match-formation flow is NOT modeled as a `StateMachineService` transition:
-neither `Decision` nor `Match` carries a status column (`state` attribute) the
-platform `StateMachine` requires — match creation is an INSERT under system mode,
-not a status move on an existing row. Role-gating instead lives on the actions
-themselves (a dater's direct decision vs. a winger's suggestion are distinct
-actions), and on the decisions RLS INSERT policy.
-
-Registration: imported at boot by `discover_and_import([...], base_path="app/domain")`,
-which runs `action_group_factory(...)` to register the group and decorates each
-action class into the singleton `ActionRegistry`. The
-`ActionGroupType.DECISION_ACTIONS` member is added to `app.platform.actions.enums`
-by the Integrate stage.
-"""
-
 from __future__ import annotations
 
 from uuid import UUID
@@ -96,8 +60,7 @@ async def _finalize_match(
     """Create the match if both sides approved and it doesn't exist yet.
 
     Returns (created, match). `created` is True only when this call inserted a new
-    matches row (mirrors Hono's `matchBefore == null && matchAfter != null`). Fires
-    the match push to both users on creation.
+    matches row. Fires the match push to both users on creation.
     """
     existing = await find_mutual_match(transaction, user_a, user_b)
     if existing is not None:

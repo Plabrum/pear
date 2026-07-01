@@ -1,15 +1,3 @@
-"""SQLAlchemy reads for the winger-tabs domain.
-
-Ported from `supabase/functions/api/domains/winger-tabs/queries.ts`. First arg is
-always `db: AsyncSession`; no Litestar/msgspec imports. This is a join over the
-viewer's *pending* winger-suggested cards (`decision IS NULL` and `suggested_by`
-present), joined to the suggesting winger's profile, ordered newest-first. The
-transformer then dedupes to distinct wingers.
-
-RLS enforces *access* (the viewer only sees their own decisions); the explicit
-`where` clause is for relevance.
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -33,10 +21,10 @@ class WingerTabRow:
 async def fetch_winger_tabs(db: AsyncSession, dater_id: UUID) -> list[WingerTabRow]:
     """Wingers who have a pending suggestion for the viewer, newest first.
 
-    Mirrors the Hono query: decisions where the viewer is the actor, the decision is
-    still pending (NULL), and a `suggested_by` winger is present — joined to that
-    winger's profile. Duplicates (a winger with several pending suggestions) are kept
-    here and collapsed to distinct wingers in the transformer.
+    Decisions where the viewer is the actor, the decision is still pending (NULL),
+    and a `suggested_by` winger is present — joined to that winger's profile.
+    Duplicates (a winger with several pending suggestions) are kept here and
+    collapsed to distinct wingers in the transformer.
     """
     rows = (
         await db.execute(

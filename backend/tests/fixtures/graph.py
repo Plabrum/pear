@@ -1,25 +1,3 @@
-"""Faker-based domain graph fixture for the Phase-4 RLS test suite.
-
-Builds a small but representative slice of the Pear relationship graph so RLS
-policy tests (Phase 4) have realistic, related rows to assert visibility against:
-
-    dater_a ─┐
-             ├─ (active contact) ── winger          winger suggested a card to dater_a
-    dater_b ─┘                                       (decision row, suggested_by=winger)
-
-    dater_a ── decision(approved) ── dater_b ── match ── message
-    dater_a profile: 1 approved photo + 1 pending photo
-    dater_a profile: 1 profile_prompt (from the seeded templates) + 1 prompt_response
-
-The graph is seeded via the system-mode `db_session` fixture (RLS bypassed), so
-factories can write freely; RLS-scoped assertions then use the `transaction`
-fixture (or a fresh scoped session) set to one of the graph's user ids.
-
-Lives under `tests/fixtures/` so prod model/seed discovery never sees it. Exposed
-as the `graph` pytest fixture (returns a `DomainGraph` dataclass of the created
-rows) and re-exported through `tests/fixtures/__init__.py`.
-"""
-
 from __future__ import annotations
 
 from collections.abc import Callable

@@ -1,23 +1,3 @@
-"""AuthService — identity bootstrap + session issuance.
-
-This is the shared core the login-method routes (OTP / Apple / magic link) call
-after they have verified an external credential and resolved a stable subject:
-
-  * `find_or_create_identity(provider, subject, *, email?, name?)` — resolves an
-    `auth_identities` row to a profile, creating both the profile (first-login
-    bootstrap — replaces the old Supabase `on_auth_user_created` trigger) and the
-    identity row when absent. Returns `(profile, created)`.
-  * `issue_session(profile, *, device_info?)` — mints an access+refresh pair and
-    returns the `{accessToken, refreshToken, user}` payload.
-
-**RLS bootstrap:** the login-method routes are *unauthenticated* — no
-`app.user_id` is set, so RLS would fail closed on the `profiles` /
-`auth_identities` inserts. AuthService therefore runs its identity work in
-**system mode** (`SET LOCAL app.is_system_mode = true`), the same escape hatch the
-test fixtures use. The session is the request transaction; system mode is scoped
-to it and rolls back / commits with the request.
-"""
-
 from __future__ import annotations
 
 from uuid import UUID

@@ -1,26 +1,3 @@
-"""Tests for the ported `contacts` (wingperson roster) domain.
-
-The original Hono domain shipped no `*.test.ts`, so these are authored fresh to
-cover the contract the port must preserve:
-
-  * Reads (the GET /wingpeople aggregate's query + transformer path):
-      - active wingpeople (dater's view)         -> wingpeople[]
-      - incoming invitations (winger's view)     -> invitations[]
-      - sent invitations (dater's view)          -> sentInvitations[]
-      - winging-for (winger's view, w/ interests)-> wingingFor[]
-      - weekly suggestion counts (contactId map) -> weeklyCounts
-  * Gated actions (writes):
-      - happy path: InviteWingperson inserts (and links winger_id by phone);
-        AcceptInvite moves invited -> active; DeclineInvite & RemoveWingperson
-        move -> removed, all through the state machine.
-      - gate denial: AcceptInvite.is_available is False for the dater (winger-only)
-        and for an already-active contact; RemoveWingperson denied for a winger.
-
-Reads run against the seeded `graph` under the system-mode `db_session` (RLS is
-covered separately by tests/test_rls.py). Actions are driven directly with a
-hand-built `ActionDeps`, mirroring tests/test_profiles.py.
-"""
-
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock
@@ -57,6 +34,7 @@ from app.platform.auth.principal import User
 from app.platform.state_machine.machine import StateMachineService
 from app.platform.state_machine.roles import Role
 from tests.fixtures.graph import DomainGraph
+from tests.fixtures.media import local_media
 
 # `asyncio_mode = "auto"` (pyproject.toml) runs `async def test_*` without a marker.
 
@@ -86,7 +64,7 @@ def _deps(session: AsyncSession, *, user_id, role: Role = Role.DATER, push_send:
 async def test_fetch_active_wingpeople(graph: DomainGraph, db_session: AsyncSession) -> None:
     rows = await fetch_active_wingpeople(db_session, graph.dater_a.id)
     assert len(rows) == 1
-    dto = row_to_wingperson(rows[0])
+    dto = row_to_wingperson(rows[0], local_media())
     assert dto.id == graph.contact.id
     assert dto.createdAt  # ISO string present
     assert dto.winger is not None
@@ -105,7 +83,7 @@ async def test_fetch_incoming_invitations_empty_when_active(graph: DomainGraph, 
 async def test_fetch_winging_for(graph: DomainGraph, db_session: AsyncSession) -> None:
     rows = await fetch_winging_for(db_session, graph.winger.id)
     assert len(rows) == 1
-    dto = row_to_winging_for(rows[0])
+    dto = row_to_winging_for(rows[0], local_media())
     assert dto.dater is not None
     assert dto.dater.id == graph.dater_a.id
     # interests come off the joined dating_profile and round-trip as the enum list.

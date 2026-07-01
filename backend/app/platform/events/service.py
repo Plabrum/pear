@@ -1,11 +1,3 @@
-"""Event emission service — records an append-only Event row.
-
-Trimmed from sloopquest: the async-consumer registry, SAQ dispatch, and
-ChannelsPlugin websocket path are dropped. `emit_event` simply persists an
-Event row in the caller's transaction (the sync path). Downstream consumers
-(if ever needed) read the events table directly. No organization scoping.
-"""
-
 from __future__ import annotations
 
 import logging

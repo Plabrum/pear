@@ -1,24 +1,3 @@
-"""Magic-link token store (email login).
-
-The magic-link flow mints a short-lived, single-use token bound to a normalized
-email and hands it to the user via an email link. Verification consumes the token
-exactly once — a replayed token is rejected (the store deletes it on consume), and
-an expired token is rejected (TTL eviction). This module owns ONLY the token
-lifecycle; the routes (`routes_methods.py`) own delivery + the identity bootstrap.
-
-Two backends, selected by ENV (mirroring `LocalOtpClient` / `LocalEmailClient`):
-
-  * `RedisMagicLinkStore` — production: a Redis key `magiclink:<token>` -> email
-    with a TTL of `config.MAGIC_LINK_TTL_SECONDS`. `consume` is atomic
-    (GETDEL) so two concurrent verifies cannot both win.
-  * `InMemoryMagicLinkStore` — dev/testing: a process-local dict with manual
-    expiry checks, so local/e2e auth needs no live Redis.
-
-The token itself is opaque (`secrets.token_urlsafe`) — it carries no claims; all
-state (which email, expiry, single-use) lives in the store. That keeps the email
-link unguessable and revocable without a verification key.
-"""
-
 from __future__ import annotations
 
 import secrets

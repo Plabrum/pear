@@ -1,11 +1,3 @@
-"""Core state machine types: Transition, State, StateMachine, StateMachineService.
-
-Adapted from sloopquest: roles are Pear's dater/winger/SYSTEM; SYSTEM transitions
-write a NULL actor_id (no integer sentinel id); ids are UUIDs; the emitted
-STATE_CHANGED event has no organization scoping and uses the trimmed sync
-`emit_event`.
-"""
-
 from __future__ import annotations
 
 import logging

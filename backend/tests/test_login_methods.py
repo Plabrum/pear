@@ -1,18 +1,3 @@
-"""Unit tests for the login-method building blocks (Phase 4 auth provider).
-
-These cover the pieces the Methods agent owns that have no DB dependency:
-  * `LocalOtpClient` — fixed dev code accept/reject.
-  * `InMemoryMagicLinkStore` — single-use consume + expiry + replay rejection.
-  * `InMemoryRateLimiter` — fixed-window budget enforcement.
-  * `LocalAppleVerifier` — verifies a locally-signed token against an injected
-    test key; rejects wrong-aud / expired / tampered tokens.
-
-The DB-backed end-to-end route flows (otp/check, apple, magic-link/verify ->
-find_or_create_identity -> issue_session) belong in the auth route suite, which
-drives them through an AsyncTestClient with the savepoint `db_session` wired into
-the `db_session` DI override. See the report for the exact wiring.
-"""
-
 from __future__ import annotations
 
 import time

@@ -1,21 +1,3 @@
-"""msgspec schemas for the contacts (wingperson roster) domain.
-
-Ported from `supabase/functions/api/domains/contacts/schemas.ts`. Field names are
-camelCase to match the Hono Zod output byte-for-byte — the mobile app's Orval hooks
-consume these. Enum-typed fields use the domain `Enum` classes directly; msgspec
-serializes an Enum by its `.value`, which is exactly the wire format the Zod enums
-emit (`'Male'`, `'Travel'`, …).
-
-Output shapes (the combined GET /wingpeople bundle): `Wingperson` /
-`IncomingInvitation` / `WingingForRow` / `SentInvitation` + `WingpeopleResponse`,
-plus the invite mutation's `InviteWingpersonResponse`. Input shape (consumed by the
-actions layer): `InviteWingpersonData` ({phoneNumber}).
-
-Unlike the profiles domain there is no PATCH-style optional input here — invite/
-accept/decline/remove either take a single required field or no body at all — so
-`UNSET` is not needed.
-"""
-
 from __future__ import annotations
 
 from uuid import UUID
@@ -83,7 +65,7 @@ class WingpeopleResponse(BaseSchema):
     invitations: list[IncomingInvitation]
     wingingFor: list[WingingForRow]
     sentInvitations: list[SentInvitation]
-    # contactId -> count of suggestions in the last 7 days (Zod: z.record(uuid, int)).
+    # contactId -> count of suggestions in the last 7 days.
     weeklyCounts: dict[str, int]
 
 

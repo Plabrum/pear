@@ -31,7 +31,7 @@ export function useMessages(matchId: string) {
   }, [matchId]);
 
   // Acceptable exception: mount-only guard for a genuine external event
-  // (Supabase realtime). Tears down on unmount.
+  // (the realtime message stream). Tears down on unmount.
   useEffect(() => {
     if (!matchId) return;
 

@@ -1,11 +1,3 @@
-"""DB helpers — create_model / update_model build & mutate ORM instances from struct DTOs.
-
-Trimmed for Pear: no organization scoping and no lifecycle Event emission (the
-sloopquest `events` platform module is not ported). These are thin convenience
-wrappers around `session.add` / `setattr` + `flush`, handling msgspec structs
-(skipping `None` fields on create, supporting nested struct updates).
-"""
-
 from __future__ import annotations
 
 import logging

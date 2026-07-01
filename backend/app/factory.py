@@ -1,23 +1,3 @@
-"""Litestar application factory.
-
-Adapted from sloopquest's `create_app`, stripped to Pear's Phase-2 surface:
-
-  * SQLAlchemyPlugin (async, shared engine, create_all=False)
-  * SAQPlugin (litestar-saq) using the platform queue config; web UI in dev
-  * ChannelsPlugin (in-memory backend; presence/messages land in Phase 6)
-  * CORSConfig (FRONTEND_ORIGIN) + TemplateConfig (Jinja email templates)
-  * Verified ES256 JWT bearer auth excluding ^/health, ^/schema and the
-    unauthenticated /auth/* routes (per the auth contract)
-  * DI from `get_dependencies()`; registries booted via `discover_and_import`
-  * Exception handler mapping `ApplicationError` -> JSON response
-  * Routes: /health + the auth router + the actions router + domain routers
-    (Phase 5 — `profiles` is the first; the Integrate stage mounts the rest).
-
-Removed vs sloopquest: organizations, Sqid type codecs + SqidSchemaPlugin,
-SessionAuth/Redis session store, billing/comms-webhook/domain routers, the
-embeddings queue resolver.
-"""
-
 from typing import Any
 
 from advanced_alchemy.extensions.litestar import (
@@ -57,6 +37,7 @@ from app.platform.auth.routes import auth_router
 from app.platform.base.models import BaseDBModel
 from app.platform.base.soft_delete import install_soft_delete_filter
 from app.platform.queue.config import queue_config
+from app.platform.realtime.routes import realtime_ws
 from app.utils.deps import get_dependencies
 from app.utils.discovery import discover_and_import
 from app.utils.exceptions import ApplicationError, exception_to_http_response
@@ -77,9 +58,9 @@ install_soft_delete_filter()
 __all__ = ["BaseDBModel", "create_app"]
 
 # Unauthenticated /auth/* routes (the login-method + refresh endpoints). These
-# must NOT be rejected by the ES256 middleware for lacking a bearer token. The
-# Methods agent appends its new public paths here (e.g. /auth/otp/start). Note
-# /auth/me and /auth/logout are intentionally ABSENT — they require a token.
+# must NOT be rejected by the ES256 middleware for lacking a bearer token. New
+# public paths are appended here (e.g. /auth/otp/start). Note /auth/me and
+# /auth/logout are intentionally ABSENT — they require a token.
 AUTH_PUBLIC_PATHS = [
     "^/auth/refresh$",
     "^/auth/otp/start$",
@@ -90,8 +71,11 @@ AUTH_PUBLIC_PATHS = [
 ]
 
 # Routes excluded from the auth middleware: health probe, OpenAPI schema/docs,
-# and the unauthenticated auth routes above.
-_AUTH_EXCLUDE = ["^/health", "^/schema", *AUTH_PUBLIC_PATHS]
+# the unauthenticated auth routes above, and the websocket route. `/ws`
+# authenticates the ES256 token ITSELF (from the `?token=` query param — React
+# Native's WebSocket can't set an Authorization header on the handshake), so the
+# HTTP bearer middleware must not reject the upgrade for lacking a header.
+_AUTH_EXCLUDE = ["^/health", "^/schema", "^/ws", *AUTH_PUBLIC_PATHS]
 
 
 @get("/health", sync_to_thread=False, exclude_from_auth=True)
@@ -145,7 +129,7 @@ def create_app(
         app.state.task_queues = saq_config.get_queues()
 
     # Per-process in-memory channels. NOTE: switch to a Redis backend if we run
-    # multiple replicas — used for presence/messages in Phase 6.
+    # multiple replicas — used for presence/messages.
     channels_plugin = ChannelsPlugin(
         backend=MemoryChannelsBackend(),
         arbitrary_channels_allowed=True,
@@ -169,14 +153,14 @@ def create_app(
     if plugins_overrides is None:
         on_startup.append(_setup_task_queues)
 
-    # The mobile app's committed contract (the old Hono spec the Orval client was
-    # generated from) serves every data + action endpoint under a `/api` prefix
-    # (e.g. GET /api/profiles/me, POST /api/actions/...). Mounting the data and
-    # action routers under a single parent `Router(path="/api", ...)` reproduces
-    # those paths exactly so the regenerated read hooks match byte-for-byte.
+    # The mobile app's committed contract serves every data + action endpoint
+    # under a `/api` prefix (e.g. GET /api/profiles/me, POST /api/actions/...).
+    # Mounting the data and action routers under a single parent
+    # `Router(path="/api", ...)` reproduces those paths exactly so the generated
+    # read hooks match byte-for-byte.
     #
     # `/health` stays at the root (the platform probe), and `/auth/*` stays at the
-    # root (the Phase-4 auth client calls bare `/auth/*`), so neither is remounted.
+    # root (the auth client calls bare `/auth/*`), so neither is remounted.
     api_router = Router(
         path="/api",
         route_handlers=[
@@ -202,6 +186,10 @@ def create_app(
             health,
             auth_router,
             api_router,
+            # Realtime websocket. Stays at the root (`/ws`), not under `/api` — it
+            # is a long-lived socket, not an HTTP data/action route, and
+            # authenticates its own `?token=` access token (see realtime/routes.py).
+            realtime_ws,
         ],
         # The active config is shared via app state so the auth middleware / deps
         # verify with the SAME keypair that signed tokens. In prod every config is

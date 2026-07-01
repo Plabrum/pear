@@ -1,18 +1,3 @@
-"""Typed dependencies for actions.
-
-`ActionDeps` is the single DI struct every action's `execute`/`is_available`/
-`is_disabled` receives. Pear has NO organization concept — scope is relationship
-based (dater <-> winger <-> match), so there is no `organization` field and ids
-are UUIDs throughout.
-
-The concrete `User`, push, email, and state-machine service types are owned by
-other modules (users domain, platform.push, platform.comms, platform.state_machine).
-They are imported eagerly (not under TYPE_CHECKING) because Litestar resolves this
-dataclass's type hints at request time and must be able to evaluate the field
-annotations. The Litestar DI container still resolves the underlying *providers* by
-name at request time (see `provide_action_deps`).
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -23,27 +8,25 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Config, config
 
-# These symbols are resolvable at runtime (users surface + push + comms +
-# state_machine all exist), so they are imported eagerly. This is required because
-# Litestar resolves `ActionDeps`'s dataclass type hints at request time via
-# `get_type_hints`, which evaluates forward refs in THIS module's namespace — a
-# TYPE_CHECKING-only import would raise NameError on every request. `User` is the
-# Phase-4 authenticated principal (app.platform.auth.principal.User), re-exported
-# from app.domain.users.models for the historical import path the DI resolves by.
+# These symbols are imported eagerly (not under TYPE_CHECKING) because Litestar
+# resolves `ActionDeps`'s dataclass type hints at request time via `get_type_hints`,
+# which evaluates forward refs in THIS module's namespace — a TYPE_CHECKING-only
+# import would raise NameError on every request. `User` is the authenticated
+# principal (app.platform.auth.principal.User), re-exported from
+# app.domain.users.models for the import path the DI resolves by.
 from app.domain.users.models import User
 from app.platform.actions.registry import ActionRegistry
 from app.platform.comms.service.emails import EmailService
+from app.platform.media.client import BaseMediaClient
 from app.platform.push.service import PushService
+from app.platform.realtime.service import RealtimeService
 from app.platform.state_machine.machine import StateMachineService
 from app.utils.deps import dep
 
 
 @dataclass
 class ActionDeps:
-    """Typed dependencies available to all actions.
-
-    No `organization` — Pear is relationship-scoped, not org-scoped.
-    """
+    """Typed dependencies available to all actions."""
 
     transaction: AsyncSession
     user: User
@@ -52,6 +35,12 @@ class ActionDeps:
     push: PushService
     email: EmailService
     state_machine_service: StateMachineService
+    # `realtime` and `media` are always injected in production by
+    # `provide_action_deps`. They carry `None` defaults ONLY so unit tests that
+    # build `ActionDeps` directly and don't exercise the realtime/media paths need
+    # not supply them; every request-path construction passes the real services.
+    realtime: RealtimeService | None = None
+    media: BaseMediaClient | None = None
 
 
 @dep("action_registry", sync_to_thread=False)
@@ -67,11 +56,14 @@ def provide_action_deps(
     push: Any,
     email: Any,
     state_machine_service: Any,
+    realtime: Any,
+    media: Any,
 ) -> ActionDeps:
     """Assemble `ActionDeps` from request-scoped Litestar dependencies.
 
-    `user`, `push`, `email`, and `state_machine_service` are provided by other
-    modules' `@dep(...)` registrations (resolved by name at request time).
+    `user`, `push`, `email`, `state_machine_service`, `realtime`, and `media` are
+    provided by other modules' `@dep(...)` registrations (resolved by name at
+    request time).
     """
     return ActionDeps(
         transaction=transaction,
@@ -81,4 +73,6 @@ def provide_action_deps(
         push=push,
         email=email,
         state_machine_service=state_machine_service,
+        realtime=realtime,
+        media=media,
     )

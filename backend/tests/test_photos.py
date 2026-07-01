@@ -1,24 +1,3 @@
-"""Tests for the ported `photos` domain.
-
-The original Hono domain shipped no `*.test.ts`, so these are authored fresh to
-cover the contract the port must preserve:
-
-  * Reads (the GET /photos/me query + transformer path):
-      - `fetch_own_photos` / `photo_to_dto` — both photos, ordered by display_order,
-        each with the suggester ref when winger-suggested.
-  * Gated actions (writes):
-      - happy paths: CreatePhoto (self-upload auto-approved; winger suggestion
-        pending + push), ApprovePhoto / RejectPhoto (state machine moves the photo),
-        DeletePhoto, ReorderPhoto.
-      - gate denials: CreatePhoto by a non-wingperson -> 403; ApprovePhoto on an
-        already-approved photo -> is_available False; ApprovePhoto by a non-owner
-        -> 404; DeletePhoto by an unrelated user -> 404.
-
-Reads run against the seeded `graph` under the system-mode `db_session` (RLS is
-covered separately by tests/test_rls.py). Actions are driven directly with a
-hand-built `ActionDeps`, mirroring tests/test_profiles.py.
-"""
-
 from __future__ import annotations
 
 from typing import cast
@@ -53,12 +32,20 @@ from app.platform.auth.principal import User
 from app.platform.state_machine.machine import StateMachineService
 from app.platform.state_machine.roles import Role
 from tests.fixtures.graph import DomainGraph
+from tests.fixtures.media import local_media
 
 # `asyncio_mode = "auto"` (pyproject.toml) runs `async def test_*` without a marker.
 
+# A LocalMediaClient shared by the read tests: deterministic fake URLs, no AWS.
+_media = local_media()
+
 
 def _deps(session: AsyncSession, *, user_id, role: Role = Role.DATER) -> ActionDeps:
-    """ActionDeps backed by the test session and a given actor (push is mocked)."""
+    """ActionDeps backed by the test session and a given actor (push is mocked).
+
+    `media` is a real LocalMediaClient (not a mock) so the delete/reject S3-cleanup
+    paths run their actual logic (recording deleted keys); `realtime` is mocked.
+    """
     push = MagicMock()
     push.send = AsyncMock()
     return ActionDeps(
@@ -69,6 +56,8 @@ def _deps(session: AsyncSession, *, user_id, role: Role = Role.DATER) -> ActionD
         push=push,
         email=MagicMock(),
         state_machine_service=StateMachineService(transaction=session),
+        realtime=MagicMock(),
+        media=local_media(),
     )
 
 
@@ -81,7 +70,7 @@ async def _get_photo(session: AsyncSession, photo_id) -> ProfilePhoto | None:
 
 async def test_list_own_photos_ordered_with_suggester(graph: DomainGraph, db_session: AsyncSession) -> None:
     rows = await fetch_own_photos(db_session, graph.dater_a.id)
-    dtos = [photo_to_dto(photo, name) for photo, name in rows]
+    dtos = [await photo_to_dto(photo, name, _media) for photo, name in rows]
 
     # graph seeds 1 approved (self) + 1 pending (winger-suggested) photo.
     assert [d.displayOrder for d in dtos] == [0, 1]
@@ -90,6 +79,9 @@ async def test_list_own_photos_ordered_with_suggester(graph: DomainGraph, db_ses
     assert approved.approvedAt is not None
     assert approved.suggesterId is None
     assert approved.suggester is None
+    # storageUrl is now a presigned GET URL for the stored key, not the raw key.
+    assert approved.storageUrl.startswith("http")
+    assert graph.approved_photo.storage_url in approved.storageUrl
 
     assert pending.approvedAt is None
     assert pending.suggesterId == graph.winger.id

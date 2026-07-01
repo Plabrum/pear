@@ -1,31 +1,3 @@
-"""Mutations for the profiles domain — all writes live here as registered actions.
-
-Ported from the POST/PATCH handlers in
-`supabase/functions/api/domains/profiles/route.ts`:
-
-  * `UpdateProfile`        (PATCH /profiles/me)        -> BaseObjectAction[Profile]
-  * `CreateDatingProfile`  (POST  /dating-profiles)    -> BaseTopLevelAction
-  * `UpdateDatingProfile`  (PATCH /dating-profiles/me) -> BaseObjectAction[DatingProfile]
-
-Each `execute` mutates the ORM directly under the request's RLS-scoped transaction;
-the surrounding action machinery (see `app.platform.actions.base.ActionGroup.trigger`)
-commits on return and rolls back on raise. User-facing failures are raised as typed
-`ApplicationError` subclasses (404 / 409), reproducing the Hono `HTTPException`
-status codes — never ad-hoc responses.
-
-`dating_status` (open|break|winging) is updated here as a plain attribute. A full
-state machine for it is intentionally NOT modeled (the doc marks it optional and
-the transitions are trivial open<->break<->winging); discover/swipe gating that
-*reads* `dating_status` lands with the discover/decisions domains.
-
-Registration: this module is imported at boot by `discover_and_import([...],
-base_path="app/domain")`, which runs `action_group_factory(...)` to register the
-group + decorates each action class into the singleton `ActionRegistry`. The
-`ActionGroupType.PROFILE_ACTIONS` / `DATING_PROFILE_ACTIONS` members are added to
-`app.platform.actions.enums` (done here, as the template domain; other domains'
-members are added by the Integrate stage).
-"""
-
 from __future__ import annotations
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -196,8 +168,7 @@ class UpdateDatingProfile(BaseObjectAction[DatingProfile, UpdateDatingProfileDat
     ) -> ActionExecutionResponse:
         provided = fields_set(data)
         if not provided:
-            # No-op PATCH — matches Hono's "updated: false" short-circuit, but the
-            # row still exists, so it's not a 404.
+            # No-op PATCH — the row still exists, so it's not a 404.
             return ActionExecutionResponse(message="No changes")
         _apply(obj, provided, _DATING_PROFILE_FIELD_MAP)
         await transaction.flush()

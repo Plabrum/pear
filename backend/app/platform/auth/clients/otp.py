@@ -1,11 +1,3 @@
-"""Phone OTP clients (Twilio Verify + a local fake).
-
-`POST /auth/otp/start` -> `send`; `POST /auth/otp/check` -> `check`. Twilio Verify
-owns code generation, expiry, and retry/rate-limit in prod; the local client
-accepts a fixed dev code (`config.DEV_OTP_CODE`, default "000000") for any phone so
-local/e2e auth needs no live SMS. Select via `build_otp_client(config)`.
-"""
-
 from __future__ import annotations
 
 import logging

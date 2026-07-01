@@ -1,19 +1,3 @@
-"""SQLAlchemy reads for the contacts (wingperson roster) domain.
-
-Ported from `supabase/functions/api/domains/contacts/queries.ts`. The GET
-/wingpeople endpoint is a combined view that joins `contacts` against the
-`profiles` (and, for the winging-for list, `dating_profiles`) of the other party,
-plus a 7-day suggestion count off `decisions`. These are join/aggregation-heavy
-reads spanning records — exactly the case the recipe carves out for a `queries.py`
-(`db: AsyncSession` first arg, no Litestar/msgspec imports).
-
-RLS enforces *access* (the contacts SELECT policy scopes rows to the dater or the
-linked winger); the explicit `where` clauses here are for correctness/relevance —
-they pick the right slice of the caller's own contacts for each list.
-
-Each fetch returns plain row tuples; the transformers map them to camelCase structs.
-"""
-
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
@@ -180,7 +164,7 @@ async def fetch_weekly_counts(
     """contactId -> # of suggestions a winger made to this dater in the last 7 days.
 
     A single query covers all the dater's active wingers at once so the wingpeople
-    bundle stays O(1) round-trips (mirrors the Hono `fetchWeeklyCounts`).
+    bundle stays O(1) round-trips.
     """
     winger_ids: list[UUID] = []
     winger_to_contact_id: dict[UUID, str] = {}

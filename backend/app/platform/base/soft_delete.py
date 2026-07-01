@@ -1,11 +1,3 @@
-"""Session-level filter that hides soft-deleted rows from all SELECT queries.
-
-Applies `deleted_at IS NULL` to every `BaseDBModel` (and its aliases, including
-relationship eager-loads) on the synchronous session class backing
-`AsyncSession`. Opt out per-query by passing
-`execution_options={"include_deleted": True}`.
-"""
-
 from typing import Any
 
 from sqlalchemy import event, orm

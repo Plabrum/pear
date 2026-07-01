@@ -1,20 +1,16 @@
 import { getAccessToken, refresh } from '@/lib/auth-client';
 
-// Data API base URL stays on Supabase Edge Functions for now — the cutover to
-// the new backend is Phase 7. Phase 4A only changes WHERE the token comes from
-// (our self-hosted auth client) and adds refresh-on-401 retry.
-const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
-if (!SUPABASE_URL) {
-  throw new Error('EXPO_PUBLIC_SUPABASE_URL is not set');
-}
-const API_BASE = `${SUPABASE_URL}/functions/v1`;
+// Data API base URL (EXPO_PUBLIC_API_URL), matching auth-client.ts and
+// ws-client.ts. The generated client emits absolute paths (`/api/...`,
+// `/auth/...`), so the base is the bare API origin with no prefix. Defaults to
+// localhost for local dev.
+const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000';
 
 async function doFetch(target: string, options: RequestInit, token: string | null) {
   return fetch(target, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
-      'x-region': 'us-west-2',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(options.headers ?? {}),
     },

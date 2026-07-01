@@ -4,12 +4,10 @@ Revision ID: 89a26f2a9010
 Revises: e46068a576fd
 Create Date: 2026-06-13 20:17:06.991985+00:00
 
-Reference-data migration: populates `prompt_templates` with the Hinge-style
-profile prompt questions. Ported verbatim from the legacy Supabase seed
-(`app/scripts/seed-local.ts` -> `PROMPT_QUESTIONS`), which is the source of truth
-for the client-facing prompt set. Keeping these as a data migration (not a dev
-seed script) means every environment — local, CI, prod — gets the same template
-ids/rows deterministically as part of `alembic upgrade head`.
+Reference-data migration: populates `prompt_templates` with the profile prompt
+questions. Keeping these as a data migration (not a dev seed script) means every
+environment — local, CI, prod — gets the same template ids/rows deterministically
+as part of `alembic upgrade head`.
 
 `profile_prompts.prompt_template_id` is a NOT NULL FK to this table, so the app
 cannot create a single dater prompt until these rows exist.
@@ -31,7 +29,6 @@ branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 
-# Source of truth: app/scripts/seed-local.ts (PROMPT_QUESTIONS). Order preserved.
 PROMPT_QUESTIONS: list[str] = [
     "The way to my heart is…",
     "A perfect Sunday looks like…",

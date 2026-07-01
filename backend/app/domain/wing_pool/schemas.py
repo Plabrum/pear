@@ -1,11 +1,3 @@
-"""msgspec schemas for the wing-pool domain (READS ONLY).
-
-Ported from `supabase/functions/api/domains/wing-pool/schemas.ts`. camelCase field
-names match the Hono Zod output byte-for-byte. `WingProfile` is the response item
-(Hono `WingPoolResponse` is an array of these); the Hono `WingPoolQuery` becomes
-typed query params on the route handler (`daterId` required, paging).
-"""
-
 from __future__ import annotations
 
 from uuid import UUID

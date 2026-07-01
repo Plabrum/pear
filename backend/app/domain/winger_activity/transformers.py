@@ -1,17 +1,3 @@
-"""snake_case query rows -> camelCase msgspec structs for the winger-activity domain.
-
-Ported from `supabase/functions/api/domains/winger-activity/transformers.ts`. The
-three `status` fields are folded here from the underlying decision/approval columns,
-exactly as the Hono transformers do:
-
-  * people : declined -> not_accepted; approved & has_match -> matched; else pending
-  * photos : rejected_at -> not_accepted; approved_at -> approved; else pending
-  * prompts: is_rejected -> not_accepted; is_approved -> accepted; else pending
-
-Datetime columns render as ISO-8601 strings to match the Postgres
-`timestamptz`->JSON contract the mobile app already consumes.
-"""
-
 from __future__ import annotations
 
 from datetime import datetime
@@ -26,6 +12,7 @@ from app.domain.winger_activity.schemas import (
     PromptActivityRow,
     PromptActivityStatus,
 )
+from app.platform.media.client import BaseMediaClient
 
 
 def _iso(value: datetime | None) -> str:
@@ -41,7 +28,7 @@ def transform_suggestion(row: SuggestionRow) -> PeopleActivityRow:
     else:
         status = "pending"
     return PeopleActivityRow(
-        # Hono prefixes the decision id with `suggestion:` for a stable feed key.
+        # Prefix the decision id with `suggestion:` for a stable feed key.
         id=f"suggestion:{row.id}",
         daterId=row.dater_id,
         daterName=row.dater_name or "",
@@ -51,7 +38,7 @@ def transform_suggestion(row: SuggestionRow) -> PeopleActivityRow:
     )
 
 
-def transform_photo(row: PhotoRow) -> PhotoActivityRow:
+async def transform_photo(row: PhotoRow, media: BaseMediaClient) -> PhotoActivityRow:
     status: PhotoActivityStatus
     if row.rejected_at is not None:
         status = "not_accepted"
@@ -63,7 +50,9 @@ def transform_photo(row: PhotoRow) -> PhotoActivityRow:
         id=row.id,
         daterId=row.dater_id,
         daterName=row.dater_name or "",
-        storageUrl=row.storage_url,
+        # `storage_url` holds an S3 key; serve a presigned GET URL. This feed is the
+        # caller's OWN winger-activity (RLS-scoped), so the gate holds.
+        storageUrl=await media.presign_download(row.storage_url),
         status=status,
         createdAt=_iso(row.created_at),
     )

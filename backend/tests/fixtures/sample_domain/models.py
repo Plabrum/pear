@@ -1,17 +1,3 @@
-"""Throwaway sample model — proves the platform abstractions wire together.
-
-`SampleWidget` exercises:
-  * `BaseDBModel` (UUID PK + audit + soft-delete columns)
-  * `StateMachineMixin` (indexed TextEnum `state` column)
-  * `UserScopedMixin` (registers a generic user-scoped RLS PGPolicy + RLS enable)
-
-It lives under `tests/fixtures/` (NOT `app/domain/`) so the prod model registry
-and Alembic autogenerate never discover it — the `sample_widgets` table exists
-only in the TEST database, created by the `setup_sample_table` fixture in
-`tests/fixtures/database.py`. Importing this module attaches the mapper to
-`BaseDBModel.metadata`, which is what makes that table creation possible.
-"""
-
 from enum import StrEnum, auto
 from uuid import UUID
 

@@ -1,19 +1,3 @@
-"""SQLAlchemy reads for the winger-activity domain.
-
-Ported from `supabase/functions/api/domains/winger-activity/queries.ts`. First arg
-is always `db: AsyncSession`; no Litestar/msgspec imports. These are join-heavy
-reads of the suggestions/photos/prompt-responses the caller (a winger) authored,
-folded with their outcomes — exactly the case the recipe carves a `queries.py` out
-for. RLS enforces *access*; the explicit `where` clauses are for correctness/
-relevance (suggester/author scoping + ordering).
-
-TODO(events): the migration doc (docs/migration/05-domains.md) suggests building
-this feed off the Phase-2 events layer (winger actions emit events; the dater's
-feed reads them) instead of re-querying the decisions/profile_photos/
-prompt_responses tables. This is a faithful 1:1 port of the Hono SQL; the
-events-based rewrite is deferred.
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -70,10 +54,10 @@ class PromptRow:
 async def fetch_people_activity(db: AsyncSession, winger_id: UUID, limit: int) -> list[SuggestionRow]:
     """Cards the winger suggested + whether each became a match, newest first.
 
-    Mirrors the Hono aggregate: every decision row the winger authored
-    (`suggested_by = winger_id`), joined to the dater (actor) and recipient profile
-    names, with a correlated EXISTS that reports whether a match now joins the
-    actor and recipient (in either id ordering).
+    Every decision row the winger authored (`suggested_by = winger_id`), joined to
+    the dater (actor) and recipient profile names, with a correlated EXISTS that
+    reports whether a match now joins the actor and recipient (in either id
+    ordering).
     """
     dater = aliased(Profile)
     recipient = aliased(Profile)
@@ -185,8 +169,8 @@ async def fetch_photos_activity(db: AsyncSession, winger_id: UUID, limit: int) -
 async def fetch_prompts_activity(db: AsyncSession, winger_id: UUID, limit: int) -> list[PromptRow]:
     """Prompt responses the winger authored + their acceptance status, newest first.
 
-    Scoped by `prompt_responses.user_id = winger_id` (the author), mirroring the
-    Hono query — note this differs from the photo feed's `suggester_id` scoping.
+    Scoped by `prompt_responses.user_id = winger_id` (the author) — note this
+    differs from the photo feed's `suggester_id` scoping.
     """
     rows = (
         await db.execute(

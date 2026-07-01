@@ -1,27 +1,3 @@
-"""Tests for the ported `decisions` + `matches` domains.
-
-The Hono `decisions` domain shipped no `*.test.ts`; `matches` shipped a route test
-and a transformers test. These pytest cases preserve the contract the port must
-keep, and add the key behaviour this slice carries — the mutual-approve -> match
-side-effect (the legacy `create_match_if_mutual` trigger):
-
-  decisions reads:
-    * fetch_pending_suggestions / row_to_pending_suggestion -> /decisions/pending-suggestions
-  decisions actions (writes):
-    * RecordDirectDecision  — upsert; mutual approve creates a match + (stub) push.
-    * ActOnSuggestion       — act on a pending winger suggestion; 404 when none.
-    * CreateSuggestion      — winger creates a suggestion; 403 gate denial when not
-                              an active wingperson; 400 self-suggest.
-  matches reads:
-    * fetch_matches / row_to_match            -> /matches
-    * fetch_match_other_user_id + wing note + prompts -> /matches/{matchId}/sheet
-  matches transformers (the ported transformers.test.ts cases).
-
-Reads/seeding run under the system-mode `db_session` (RLS is covered separately by
-tests/test_rls.py). Actions are driven directly with a hand-built `ActionDeps`,
-mirroring tests/test_profiles.py.
-"""
-
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -78,6 +54,7 @@ from app.platform.auth.principal import User
 from app.platform.state_machine.machine import StateMachineService
 from app.platform.state_machine.roles import Role
 from tests.fixtures.graph import DomainGraph
+from tests.fixtures.media import local_media
 
 # `asyncio_mode = "auto"` (pyproject.toml) runs `async def test_*` without a marker.
 
@@ -323,7 +300,7 @@ async def test_fetch_matches(graph: DomainGraph, db_session: AsyncSession) -> No
     assert row.has_messages is True
     assert row.city == City.BOSTON
 
-    dto = row_to_match(row)
+    dto = await row_to_match(row, local_media())
     assert dto.matchId == graph.match.id
     assert dto.other.id == graph.dater_b.id
     assert dto.hasMessages is True
@@ -357,7 +334,7 @@ async def test_match_sheet_other_user_id_not_participant(graph: DomainGraph, db_
     assert await fetch_match_other_user_id(db_session, graph.dater_c.id, graph.match.id) is None
 
 
-# ── matches transformers (ported from transformers.test.ts) ──────────────────
+# ── matches transformers ─────────────────────────────────────────────────────
 
 
 _BASE_MATCH_ROW = MatchRow(
@@ -375,20 +352,23 @@ _BASE_MATCH_ROW = MatchRow(
 )
 
 
-def test_row_to_match_maps_all_fields() -> None:
-    result = row_to_match(_BASE_MATCH_ROW)
+async def test_row_to_match_maps_all_fields() -> None:
+    result = await row_to_match(_BASE_MATCH_ROW, local_media())
     assert result.matchId == _BASE_MATCH_ROW.match_id
     assert result.hasMessages is False
     assert result.other.id == _BASE_MATCH_ROW.other_user_id
     assert result.other.chosenName == "Alex"
     assert result.other.city == City.NEW_YORK
     assert result.other.interests == [Interest.OUTDOORS, Interest.COOKING]
-    assert result.other.firstPhoto == "https://example.com/photo.jpg"
+    # firstPhoto is now a presigned GET URL wrapping the stored key.
+    assert result.other.firstPhoto is not None
+    assert _BASE_MATCH_ROW.first_photo is not None
+    assert _BASE_MATCH_ROW.first_photo in result.other.firstPhoto
 
 
-def test_row_to_match_empty_array_when_interests_none() -> None:
+async def test_row_to_match_empty_array_when_interests_none() -> None:
     row = MatchRow(**{**_BASE_MATCH_ROW.__dict__, "interests": None})
-    assert row_to_match(row).other.interests == []
+    assert (await row_to_match(row, local_media())).other.interests == []
 
 
 def test_row_to_wing_note_none_when_row_none() -> None:

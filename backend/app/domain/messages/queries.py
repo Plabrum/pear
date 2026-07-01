@@ -1,19 +1,3 @@
-"""SQLAlchemy reads + write helpers for the messages domain.
-
-Ported from `supabase/functions/api/domains/messages/queries.ts`. `db: AsyncSession`
-is the first arg throughout (no Litestar/msgspec imports). RLS enforces *access* (the
-messages/matches SELECT policies gate the viewer to matches they are party to); the
-explicit `where` clauses are for correctness/relevance only.
-
-The reads are used by `routes.py`; the insert/update helpers + match-peer/push-token
-lookups are used by `actions.py` (the message-send and mark-read mutations).
-
-`fetch_conversations` is the one join-heavy read: per match it pulls the "other" user's
-chosen name, the last message (id/body/sender/read/created), and the inbound-unread
-count, ordered by most-recent activity — a direct port of the Drizzle correlated
-subqueries.
-"""
-
 from __future__ import annotations
 
 from uuid import UUID
@@ -92,8 +76,8 @@ async def fetch_conversations(db: AsyncSession, viewer_id: UUID) -> list[Convers
         else_=Match.user_a_id,
     )
 
-    # Correlated "last message in this match" subqueries (one column each), mirroring
-    # the Drizzle `(select ... order by created_at desc limit 1)` exprs.
+    # Correlated "last message in this match" subqueries (one column each):
+    # `(select ... order by created_at desc limit 1)`.
     def _last(col):
         return (
             select(col)
@@ -190,9 +174,9 @@ async def insert_message(db: AsyncSession, match_id: UUID, sender_id: UUID, body
 async def mark_messages_read(db: AsyncSession, match_id: UUID, viewer_id: UUID) -> int:
     """Mark inbound (not-sent-by-viewer) unread messages as read; return the count.
 
-    Mirrors the Hono `UPDATE ... RETURNING id` length. RLS already restricts the
-    rows to matches the viewer is party to; the `sender_id != viewer` clause keeps a
-    viewer from flipping their own outbound messages.
+    RLS already restricts the rows to matches the viewer is party to; the
+    `sender_id != viewer` clause keeps a viewer from flipping their own outbound
+    messages.
     """
     rows = (
         (

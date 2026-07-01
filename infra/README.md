@@ -2,8 +2,8 @@
 
 AWS infrastructure for **Pear**, managed with Terraform. One EC2 box runs the whole
 stack via docker-compose (`api`, `worker`, `postgres`, `redis`, `caddy`), plus ECR,
-S3 (media), SES, Secrets Manager, and Route53. Cloned from the `sloopquest`
-`deploy_target = "ec2"` path. The ECS / Aurora path stays defined behind
+S3 (media), SES, Secrets Manager, and Route53. The active path is
+`deploy_target = "ec2"`. The ECS / Aurora path stays defined behind
 `deploy_target = "ecs"` as the dormant one-variable scale-up.
 
 > **Do NOT apply locally by habit.** The first `terraform apply` is manual and
@@ -73,9 +73,8 @@ just tf-plan          # review the plan
 just tf-apply         # creates ECR, Route53 zone, SES, EC2 box
 ```
 
-The API container will crash-loop until an image exists in ECR (Phase 2 ships the
-Dockerfile) — that is expected. `db`, `redis`, and `caddy` come up; `api`/`worker`
-restart.
+The API container will crash-loop until an image exists in ECR — that is expected.
+`db`, `redis`, and `caddy` come up; `api`/`worker` restart.
 
 ### 4. Set Route53 nameservers at the registrar
 
@@ -109,7 +108,7 @@ aws secretsmanager put-secret-value \
 ```
 
 `deploy.sh` on the box merges this JSON into `/opt/pear/.env` on every deploy.
-There are **no Supabase secrets** — Pear self-hosts auth and storage.
+Pear self-hosts auth and storage.
 
 ### 6. Verify
 
@@ -280,3 +279,13 @@ infra/
     ├── ecs_service/     # DORMANT
     └── networking/      # DORMANT: VPC/subnets for the ECS path
 ```
+
+> **Vestigial in `app_stack` (ECS path only):** the SES inbound-email → S3 →
+> `email_webhook` Lambda block (`aws_ses_receipt_rule*`, `aws_lambda_function.email_webhook`,
+> `inbound_emails` bucket) is a support-inbox feature that **Pear does not
+> use**. It reads `WEBHOOK_SECRET` from Secrets Manager — a key Pear never seeds (see the
+> Secrets Manager block above; there is no `WEBHOOK_SECRET`). It is inert on the active
+> `ec2` path (the whole `app_stack` module is dormant). If/when the ECS path is ever
+> enabled, either drop that block from `app_stack/main.tf` or seed `WEBHOOK_SECRET` first,
+> or the apply will fail resolving the missing secret key. Left in place deliberately to
+> keep the validated `ecs` tree intact.

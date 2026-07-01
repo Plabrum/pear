@@ -1,14 +1,3 @@
-"""Unit tests for the actions framework via the throwaway sample action.
-
-Proves: the sample `ActivateWidget` registers into the singleton ActionRegistry,
-`is_available` gates on widget state, `trigger` executes when available (driving
-the state machine DRAFT -> ACTIVE) and is blocked (PermissionDenied) when not.
-DB-free: `get_object` is mocked and a mock session backs the state machine.
-
-The sample model/action/state-machine live under `tests/fixtures/sample_domain/`
-(not `app/domain/`) so they never reach the prod model/action registries.
-"""
-
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 

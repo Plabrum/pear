@@ -1,24 +1,3 @@
-"""Auth router — token-core routes (refresh / logout / me).
-
-Per the auth contract every `/auth/*` route is `exclude_from_auth` EXCEPT
-`/auth/me` and `/auth/logout`, which require a valid access token (guarded by
-`requires_session`). The unauthenticated set (`/auth/refresh` + the login-method
-routes) is listed in `factory.py`'s middleware exclude so the ES256 middleware
-does not reject them for lacking a bearer token.
-
-**Extension point for the Methods agent:** the login-method routes (OTP, Apple,
-magic link) attach to this same router. Implement them in `routes_methods.py`
-exposing `LOGIN_METHOD_ROUTES: list[...]`; they are spread into `auth_router`
-below. Call `auth_service.find_or_create_identity(...)` then
-`auth_service.issue_session(profile)` and return the resulting `SessionOut`. Add
-the new unauthenticated paths to `factory.AUTH_PUBLIC_PATHS`.
-
-**Transaction semantics (matters for reuse detection):** a thrown exception rolls
-the request transaction back; a *returned* 4xx commits. `rotate_refresh` revokes
-the compromised chain *then* fails, so the handler must **return** a 401 Response
-(committing the revocation) rather than re-raise.
-"""
-
 from __future__ import annotations
 
 from litestar import Request, Response, Router, get, post
@@ -73,7 +52,7 @@ async def me(user: User) -> MeOut:
     return MeOut(user=user_out_from_principal(user))
 
 
-# Re-export so the Methods agent / factory can reference the assembled service.
+# Re-export so the factory can reference the assembled service.
 __all__ = ["AuthService", "auth_router"]
 
 auth_router = Router(

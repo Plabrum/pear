@@ -1,22 +1,3 @@
-"""msgspec schemas for the messages domain.
-
-Ported from `supabase/functions/api/domains/messages/schemas.ts`. Field names are
-camelCase to match the Hono Zod output byte-for-byte — the mobile app's Orval hooks
-consume these.
-
-Output structs:
-  * `Message`        — one chat message (with its `sender` ref)         -> messages list / send
-  * `Conversation`   — one match row with last message + unread count   -> conversations list
-
-Input structs (consumed by the actions layer):
-  * `SendMessageData`          — POST /matches/{matchId}/messages body  (`{ body }`)
-  * (mark-read takes no body — `EmptyActionData` in actions.py)
-
-`MarkMessagesReadResponse` mirrors Hono's `{ updated }` shape; the action returns the
-count via the generic `ActionExecutionResponse.message`, but the struct is kept for
-the documented contract / reuse.
-"""
-
 from __future__ import annotations
 
 from uuid import UUID

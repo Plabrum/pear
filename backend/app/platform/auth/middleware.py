@@ -1,24 +1,3 @@
-"""ES256 bearer authentication middleware (Phase 4 — REAL verification).
-
-Replaces the Phase-2 decode-only stub. Extracts the `Bearer <jwt>` access token,
-**verifies its ES256 signature + exp + iss/aud** via `TokenService`, and attaches a
-verified principal (`VerifiedPrincipal`: the token `sub` as UUID + the `role`
-claim) to `connection.scope["user"]`. Downstream:
-
-  * `provide_transaction` reads `request.user.id` — now a *verified* uuid — to
-    `SET LOCAL app.user_id` (the RLS GUC). Unverified/absent token => no
-    principal => no `app.user_id` => RLS fails closed.
-  * `provide_current_user` (`@dep("user")`) loads the full `Profile` under the
-    RLS-scoped transaction and builds the rich `User` (id + role + chosen_name).
-  * `requires_session` asserts a principal is present.
-
-ASGI middleware runs before DI, so it does **no DB work** — it only proves the
-token is authentic and hands the verified id forward. The unauthenticated
-`/auth/*` routes plus `^/health` and `^/schema` are excluded (see factory.py).
-Requests with no / malformed / invalid token are left unauthenticated
-(`user=None`); guards decide whether anonymous access is allowed.
-"""
-
 from __future__ import annotations
 
 import logging

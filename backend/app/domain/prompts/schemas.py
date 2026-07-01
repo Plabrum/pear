@@ -1,20 +1,3 @@
-"""msgspec schemas for the prompts domain.
-
-Ported from `supabase/functions/api/domains/prompts/schemas.ts`. Field names are
-camelCase to match the Hono Zod output byte-for-byte — the mobile app's Orval
-hooks consume these. Datetime columns render as ISO-8601 strings (the
-timestamptz -> JSON contract the app already consumes).
-
-Output structs:
-  * `PromptTemplate`        -> GET /prompt-templates(/onboarding)
-  * `ProfilePrompt`         -> GET /profile-prompts/me (+ create response)
-  * `PromptResponse`        -> create / approve a response
-
-Input structs (consumed by the actions layer):
-  * `CreateProfilePromptData`  -> POST /profile-prompts
-  * `CreatePromptResponseData` -> POST /prompt-responses
-"""
-
 from __future__ import annotations
 
 from uuid import UUID

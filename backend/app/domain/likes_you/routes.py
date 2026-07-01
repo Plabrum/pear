@@ -1,17 +1,3 @@
-"""Read endpoints for the likes-you domain (READS ONLY).
-
-Ported from `supabase/functions/api/domains/likes-you/route.ts`:
-  * GET /likes-you        -> paginated pool of profiles who liked the viewer
-  * GET /likes-you/count  -> count of that same pool
-
-Query-string-driven feed -> explicit `@get` handlers on a Controller. Each takes
-the RLS-scoped `transaction` + authenticated `user`, runs the ported queries from
-the shared FEED-cluster module, and maps rows -> camelCase structs. No mutations.
-
-`operation_id`s (`getApiLikesYou`, `getApiLikesYouCount`) keep the Orval hook names
-stable across the Hono -> Litestar cutover.
-"""
-
 from __future__ import annotations
 
 from litestar import Controller, Router, get
@@ -23,6 +9,7 @@ from app.domain.likes_you.schemas import LikesYouCountResponse, LikesYouProfile
 from app.domain.likes_you.transformers import row_to_likes_you_profile
 from app.platform.auth.guards import requires_session
 from app.platform.auth.principal import User
+from app.platform.media.client import BaseMediaClient
 
 
 class LikesYouController(Controller):
@@ -35,6 +22,7 @@ class LikesYouController(Controller):
         self,
         user: User,
         transaction: AsyncSession,
+        media: BaseMediaClient,
         page_size: int = Parameter(query="pageSize", default=20, ge=1, le=100),
         page_offset: int = Parameter(query="pageOffset", default=0, ge=0),
     ) -> list[LikesYouProfile]:
@@ -44,7 +32,7 @@ class LikesYouController(Controller):
             page_size=page_size,
             page_offset=page_offset,
         )
-        return [row_to_likes_you_profile(r) for r in rows]
+        return [await row_to_likes_you_profile(r, media) for r in rows]
 
     @get("/count", operation_id="getApiLikesYouCount")
     async def get_likes_you_count(self, user: User, transaction: AsyncSession) -> LikesYouCountResponse:

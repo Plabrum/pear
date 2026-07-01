@@ -1,15 +1,3 @@
-"""Row dataclasses + snake_case row -> camelCase msgspec struct mappers.
-
-Ported from `supabase/functions/api/domains/messages/transformers.ts`. The Hono
-transformers map Drizzle rows (snake_case) onto the Zod response shapes (camelCase);
-here we map the flat query rows (assembled in `queries.py`) onto the msgspec structs.
-
-`MessageRow` / `ConversationRow` are plain dataclasses standing in for the TS row
-types — the queries build them from the SELECT result so the transformers stay pure.
-Datetime columns are rendered as ISO-8601 strings to match the Postgres
-`timestamptz`->JSON contract the mobile app already consumes.
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass

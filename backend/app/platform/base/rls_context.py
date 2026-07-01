@@ -1,13 +1,3 @@
-"""Read the RLS session variables set by `provide_transaction` / `rls_transaction`.
-
-The transaction wrappers `SET LOCAL app.user_id` so RLS policies evaluate
-against the current actor. Non-route helpers (queries that need to set FK
-columns) read it back here instead of plumbing the id through every signature.
-
-Pear is relationship-scoped (dater <-> winger <-> match) — there is no
-organization concept, so only `app.user_id` exists.
-"""
-
 from __future__ import annotations
 
 from uuid import UUID

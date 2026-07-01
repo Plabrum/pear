@@ -1,27 +1,3 @@
-"""Prod first-login bootstrap gate — RLS under the NON-superuser `pear_app` role.
-
-This locks in the fix for the original bug: the RLS policies were faithful Supabase
-ports that only checked `current_user_id()` and did NOT honor `app.is_system_mode`.
-They appeared to work only because the test/seed connection was the `postgres`
-SUPERUSER, which bypasses RLS entirely. Under the real non-superuser app role
-(`pear_app`), the first-login `profiles` INSERT — which runs with no `app.user_id`
-yet — would be DENIED, breaking first login in production.
-
-The sloopquest fix is the honored `public.is_system_mode()` escape, OR'd into every
-write policy, set true by `AuthService` for the bootstrap. These tests run on a
-session connected as the genuine NON-superuser `pear_app` role (`test_engine` =
-`ASYNC_DATABASE_URL`), so there is no superuser bypass to mask anything:
-
-  * POSITIVE: with the escape on and NO `app.user_id`, `find_or_create_identity`
-    for a brand-new subject creates the `profiles` + `auth_identities` rows — proving
-    prod first-login works without a superuser connection.
-  * NEGATIVE: with the escape OFF and NO `app.user_id`, a raw `INSERT INTO profiles`
-    is DENIED — proving it is the *escape* (not superuser, not a hole in the policy)
-    that enables bootstrap, and that ordinary unauthenticated writes fail closed.
-
-Run: `ENV=testing uv run pytest tests/test_rls_bootstrap.py`
-"""
-
 from __future__ import annotations
 
 from uuid import uuid4

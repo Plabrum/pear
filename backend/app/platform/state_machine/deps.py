@@ -1,5 +1,3 @@
-"""State machine dependency providers."""
-
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.platform.state_machine.machine import StateMachineService

@@ -1,5 +1,3 @@
-"""Typed schemas for event_data payloads."""
-
 from __future__ import annotations
 
 from dataclasses import dataclass

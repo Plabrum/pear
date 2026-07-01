@@ -1,5 +1,3 @@
-"""State machine exceptions."""
-
 from app.utils.exceptions import ApplicationError
 
 
