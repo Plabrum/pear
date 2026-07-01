@@ -9,6 +9,7 @@ from app.domain.decisions.models import Decision
 from app.domain.matches.models import Match
 from app.domain.matches.transformers import MatchPromptRow, MatchRow, WingNoteRow
 from app.domain.messages.models import Message
+from app.domain.photos.enums import PhotoApprovalState
 from app.domain.photos.models import ProfilePhoto
 from app.domain.profiles.models import Profile
 from app.domain.prompts.models import ProfilePrompt, PromptTemplate
@@ -36,7 +37,7 @@ async def fetch_matches(db: AsyncSession, viewer_id: Sqid) -> list[MatchRow]:
         .where(
             and_(
                 ProfilePhoto.dating_profile_id == DatingProfile.id,
-                ProfilePhoto.approved_at.is_not(None),
+                ProfilePhoto.state == PhotoApprovalState.APPROVED,
             )
         )
         .order_by(asc(ProfilePhoto.display_order))

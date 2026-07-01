@@ -4,12 +4,24 @@
  * Litestar API
  * OpenAPI spec version: 1.0.0
  */
-import { useSuspenseQuery } from '@tanstack/react-query';
+import {
+  useInfiniteQuery,
+  useSuspenseInfiniteQuery,
+  useSuspenseQuery,
+} from '@tanstack/react-query';
 import type {
   DataTag,
+  DefinedInitialDataOptions,
+  DefinedUseInfiniteQueryResult,
+  InfiniteData,
   QueryClient,
   QueryFunction,
   QueryKey,
+  UndefinedInitialDataOptions,
+  UseInfiniteQueryOptions,
+  UseInfiniteQueryResult,
+  UseSuspenseInfiniteQueryOptions,
+  UseSuspenseInfiniteQueryResult,
   UseSuspenseQueryOptions,
   UseSuspenseQueryResult,
 } from '@tanstack/react-query';
@@ -185,9 +197,184 @@ export const getApiDatingProfilesSwipe = async (
   });
 };
 
+export const getGetApiDatingProfilesSwipeInfiniteQueryKey = (
+  params?: GetApiDatingProfilesSwipeParams
+) => {
+  return ['infinite', `/api/dating-profiles/swipe`, ...(params ? [params] : [])] as const;
+};
+
 export const getGetApiDatingProfilesSwipeQueryKey = (params?: GetApiDatingProfilesSwipeParams) => {
   return [`/api/dating-profiles/swipe`, ...(params ? [params] : [])] as const;
 };
+
+export const getGetApiDatingProfilesSwipeInfiniteQueryOptions = <
+  TData = InfiniteData<
+    Awaited<ReturnType<typeof getApiDatingProfilesSwipe>>,
+    GetApiDatingProfilesSwipeParams['pageOffset']
+  >,
+  TError = GetApiDatingProfilesSwipe400,
+>(
+  params?: GetApiDatingProfilesSwipeParams,
+  options?: {
+    query?: Partial<
+      UseInfiniteQueryOptions<
+        Awaited<ReturnType<typeof getApiDatingProfilesSwipe>>,
+        TError,
+        TData,
+        QueryKey,
+        GetApiDatingProfilesSwipeParams['pageOffset']
+      >
+    >;
+    request?: SecondParameter<typeof pearFetch>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetApiDatingProfilesSwipeInfiniteQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getApiDatingProfilesSwipe>>,
+    QueryKey,
+    GetApiDatingProfilesSwipeParams['pageOffset']
+  > = ({ signal, pageParam }) =>
+    getApiDatingProfilesSwipe(
+      { ...params, pageOffset: pageParam || params?.['pageOffset'] },
+      { signal, ...requestOptions }
+    );
+
+  return { queryKey, queryFn, ...queryOptions } as UseInfiniteQueryOptions<
+    Awaited<ReturnType<typeof getApiDatingProfilesSwipe>>,
+    TError,
+    TData,
+    QueryKey,
+    GetApiDatingProfilesSwipeParams['pageOffset']
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetApiDatingProfilesSwipeInfiniteQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiDatingProfilesSwipe>>
+>;
+export type GetApiDatingProfilesSwipeInfiniteQueryError = GetApiDatingProfilesSwipe400;
+
+export function useGetApiDatingProfilesSwipeInfinite<
+  TData = InfiniteData<
+    Awaited<ReturnType<typeof getApiDatingProfilesSwipe>>,
+    GetApiDatingProfilesSwipeParams['pageOffset']
+  >,
+  TError = GetApiDatingProfilesSwipe400,
+>(
+  params: undefined | GetApiDatingProfilesSwipeParams,
+  options: {
+    query: Partial<
+      UseInfiniteQueryOptions<
+        Awaited<ReturnType<typeof getApiDatingProfilesSwipe>>,
+        TError,
+        TData,
+        QueryKey,
+        GetApiDatingProfilesSwipeParams['pageOffset']
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiDatingProfilesSwipe>>,
+          TError,
+          Awaited<ReturnType<typeof getApiDatingProfilesSwipe>>,
+          QueryKey
+        >,
+        'initialData'
+      >;
+    request?: SecondParameter<typeof pearFetch>;
+  },
+  queryClient?: QueryClient
+): DefinedUseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetApiDatingProfilesSwipeInfinite<
+  TData = InfiniteData<
+    Awaited<ReturnType<typeof getApiDatingProfilesSwipe>>,
+    GetApiDatingProfilesSwipeParams['pageOffset']
+  >,
+  TError = GetApiDatingProfilesSwipe400,
+>(
+  params?: GetApiDatingProfilesSwipeParams,
+  options?: {
+    query?: Partial<
+      UseInfiniteQueryOptions<
+        Awaited<ReturnType<typeof getApiDatingProfilesSwipe>>,
+        TError,
+        TData,
+        QueryKey,
+        GetApiDatingProfilesSwipeParams['pageOffset']
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiDatingProfilesSwipe>>,
+          TError,
+          Awaited<ReturnType<typeof getApiDatingProfilesSwipe>>,
+          QueryKey
+        >,
+        'initialData'
+      >;
+    request?: SecondParameter<typeof pearFetch>;
+  },
+  queryClient?: QueryClient
+): UseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetApiDatingProfilesSwipeInfinite<
+  TData = InfiniteData<
+    Awaited<ReturnType<typeof getApiDatingProfilesSwipe>>,
+    GetApiDatingProfilesSwipeParams['pageOffset']
+  >,
+  TError = GetApiDatingProfilesSwipe400,
+>(
+  params?: GetApiDatingProfilesSwipeParams,
+  options?: {
+    query?: Partial<
+      UseInfiniteQueryOptions<
+        Awaited<ReturnType<typeof getApiDatingProfilesSwipe>>,
+        TError,
+        TData,
+        QueryKey,
+        GetApiDatingProfilesSwipeParams['pageOffset']
+      >
+    >;
+    request?: SecondParameter<typeof pearFetch>;
+  },
+  queryClient?: QueryClient
+): UseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary GetSwipe
+ */
+
+export function useGetApiDatingProfilesSwipeInfinite<
+  TData = InfiniteData<
+    Awaited<ReturnType<typeof getApiDatingProfilesSwipe>>,
+    GetApiDatingProfilesSwipeParams['pageOffset']
+  >,
+  TError = GetApiDatingProfilesSwipe400,
+>(
+  params?: GetApiDatingProfilesSwipeParams,
+  options?: {
+    query?: Partial<
+      UseInfiniteQueryOptions<
+        Awaited<ReturnType<typeof getApiDatingProfilesSwipe>>,
+        TError,
+        TData,
+        QueryKey,
+        GetApiDatingProfilesSwipeParams['pageOffset']
+      >
+    >;
+    request?: SecondParameter<typeof pearFetch>;
+  },
+  queryClient?: QueryClient
+): UseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetApiDatingProfilesSwipeInfiniteQueryOptions(params, options);
+
+  const query = useInfiniteQuery(queryOptions, queryClient) as UseInfiniteQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 export const getGetApiDatingProfilesSwipeSuspenseQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiDatingProfilesSwipe>>,
@@ -283,6 +470,159 @@ export function useGetApiDatingProfilesSwipeSuspense<
     TData,
     TError
   > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getGetApiDatingProfilesSwipeSuspenseInfiniteQueryOptions = <
+  TData = InfiniteData<
+    Awaited<ReturnType<typeof getApiDatingProfilesSwipe>>,
+    GetApiDatingProfilesSwipeParams['pageOffset']
+  >,
+  TError = GetApiDatingProfilesSwipe400,
+>(
+  params?: GetApiDatingProfilesSwipeParams,
+  options?: {
+    query?: Partial<
+      UseSuspenseInfiniteQueryOptions<
+        Awaited<ReturnType<typeof getApiDatingProfilesSwipe>>,
+        TError,
+        TData,
+        QueryKey,
+        GetApiDatingProfilesSwipeParams['pageOffset']
+      >
+    >;
+    request?: SecondParameter<typeof pearFetch>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetApiDatingProfilesSwipeInfiniteQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getApiDatingProfilesSwipe>>,
+    QueryKey,
+    GetApiDatingProfilesSwipeParams['pageOffset']
+  > = ({ signal, pageParam }) =>
+    getApiDatingProfilesSwipe(
+      { ...params, pageOffset: pageParam || params?.['pageOffset'] },
+      { signal, ...requestOptions }
+    );
+
+  return { queryKey, queryFn, ...queryOptions } as UseSuspenseInfiniteQueryOptions<
+    Awaited<ReturnType<typeof getApiDatingProfilesSwipe>>,
+    TError,
+    TData,
+    QueryKey,
+    GetApiDatingProfilesSwipeParams['pageOffset']
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetApiDatingProfilesSwipeSuspenseInfiniteQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiDatingProfilesSwipe>>
+>;
+export type GetApiDatingProfilesSwipeSuspenseInfiniteQueryError = GetApiDatingProfilesSwipe400;
+
+export function useGetApiDatingProfilesSwipeSuspenseInfinite<
+  TData = InfiniteData<
+    Awaited<ReturnType<typeof getApiDatingProfilesSwipe>>,
+    GetApiDatingProfilesSwipeParams['pageOffset']
+  >,
+  TError = GetApiDatingProfilesSwipe400,
+>(
+  params: undefined | GetApiDatingProfilesSwipeParams,
+  options: {
+    query: Partial<
+      UseSuspenseInfiniteQueryOptions<
+        Awaited<ReturnType<typeof getApiDatingProfilesSwipe>>,
+        TError,
+        TData,
+        QueryKey,
+        GetApiDatingProfilesSwipeParams['pageOffset']
+      >
+    >;
+    request?: SecondParameter<typeof pearFetch>;
+  },
+  queryClient?: QueryClient
+): UseSuspenseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetApiDatingProfilesSwipeSuspenseInfinite<
+  TData = InfiniteData<
+    Awaited<ReturnType<typeof getApiDatingProfilesSwipe>>,
+    GetApiDatingProfilesSwipeParams['pageOffset']
+  >,
+  TError = GetApiDatingProfilesSwipe400,
+>(
+  params?: GetApiDatingProfilesSwipeParams,
+  options?: {
+    query?: Partial<
+      UseSuspenseInfiniteQueryOptions<
+        Awaited<ReturnType<typeof getApiDatingProfilesSwipe>>,
+        TError,
+        TData,
+        QueryKey,
+        GetApiDatingProfilesSwipeParams['pageOffset']
+      >
+    >;
+    request?: SecondParameter<typeof pearFetch>;
+  },
+  queryClient?: QueryClient
+): UseSuspenseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetApiDatingProfilesSwipeSuspenseInfinite<
+  TData = InfiniteData<
+    Awaited<ReturnType<typeof getApiDatingProfilesSwipe>>,
+    GetApiDatingProfilesSwipeParams['pageOffset']
+  >,
+  TError = GetApiDatingProfilesSwipe400,
+>(
+  params?: GetApiDatingProfilesSwipeParams,
+  options?: {
+    query?: Partial<
+      UseSuspenseInfiniteQueryOptions<
+        Awaited<ReturnType<typeof getApiDatingProfilesSwipe>>,
+        TError,
+        TData,
+        QueryKey,
+        GetApiDatingProfilesSwipeParams['pageOffset']
+      >
+    >;
+    request?: SecondParameter<typeof pearFetch>;
+  },
+  queryClient?: QueryClient
+): UseSuspenseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary GetSwipe
+ */
+
+export function useGetApiDatingProfilesSwipeSuspenseInfinite<
+  TData = InfiniteData<
+    Awaited<ReturnType<typeof getApiDatingProfilesSwipe>>,
+    GetApiDatingProfilesSwipeParams['pageOffset']
+  >,
+  TError = GetApiDatingProfilesSwipe400,
+>(
+  params?: GetApiDatingProfilesSwipeParams,
+  options?: {
+    query?: Partial<
+      UseSuspenseInfiniteQueryOptions<
+        Awaited<ReturnType<typeof getApiDatingProfilesSwipe>>,
+        TError,
+        TData,
+        QueryKey,
+        GetApiDatingProfilesSwipeParams['pageOffset']
+      >
+    >;
+    request?: SecondParameter<typeof pearFetch>;
+  },
+  queryClient?: QueryClient
+): UseSuspenseInfiniteQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetApiDatingProfilesSwipeSuspenseInfiniteQueryOptions(params, options);
+
+  const query = useSuspenseInfiniteQuery(
+    queryOptions,
+    queryClient
+  ) as UseSuspenseInfiniteQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
 
   return { ...query, queryKey: queryOptions.queryKey };
 }

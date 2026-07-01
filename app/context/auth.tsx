@@ -1,123 +1,120 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect } from 'react';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Linking from 'expo-linking';
+import { useQuery } from '@tanstack/react-query';
 import {
   signInWithApple as clientSignInWithApple,
   logout as clientLogout,
   requestMagicLink as clientRequestMagicLink,
   verifyMagicLink as clientVerifyMagicLink,
-  restoreSession,
-  type AuthUser,
 } from '@/lib/auth-client';
+import { queryClient } from '@/lib/queryClient';
+import { authMeQueryKey, sessionQueryOptions, type Session } from '@/lib/auth-session';
+import Splash from '@/components/ui/Splash';
+import ScreenErrorBoundary from '@/components/ui/ScreenErrorBoundary';
 
-// Session shape consumed by the routing gate (app/_layout.tsx reads
-// session.user.id) and screens. `user` carries the backend's AuthUser fields;
-// `phone` stays optional for the onboarding default.
-export type Session = {
-  user: AuthUser & { phone?: string | null };
-};
-
-function toSession(user: AuthUser | null): Session | null {
-  return user ? { user } : null;
-}
+export type { Session };
 
 type AuthResult = { error: Error | null };
 
 type AuthContextValue = {
   session: Session | null;
   loading: boolean;
-  setSession: (user: AuthUser | null) => void;
   signOut: () => Promise<AuthResult>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [session, setSessionState] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
+  // The session query is the single source of truth. `data === null` is the
+  // normal unauthenticated state; a query `error` means the backend is
+  // unreachable (a 401 resolves to null, not an error).
+  const { data: session, isPending, error, refetch } = useQuery(sessionQueryOptions);
 
-  function setSession(user: AuthUser | null) {
-    setSessionState(toSession(user));
-  }
-
-  // Mount-only: hydrate the session from the stored cookie (via me()) + wire the
-  // magic-link deep link. Both are genuine external events (app launch + inbound
-  // URL), which fall under the allowed mount-only effect exception.
+  // Hide the native splash once the session has settled (data or error), and
+  // keep it up while pending. Effect because it pokes a native module.
   useEffect(() => {
-    let active = true;
+    if (!isPending) SplashScreen.hideAsync();
+  }, [isPending]);
 
-    async function handleMagicLink(url: string | null): Promise<boolean> {
-      if (!url) return false;
+  // Magic-link deep link — a genuine external event (inbound URL), so a
+  // mount-only effect is the sanctioned exception. On a verified token we
+  // invalidate the session query (refetches the full session incl.
+  // hasDatingProfile) rather than setting state directly.
+  useEffect(() => {
+    async function handleMagicLink(url: string | null): Promise<void> {
+      if (!url) return;
       const { hostname, queryParams } = Linking.parse(url);
-      if (hostname !== 'magic-link') return false;
+      if (hostname !== 'magic-link') return;
       const token = queryParams?.token;
-      if (typeof token !== 'string') return false;
+      if (typeof token !== 'string') return;
       try {
-        const user = await clientVerifyMagicLink(token);
-        if (active) setSession(user);
-        return true;
+        await clientVerifyMagicLink(token);
+        await queryClient.invalidateQueries({ queryKey: authMeQueryKey });
       } catch {
-        return false;
-      }
-    }
-
-    async function bootstrap() {
-      const initialUrl = await Linking.getInitialURL();
-      const handledLink = await handleMagicLink(initialUrl);
-
-      if (!handledLink) {
-        const user = await restoreSession();
-        if (active) setSession(user);
-      }
-
-      if (active) {
-        setLoading(false);
-        SplashScreen.hideAsync();
+        // A bad/expired token leaves the session untouched — the gate keeps the
+        // user on login.
       }
     }
 
     const subscription = Linking.addEventListener('url', ({ url }) => {
       handleMagicLink(url);
     });
+    Linking.getInitialURL().then(handleMagicLink);
 
-    bootstrap();
-
-    return () => {
-      active = false;
-      subscription.remove();
-    };
+    return () => subscription.remove();
   }, []);
 
   async function signOut(): Promise<AuthResult> {
     try {
       await clientLogout();
-      setSessionState(null);
+      queryClient.setQueryData(authMeQueryKey, null);
+      queryClient.clear();
       return { error: null };
     } catch (e) {
-      setSessionState(null);
+      queryClient.setQueryData(authMeQueryKey, null);
+      queryClient.clear();
       return { error: e instanceof Error ? e : new Error('Failed to sign out') };
     }
   }
 
+  // Bootstrapping: keep the branded splash up until the session settles.
+  if (isPending) return <Splash />;
+
+  // Unreachable backend — surface the offline/retry screen (issue #90). A 401
+  // never lands here; it resolves to `null` (unauthenticated).
+  if (error) {
+    return (
+      <ScreenErrorBoundary onRetry={() => refetch()}>
+        <OfflineThrow error={error} />
+      </ScreenErrorBoundary>
+    );
+  }
+
   return (
-    <AuthContext.Provider value={{ session, loading, setSession, signOut }}>
+    <AuthContext.Provider value={{ session: session ?? null, loading: false, signOut }}>
       {children}
     </AuthContext.Provider>
   );
 }
 
-// --- Login actions used by screens (set the session via context) ---
+// Rethrows the session query's network error into the boundary so the offline
+// state renders with the same UI every other screen uses.
+function OfflineThrow({ error }: { error: unknown }): never {
+  throw error;
+}
+
+// --- Login actions used by screens ---
 
 export function useAuthActions() {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error('useAuthActions must be used within AuthProvider');
-  const { setSession } = ctx;
 
   return {
     async signInWithApple(identityToken: string, fullName?: string): Promise<AuthResult> {
       try {
-        const user = await clientSignInWithApple(identityToken, fullName);
-        setSession(user);
+        await clientSignInWithApple(identityToken, fullName);
+        await queryClient.invalidateQueries({ queryKey: authMeQueryKey });
         return { error: null };
       } catch (e) {
         return { error: e instanceof Error ? e : new Error('Apple sign-in failed') };
@@ -133,8 +130,8 @@ export function useAuthActions() {
     },
     async verifyMagicLink(token: string): Promise<AuthResult> {
       try {
-        const user = await clientVerifyMagicLink(token);
-        setSession(user);
+        await clientVerifyMagicLink(token);
+        await queryClient.invalidateQueries({ queryKey: authMeQueryKey });
         return { error: null };
       } catch (e) {
         return { error: e instanceof Error ? e : new Error('Failed to verify magic link') };
@@ -150,7 +147,8 @@ export function useSession() {
   return { session: ctx.session, loading: ctx.loading };
 }
 
-// For authenticated screens — throws if called without a session.
+// For authenticated screens — throws if called without a session (should never
+// fire under the gate).
 export function useAuth() {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error('useAuth must be used within AuthProvider');

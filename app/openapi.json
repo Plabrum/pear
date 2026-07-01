@@ -448,10 +448,22 @@
                     "$ref": "#/components/schemas/UpdateProfileAction"
                   },
                   {
+                    "$ref": "#/components/schemas/SwitchToWingerAction"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SwitchToDaterAction"
+                  },
+                  {
                     "$ref": "#/components/schemas/CreateDatingProfileAction"
                   },
                   {
                     "$ref": "#/components/schemas/UpdateDatingProfileAction"
+                  },
+                  {
+                    "$ref": "#/components/schemas/PauseDatingAction"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ResumeDatingAction"
                   },
                   {
                     "$ref": "#/components/schemas/CreatePhotoAction"
@@ -681,10 +693,22 @@
                     "$ref": "#/components/schemas/UpdateProfileAction"
                   },
                   {
+                    "$ref": "#/components/schemas/SwitchToWingerAction"
+                  },
+                  {
+                    "$ref": "#/components/schemas/SwitchToDaterAction"
+                  },
+                  {
                     "$ref": "#/components/schemas/CreateDatingProfileAction"
                   },
                   {
                     "$ref": "#/components/schemas/UpdateDatingProfileAction"
+                  },
+                  {
+                    "$ref": "#/components/schemas/PauseDatingAction"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ResumeDatingAction"
                   },
                   {
                     "$ref": "#/components/schemas/CreatePhotoAction"
@@ -2059,6 +2083,11 @@
         "required": ["identityToken"],
         "title": "AppleIn"
       },
+      "ApprovalState": {
+        "type": "string",
+        "enum": ["pending", "approved", "rejected"],
+        "title": "ApprovalState"
+      },
       "ApprovePhotoAction": {
         "properties": {
           "data": {
@@ -2434,7 +2463,7 @@
       },
       "DatingStatus": {
         "type": "string",
-        "enum": ["open", "break", "winging"],
+        "enum": ["open", "break"],
         "title": "DatingStatus"
       },
       "DeclineForDaterAction": {
@@ -2937,6 +2966,10 @@
         "properties": {
           "user": {
             "$ref": "#/components/schemas/UserOut"
+          },
+          "hasDatingProfile": {
+            "type": "boolean",
+            "default": false
           }
         },
         "type": "object",
@@ -3184,15 +3217,8 @@
           "displayOrder": {
             "type": "integer"
           },
-          "approvedAt": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
+          "status": {
+            "$ref": "#/components/schemas/PhotoApprovalState"
           },
           "suggesterId": {
             "oneOf": [
@@ -3224,7 +3250,7 @@
           }
         },
         "type": "object",
-        "required": ["approvedAt", "displayOrder", "id", "storageUrl", "suggester", "suggesterId"],
+        "required": ["displayOrder", "id", "status", "storageUrl", "suggester", "suggesterId"],
         "title": "OwnProfilePhoto"
       },
       "OwnProfilePrompt": {
@@ -3270,8 +3296,8 @@
           "message": {
             "type": "string"
           },
-          "isApproved": {
-            "type": "boolean"
+          "status": {
+            "$ref": "#/components/schemas/ApprovalState"
           },
           "userId": {
             "type": "string",
@@ -3299,7 +3325,7 @@
           }
         },
         "type": "object",
-        "required": ["author", "createdAt", "id", "isApproved", "message", "userId"],
+        "required": ["author", "createdAt", "id", "message", "status", "userId"],
         "title": "OwnPromptResponse"
       },
       "PassAction": {
@@ -3315,6 +3341,20 @@
         "type": "object",
         "required": ["action", "data"],
         "title": "PassAction"
+      },
+      "PauseDatingAction": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/EmptyActionData"
+          },
+          "action": {
+            "type": "string",
+            "const": "dating_profile_actions__pause"
+          }
+        },
+        "type": "object",
+        "required": ["action", "data"],
+        "title": "PauseDatingAction"
       },
       "Photo": {
         "properties": {
@@ -3334,15 +3374,8 @@
           "displayOrder": {
             "type": "integer"
           },
-          "approvedAt": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
+          "status": {
+            "$ref": "#/components/schemas/PhotoApprovalState"
           },
           "suggesterId": {
             "oneOf": [
@@ -3375,15 +3408,20 @@
         },
         "type": "object",
         "required": [
-          "approvedAt",
           "datingProfileId",
           "displayOrder",
           "id",
+          "status",
           "storageUrl",
           "suggester",
           "suggesterId"
         ],
         "title": "Photo"
+      },
+      "PhotoApprovalState": {
+        "type": "string",
+        "enum": ["pending", "approved", "rejected"],
+        "title": "PhotoApprovalState"
       },
       "PhotoSuggester": {
         "properties": {
@@ -3604,8 +3642,8 @@
           "message": {
             "type": "string"
           },
-          "isApproved": {
-            "type": "boolean"
+          "status": {
+            "$ref": "#/components/schemas/ApprovalState"
           },
           "userId": {
             "type": "string",
@@ -3633,15 +3671,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "author",
-          "createdAt",
-          "id",
-          "isApproved",
-          "message",
-          "profilePromptId",
-          "userId"
-        ],
+        "required": ["author", "createdAt", "id", "message", "profilePromptId", "status", "userId"],
         "title": "PromptResponse"
       },
       "PromptTemplate": {
@@ -3787,15 +3817,8 @@
           "displayOrder": {
             "type": "integer"
           },
-          "approvedAt": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
+          "status": {
+            "$ref": "#/components/schemas/PhotoApprovalState"
           },
           "suggesterId": {
             "oneOf": [
@@ -3811,7 +3834,7 @@
           }
         },
         "type": "object",
-        "required": ["approvedAt", "displayOrder", "id", "storageUrl", "suggesterId"],
+        "required": ["displayOrder", "id", "status", "storageUrl", "suggesterId"],
         "title": "PublicProfilePhoto"
       },
       "PublicProfilePrompt": {
@@ -3940,6 +3963,20 @@
         "type": "object",
         "required": ["reason"],
         "title": "ReportActionData"
+      },
+      "ResumeDatingAction": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/EmptyActionData"
+          },
+          "action": {
+            "type": "string",
+            "const": "dating_profile_actions__resume"
+          }
+        },
+        "type": "object",
+        "required": ["action", "data"],
+        "title": "ResumeDatingAction"
       },
       "SendMessageAction": {
         "properties": {
@@ -4189,6 +4226,34 @@
         ],
         "title": "SwipeProfile"
       },
+      "SwitchToDaterAction": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/EmptyActionData"
+          },
+          "action": {
+            "type": "string",
+            "const": "profile_actions__switch_to_dater"
+          }
+        },
+        "type": "object",
+        "required": ["action", "data"],
+        "title": "SwitchToDaterAction"
+      },
+      "SwitchToWingerAction": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/EmptyActionData"
+          },
+          "action": {
+            "type": "string",
+            "const": "profile_actions__switch_to_winger"
+          }
+        },
+        "type": "object",
+        "required": ["action", "data"],
+        "title": "SwitchToWingerAction"
+      },
       "UpdateDatingProfileAction": {
         "properties": {
           "data": {
@@ -4276,13 +4341,6 @@
               }
             ]
           },
-          "datingStatus": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/DatingStatus"
-              }
-            ]
-          },
           "isActive": {
             "oneOf": [
               {
@@ -4345,13 +4403,6 @@
               },
               {
                 "type": "null"
-              }
-            ]
-          },
-          "role": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/UserRole"
               }
             ]
           },

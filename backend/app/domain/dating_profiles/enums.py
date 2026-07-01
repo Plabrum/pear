@@ -4,7 +4,6 @@ from enum import Enum
 class DatingStatus(Enum):
     OPEN = "open"
     BREAK = "break"
-    WINGING = "winging"
 
 
 class City(Enum):

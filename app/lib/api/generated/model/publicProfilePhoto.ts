@@ -4,12 +4,13 @@
  * Litestar API
  * OpenAPI spec version: 1.0.0
  */
+import type { PhotoApprovalState } from './photoApprovalState';
 
 export interface PublicProfilePhoto {
   /** SQID-encoded identifier */
   id: string;
   storageUrl: string;
   displayOrder: number;
-  approvedAt: string | null;
+  status: PhotoApprovalState;
   suggesterId: string | null;
 }

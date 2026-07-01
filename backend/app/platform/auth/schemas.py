@@ -16,9 +16,14 @@ class UserOut(msgspec.Struct, rename="camel"):
 
 
 class MeOut(msgspec.Struct, rename="camel"):
-    """`GET /auth/me` envelope: {user}."""
+    """`GET /auth/me` envelope: {user, hasDatingProfile}.
+
+    `hasDatingProfile` lets the routing gate decide onboarding without a second
+    fetch — it's the single session query's existence check.
+    """
 
     user: UserOut
+    has_dating_profile: bool = False
 
 
 # ── Login-method request shapes (Apple / magic link) ──────────────────────────

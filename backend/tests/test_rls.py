@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.domain.contacts.enums import WingpersonStatus
 from app.domain.contacts.models import Contact
 from app.domain.dating_profiles.models import DatingProfile
-from app.domain.decisions.enums import DecisionType
+from app.domain.decisions.enums import DecisionState
 from app.domain.decisions.models import Decision
 from app.domain.matches.models import Match
 from app.domain.messages.models import Message
@@ -75,6 +75,61 @@ async def test_dater_sees_own_match_only(graph: DomainGraph, acting_as: ActingAs
         assert await _ids(s, Match) == set()
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# matches INSERT — MutualMatchInsert (in-request match formation, no system mode)
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+async def test_participant_forms_match_on_mutual(
+    graph: DomainGraph, acting_as: ActingAs, db_session: AsyncSession
+) -> None:
+    """matches INSERT WITH CHECK passes for a participant once BOTH sides approved.
+
+    Seed dater_a <-> dater_c approving each other (no match yet, system mode), then
+    act AS dater_a and insert the ordered row: the policy's two `decisions` EXISTS
+    checks are both satisfied under dater_a's own scope, so the insert succeeds.
+    """
+    db_session.add_all(
+        [
+            Decision(actor_id=graph.dater_a.id, recipient_id=graph.dater_c.id, state=DecisionState.APPROVED),
+            Decision(actor_id=graph.dater_c.id, recipient_id=graph.dater_a.id, state=DecisionState.APPROVED),
+        ]
+    )
+    await db_session.flush()
+
+    lo, hi = sorted([graph.dater_a.id, graph.dater_c.id])
+    async with acting_as(graph.dater_a.id) as s:
+        s.add(Match(user_a_id=lo, user_b_id=hi))
+        await s.flush()  # WITH CHECK passes -> no error.
+
+
+async def test_participant_cannot_form_match_when_not_mutual(
+    graph: DomainGraph, acting_as: ActingAs, db_session: AsyncSession
+) -> None:
+    """matches INSERT WITH CHECK denies a participant when only ONE side approved.
+
+    Only dater_a -> dater_c is approved; the reverse EXISTS fails, so dater_a's
+    attempt to form the pair's match is rejected by the policy.
+    """
+    db_session.add(Decision(actor_id=graph.dater_a.id, recipient_id=graph.dater_c.id, state=DecisionState.APPROVED))
+    await db_session.flush()
+
+    lo, hi = sorted([graph.dater_a.id, graph.dater_c.id])
+    async with acting_as(graph.dater_a.id) as s:
+        await _assert_rls_denies_insert(s, "matches", {"id": fake_id(), "user_a_id": lo, "user_b_id": hi})
+
+
+async def test_non_participant_cannot_forge_match(graph: DomainGraph, acting_as: ActingAs) -> None:
+    """matches INSERT WITH CHECK denies a non-participant forging a pairing.
+
+    dater_c is neither party to (dater_a, dater_b), so the `current_user_id() IN
+    (user_a_id, user_b_id)` clause fails regardless of the pair's decision state.
+    """
+    lo, hi = sorted([graph.dater_a.id, graph.dater_b.id])
+    async with acting_as(graph.dater_c.id) as s:
+        await _assert_rls_denies_insert(s, "matches", {"id": fake_id(), "user_a_id": lo, "user_b_id": hi})
+
+
 async def test_dater_sees_own_messages_only(graph: DomainGraph, acting_as: ActingAs) -> None:
     """messages policy: visible only inside a match you participate in."""
     async with acting_as(graph.dater_a.id) as s:
@@ -88,11 +143,13 @@ async def test_dater_sees_own_messages_only(graph: DomainGraph, acting_as: Actin
         assert await _count(s, Message) == 0
 
 
-async def test_dating_profile_self_always_visible_to_owner(graph: DomainGraph, acting_as: ActingAs) -> None:
-    """dating_profiles policy: USING (is_active OR user_id = me).
+async def test_dating_profile_floor_is_any_authenticated_actor(graph: DomainGraph, acting_as: ActingAs) -> None:
+    """dating_profiles SELECT floor coarsened to USING (current_user_id() IS NOT NULL).
 
-    Even an *inactive* profile is visible to its owner. Flip dater_a's profile
-    inactive (as owner) and confirm the owner still sees it but a stranger does not.
+    The DB floor is "any signed-in actor may read the row"; business visibility
+    (is_active) moved to the app query layer (profiles.queries). Flip dater_a's
+    profile inactive and confirm BOTH the owner and an unrelated authed actor still
+    read it at the floor — the inactive gate now lives in the app, not RLS.
     """
     async with acting_as(graph.dater_a.id) as s:
         dp = (await s.execute(select(DatingProfile).where(DatingProfile.id == graph.dating_profile_a.id))).scalar_one()
@@ -103,9 +160,10 @@ async def test_dating_profile_self_always_visible_to_owner(graph: DomainGraph, a
 
     async with acting_as(graph.dater_c.id) as s:
         visible = await _ids(s, DatingProfile)
-        # dater_a's now-inactive profile is hidden from others...
-        assert graph.dating_profile_a.id not in visible
-        # ...but active profiles (incl. dater_c's own) remain visible.
+        # An unrelated authed actor now reads the inactive profile at the floor too
+        # (the app layer, not RLS, hides inactive profiles from other viewers)...
+        assert graph.dating_profile_a.id in visible
+        # ...alongside every other profile.
         assert graph.dating_profile_c.id in visible
 
 
@@ -152,7 +210,7 @@ async def test_winger_can_insert_decision_for_their_dater(graph: DomainGraph, ac
             Decision(
                 actor_id=graph.dater_a.id,
                 recipient_id=graph.dater_c.id,
-                decision=None,
+                state=DecisionState.PENDING,
                 suggested_by=graph.winger.id,
             )
         )
@@ -173,31 +231,38 @@ async def test_winger_cannot_insert_decision_for_unrelated_dater(graph: DomainGr
                 "id": fake_id(),
                 "actor_id": graph.dater_c.id,
                 "recipient_id": graph.dater_b.id,
-                "decision": None,
+                "state": DecisionState.PENDING.name,
                 "suggested_by": graph.winger.id,
             },
         )
 
 
-async def test_winger_cannot_impersonate_dater_decision(graph: DomainGraph, acting_as: ActingAs) -> None:
-    """A winger cannot insert a decision as if it were the dater's own (suggested_by NULL).
+async def test_winger_decision_insert_floor_ignores_suggested_by(graph: DomainGraph, acting_as: ActingAs) -> None:
+    """decisions INSERT floor coarsened to OwnerOrWinger(actor_id).
 
-    actor_id = dater_a but suggested_by NULL means "the dater themselves decided".
-    The actor (winger) is neither the actor_id nor a valid suggester for a self
-    decision, so WITH CHECK fails.
+    The floor is "the actor, or an active wingperson of the actor" — it no longer
+    inspects `suggested_by`. So an ACTIVE winger for dater_a may insert a decision on
+    dater_a's behalf even with `suggested_by` NULL; the self-vs-suggestion shape is
+    enforced by the decisions actions, not the RLS floor. Use a fresh recipient to
+    avoid the unique(actor, recipient) constraint.
     """
+    # Raw insert (no RETURNING) so the test exercises only the INSERT WITH CHECK floor
+    # — the winger isn't a party to this row, so it isn't SELECT-visible to them.
     async with acting_as(graph.winger.id) as s:
-        await _assert_rls_denies_insert(
-            s,
-            "decisions",
-            {
-                "id": fake_id(),
-                "actor_id": graph.dater_a.id,
-                "recipient_id": graph.dater_c.id,
-                "decision": DecisionType.APPROVED.name,  # TextEnum stores .name
-                "suggested_by": None,
-            },
-        )
+        async with s.begin_nested():
+            await s.execute(
+                text(
+                    "INSERT INTO decisions (id, actor_id, recipient_id, state, suggested_by) "
+                    "VALUES (:id, :actor_id, :recipient_id, :state, :suggested_by)"
+                ),
+                {
+                    "id": fake_id(),
+                    "actor_id": graph.dater_a.id,
+                    "recipient_id": graph.dater_c.id,
+                    "state": DecisionState.APPROVED.name,  # TextEnum stores .name
+                    "suggested_by": None,
+                },
+            )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -212,14 +277,22 @@ async def test_participant_can_send_message(graph: DomainGraph, acting_as: Actin
         await s.flush()
 
 
-async def test_non_participant_cannot_send_message(graph: DomainGraph, acting_as: ActingAs) -> None:
-    """A non-participant (dater_c) cannot insert into someone else's match."""
+async def test_message_insert_floor_is_sender_ownership(graph: DomainGraph, acting_as: ActingAs) -> None:
+    """messages INSERT floor coarsened to Owner(sender_id).
+
+    The DB floor only requires "the row's sender is me" — match participation on send
+    is enforced by the SendMessage action (is_available), which loads the
+    participant-scoped Match first. So a raw insert with one's OWN sender_id passes
+    the floor even into a match the actor isn't part of. (The actor can't then read
+    the row back: messages SELECT stays ViaMatch.) Raw insert avoids the RETURNING
+    SELECT so the test isolates the WITH CHECK floor.
+    """
     async with acting_as(graph.dater_c.id) as s:
-        await _assert_rls_denies_insert(
-            s,
-            "messages",
-            {"id": fake_id(), "match_id": graph.match.id, "sender_id": graph.dater_c.id, "body": "intruder"},
-        )
+        async with s.begin_nested():
+            await s.execute(
+                text("INSERT INTO messages (id, match_id, sender_id, body) VALUES (:id, :match_id, :sender_id, :body)"),
+                {"id": fake_id(), "match_id": graph.match.id, "sender_id": graph.dater_c.id, "body": "floor ok"},
+            )
 
 
 async def test_cannot_send_message_as_another_sender(graph: DomainGraph, acting_as: ActingAs) -> None:
@@ -237,26 +310,19 @@ async def test_cannot_send_message_as_another_sender(graph: DomainGraph, acting_
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-async def test_photo_visibility_owner_suggester_and_approved(graph: DomainGraph, acting_as: ActingAs) -> None:
-    """profile_photos policy: own dating profile, suggester, or (active + approved).
+async def test_photo_read_floor_is_any_authenticated_actor(graph: DomainGraph, acting_as: ActingAs) -> None:
+    """profile_photos SELECT floor coarsened to USING (current_user_id() IS NOT NULL).
 
-    - Owner (dater_a) sees both their approved and pending photos.
-    - Suggester (winger) sees the pending photo they suggested + the approved one
-      (dater_a's profile is active and the approved photo is approved).
-    - An unrelated authed viewer (dater_c) sees only the approved photo.
+    The approved/active filtering moved to the app query layer (a public read only
+    serves APPROVED photos via `approved_only=True`). At the DB floor, ANY signed-in
+    actor reads every photo row — owner, winger, and an unrelated viewer all see both
+    the approved and the still-pending photo.
     """
-    async with acting_as(graph.dater_a.id) as s:
-        assert await _ids(s, ProfilePhoto) == {graph.approved_photo.id, graph.pending_photo.id}
-
-    async with acting_as(graph.winger.id) as s:
-        winger_visible = await _ids(s, ProfilePhoto)
-        assert graph.pending_photo.id in winger_visible  # suggester
-        assert graph.approved_photo.id in winger_visible  # active + approved
-
-    async with acting_as(graph.dater_c.id) as s:
-        stranger_visible = await _ids(s, ProfilePhoto)
-        assert graph.approved_photo.id in stranger_visible
-        assert graph.pending_photo.id not in stranger_visible  # unapproved hidden
+    for actor in (graph.dater_a.id, graph.winger.id, graph.dater_c.id):
+        async with acting_as(actor) as s:
+            visible = await _ids(s, ProfilePhoto)
+            assert graph.approved_photo.id in visible
+            assert graph.pending_photo.id in visible
 
 
 async def test_prompt_response_unapproved_owner_and_suggester_only(graph: DomainGraph, acting_as: ActingAs) -> None:
@@ -278,9 +344,9 @@ async def test_prompt_response_unapproved_owner_and_suggester_only(graph: Domain
 
 
 async def test_photo_write_denied_off_floor(graph: DomainGraph, acting_as: ActingAs) -> None:
-    """profile_photos floor (WingpersonScopedMixin): INSERT WITH CHECK owner_id = me
-    OR is_active_wingperson(owner_id). An unrelated dater (dater_c) inserting a photo
-    owned by dater_a is off the floor -> denied."""
+    """profile_photos write floor (RLSScopedMixin edit=OwnerOrWinger): INSERT WITH CHECK
+    owner_id = me OR is_active_wingperson(owner_id). An unrelated dater (dater_c)
+    inserting a photo owned by dater_a is off the floor -> denied."""
     async with acting_as(graph.dater_c.id) as s:
         await _assert_rls_denies_insert(
             s,
@@ -306,8 +372,9 @@ async def test_winger_floor_allows_photo_write(graph: DomainGraph, acting_as: Ac
 
 
 async def test_prompt_write_denied_off_floor(graph: DomainGraph, acting_as: ActingAs) -> None:
-    """profile_prompts floor (UserScopedMixin): INSERT WITH CHECK owner_id = me. An
-    unrelated dater inserting a prompt owned by dater_a is off the floor -> denied."""
+    """profile_prompts write floor (RLSScopedMixin edit=Owner("owner_id")): INSERT WITH
+    CHECK owner_id = me. An unrelated dater inserting a prompt owned by dater_a is off
+    the floor -> denied."""
     async with acting_as(graph.dater_a.id) as s:
         template_id = (await s.execute(select(ProfilePrompt.prompt_template_id).limit(1))).scalar_one()
     async with acting_as(graph.dater_c.id) as s:
@@ -341,11 +408,12 @@ async def test_prompt_response_insert_must_be_self_authored(graph: DomainGraph, 
         )
 
 
-async def test_profile_prompt_visible_when_profile_active(graph: DomainGraph, acting_as: ActingAs) -> None:
-    """profile_prompts SELECT: profile active OR owner.
+async def test_profile_prompt_read_floor_is_any_authenticated_actor(graph: DomainGraph, acting_as: ActingAs) -> None:
+    """profile_prompts SELECT floor coarsened to USING (current_user_id() IS NOT NULL).
 
-    dater_a's profile is active, so any authed viewer sees the prompt; once the
-    owner deactivates it, only the owner does.
+    The active-profile gate moved to the app query layer; at the DB floor any signed-in
+    actor reads the prompt regardless of the owning profile's active state. An unrelated
+    viewer sees it both before and after the owner deactivates the profile.
     """
     async with acting_as(graph.dater_c.id) as s:
         assert graph.profile_prompt.id in await _ids(s, ProfilePrompt)
@@ -354,12 +422,12 @@ async def test_profile_prompt_visible_when_profile_active(graph: DomainGraph, ac
         dp = (await s.execute(select(DatingProfile).where(DatingProfile.id == graph.dating_profile_a.id))).scalar_one()
         dp.is_active = False
         await s.flush()
-        # Owner still sees their own prompt.
         assert graph.profile_prompt.id in await _ids(s, ProfilePrompt)
 
     async with acting_as(graph.dater_c.id) as s:
-        # Now-inactive profile hides the prompt from others.
-        assert graph.profile_prompt.id not in await _ids(s, ProfilePrompt)
+        # Coarsened floor: the now-inactive profile's prompt stays readable at the DB
+        # level (the app query layer is what hides inactive profiles from viewers).
+        assert graph.profile_prompt.id in await _ids(s, ProfilePrompt)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -398,7 +466,7 @@ async def test_stranger_cannot_write_to_unrelated_profile(graph: DomainGraph, ac
                 "user_id": graph.dater_a.id,  # not the stranger -> WITH CHECK fails
                 "phone_number": "+15555550000",
                 "winger_id": None,
-                "wingperson_status": WingpersonStatus.INVITED.name,  # TextEnum stores .name
+                "state": WingpersonStatus.INVITED.name,  # TextEnum stores .name
             },
         )
 
@@ -421,28 +489,18 @@ async def test_unset_actor_fails_closed_on_scoped_tables(graph: DomainGraph, act
             assert await _count(s, model) == 0, f"{model.__name__} leaked rows with no actor"
 
 
-async def test_unset_actor_hides_private_rows_on_public_branch_tables(graph: DomainGraph, acting_as: ActingAs) -> None:
-    """Public-branch tables still hide the owner-only / relationship-only rows.
+async def test_unset_actor_sees_nothing_on_authenticated_floor_tables(graph: DomainGraph, acting_as: ActingAs) -> None:
+    """The coarsened `Authenticated` floor (current_user_id() IS NOT NULL) fails closed.
 
-    `profile_photos` and `profile_prompts` expose a public branch (active profile +
-    approved photo / active profile prompt) but the owner/suggester-only rows must
-    stay hidden when there is no actor:
-      - the *approved* photo on an active profile is visible (public branch),
-      - the *pending* photo (owner/suggester only) is NOT.
+    `dating_profiles` / `profile_prompts` / `profile_photos` no longer carry a
+    public/approved read branch — their floor is "any signed-in actor". With NO actor
+    `current_user_id()` is NULL, so the predicate is never true and EVERY row (even
+    the approved photo / active profile) is hidden.
     """
     async with acting_as(None) as s:
-        photo_ids = await _ids(s, ProfilePhoto)
-        assert graph.approved_photo.id in photo_ids  # public branch
-        assert graph.pending_photo.id not in photo_ids  # owner/suggester only -> denied
-
-    # An inactive dating profile is owner-only; flip it inactive as the owner, then
-    # confirm it is hidden when there is no actor.
-    async with acting_as(graph.dater_a.id) as s:
-        dp = (await s.execute(select(DatingProfile).where(DatingProfile.id == graph.dating_profile_a.id))).scalar_one()
-        dp.is_active = False
-        await s.flush()
-    async with acting_as(None) as s:
-        assert graph.dating_profile_a.id not in await _ids(s, DatingProfile)
+        assert await _count(s, ProfilePhoto) == 0
+        assert await _count(s, ProfilePrompt) == 0
+        assert await _count(s, DatingProfile) == 0
 
 
 async def test_unset_actor_cannot_insert(graph: DomainGraph, acting_as: ActingAs) -> None:

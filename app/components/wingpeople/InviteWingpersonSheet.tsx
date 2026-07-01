@@ -1,22 +1,22 @@
 import { useState } from 'react';
-import { KeyboardAvoidingView, Modal, Platform } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Controller, useForm } from 'react-hook-form';
 import { toast } from 'sonner-native';
 import * as SMS from 'expo-sms';
 import * as Contacts from 'expo-contacts';
+import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
-import { View, Text, TextInput, Pressable } from '@/lib/tw';
+import { View } from '@/lib/tw';
 import { Sprout } from '@/components/ui/Sprout';
+import { Sheet } from '@/components/ui/Sheet';
+import { KitField, PhoneControl } from '@/lib/forms/fields';
+import { colors } from '@/constants/theme';
 import { getGetApiWingpeopleQueryKey } from '@/lib/api/generated/contacts/contacts';
 import { inviteWingperson } from '@/lib/api/actions';
+import { toastError } from '@/lib/api/error-toast';
 import { useGetApiProfilesMeSuspense } from '@/lib/api/generated/profiles/profiles';
-import { formatPhoneInput, toE164 } from '@/lib/phoneUtils';
+import { toE164 } from '@/lib/phoneUtils';
 import { ContactsPicker, type ContactEntry } from '@/components/wingpeople/ContactsPicker';
-
-const INK3 = '#8B8170';
-const LINE = 'rgba(31,27,22,0.10)';
 
 type InviteForm = { phone: string };
 
@@ -27,7 +27,6 @@ type Props = {
 };
 
 export function InviteWingpersonSheet({ visible, onClose, variant = 'dater' }: Props) {
-  const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const { data: profile } = useGetApiProfilesMeSuspense();
 
@@ -54,9 +53,11 @@ export function InviteWingpersonSheet({ visible, onClose, variant = 'dater' }: P
   };
 
   const sendInviteToPhone = async (e164: string): Promise<boolean> => {
-    const result = await inviteMutation.mutateAsync(e164).catch(() => null);
+    const result = await inviteMutation.mutateAsync(e164).catch((err) => {
+      toastError(err, "Couldn't send invite. Try again.");
+      return null;
+    });
     if (result == null) {
-      toast.error("Couldn't send invite. Try again.");
       return false;
     }
     // The action records the contact (and, when the invitee is already a Pear
@@ -111,100 +112,51 @@ export function InviteWingpersonSheet({ visible, onClose, variant = 'dater' }: P
 
   return (
     <>
-      <Modal visible={visible} animationType="slide" transparent onRequestClose={close}>
-        <View className="flex-1" style={{ backgroundColor: 'rgba(31,27,22,0.45)' }}>
-          <Pressable className="flex-1" onPress={close} />
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }}
-          >
-            <View
-              className="bg-background"
-              style={{
-                borderTopLeftRadius: 24,
-                borderTopRightRadius: 24,
-                paddingHorizontal: 20,
-                paddingTop: 14,
-                paddingBottom: insets.bottom + 24,
-              }}
+      <Sheet
+        visible={visible}
+        onClose={close}
+        title={variant === 'winger' ? 'Help a friend date better' : 'Invite a wingperson'}
+        subtitle={
+          variant === 'winger'
+            ? 'Invite them to Pear and you can start swiping for them.'
+            : 'Enter their phone number — we’ll text them an invite.'
+        }
+        footer={
+          <View style={{ gap: 10 }}>
+            <Sprout
+              block
+              size="lg"
+              onPress={onSendInvite}
+              loading={isSubmitting}
+              disabled={!isValid || isSubmitting}
             >
-              <View
-                style={{
-                  alignSelf: 'center',
-                  width: 40,
-                  height: 4,
-                  borderRadius: 2,
-                  backgroundColor: LINE,
-                  marginBottom: 14,
-                }}
-              />
-              <Text
-                className="font-serif text-ink"
-                style={{ fontSize: 24, letterSpacing: -0.4, lineHeight: 28 }}
-              >
-                {variant === 'winger' ? 'Help a friend date better' : 'Invite a wingperson'}
-              </Text>
-              <Text style={{ fontSize: 13, marginTop: 6, marginBottom: 14, color: INK3 }}>
-                {variant === 'winger'
-                  ? 'Invite them to Pear and you can start swiping for them.'
-                  : 'Enter their phone number — we’ll text them an invite.'}
-              </Text>
-
-              <Controller
-                control={control}
-                name="phone"
-                rules={{
-                  required: true,
-                  validate: (v) => Boolean(toE164(v)) || 'Please enter a valid phone number.',
-                }}
-                render={({ field: { value, onChange }, fieldState: { error } }) => (
-                  <>
-                    <TextInput
-                      className="bg-surface text-ink"
-                      style={{
-                        borderWidth: 1,
-                        borderColor: LINE,
-                        borderRadius: 14,
-                        paddingHorizontal: 14,
-                        paddingVertical: 14,
-                        fontSize: 14,
-                      }}
-                      placeholder="(555) 000-0000"
-                      placeholderTextColor={INK3}
-                      keyboardType="phone-pad"
-                      value={value}
-                      onChangeText={(t) => onChange(formatPhoneInput(t))}
-                      autoFocus
-                    />
-                    {error && (
-                      <Text className="text-destructive" style={{ fontSize: 13, marginTop: 6 }}>
-                        {error.message}
-                      </Text>
-                    )}
-                  </>
-                )}
-              />
-
-              <View style={{ marginTop: 14 }}>
-                <Sprout
-                  block
-                  onPress={onSendInvite}
-                  loading={isSubmitting}
-                  disabled={!isValid || isSubmitting}
-                >
-                  Send invite
-                </Sprout>
-              </View>
-
-              <View style={{ marginTop: 10 }}>
-                <Sprout block variant="secondary" onPress={openContactsPicker}>
-                  Invite from contacts
-                </Sprout>
-              </View>
-            </View>
-          </KeyboardAvoidingView>
-        </View>
-      </Modal>
+              Send invite
+            </Sprout>
+            <Sprout
+              block
+              variant="secondary"
+              onPress={openContactsPicker}
+              icon={<Ionicons name="people-outline" size={18} color={colors.ink} />}
+            >
+              Invite from contacts
+            </Sprout>
+          </View>
+        }
+      >
+        <Controller
+          control={control}
+          name="phone"
+          rules={{
+            required: true,
+            validate: (v) => Boolean(toE164(v)) || 'Please enter a valid phone number.',
+          }}
+          render={({ field: { value, onChange }, fieldState: { error } }) => (
+            <KitField label="Phone number" error={error?.message}>
+              <PhoneControl value={value} onChange={onChange} invalid={!!error} autoFocus />
+            </KitField>
+          )}
+        />
+      </Sheet>
 
       <ContactsPicker
         visible={contactsVisible}

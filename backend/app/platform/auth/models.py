@@ -5,6 +5,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.platform.auth.enums import AuthProvider
 from app.platform.base.models import BaseDBModel
+from app.platform.base.rls import Anyone, RLSScopedMixin
 from app.utils.sqids import Sqid, SqidType
 from app.utils.textenum import TextEnum
 
@@ -26,7 +27,11 @@ class AuthIdentity(BaseDBModel):
     )
 
 
-class MagicLinkToken(BaseDBModel):
+# Bearer-secret table: mint + consume both run UNAUTHENTICATED (no app.user_id), and
+# the consume looks the row up by an unguessable token_hash. The real floor is the
+# HMAC-hashed secret, not the actor — so the policies are permissive (`true`). RLS
+# stays FORCE-enabled so the table is never an accidental hole. No DELETE granted.
+class MagicLinkToken(BaseDBModel, RLSScopedMixin(read=Anyone, edit={"INSERT": Anyone, "UPDATE": Anyone})):
     """A single-use, TTL-bound email magic-link token.
 
     Only the HMAC-SHA256 *hash* of the raw token is stored — the raw token lives

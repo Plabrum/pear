@@ -5,6 +5,7 @@
  * OpenAPI spec version: 1.0.0
  */
 import type { ActionDTO } from './actionDTO';
+import type { PhotoApprovalState } from './photoApprovalState';
 import type { PhotoSuggesterRef } from './photoSuggesterRef';
 
 export interface Photo {
@@ -14,7 +15,7 @@ export interface Photo {
   datingProfileId: string;
   storageUrl: string;
   displayOrder: number;
-  approvedAt: string | null;
+  status: PhotoApprovalState;
   suggesterId: string | null;
   suggester: PhotoSuggesterRef | null;
   actions?: ActionDTO[];

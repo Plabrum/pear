@@ -7,11 +7,11 @@ from sqlalchemy import asc, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from app.domain.contacts.enums import WingpersonStatus
-from app.domain.contacts.models import Contact
+from app.domain.contacts.queries import is_active_wingperson  # noqa: F401  (re-exported)
 from app.domain.dating_profiles.models import DatingProfile
 from app.domain.matches.models import Match
 from app.domain.profiles.models import Profile
+from app.domain.prompts.enums import ApprovalState
 from app.domain.prompts.models import ProfilePrompt, PromptResponse, PromptTemplate
 from app.domain.prompts.transformers import ResponseBundle
 from app.utils.sqids import Sqid
@@ -89,8 +89,7 @@ class AuthoredResponseRow:
     dater_name: str | None
     prompt_question: str
     message: str
-    is_approved: bool
-    is_rejected: bool
+    state: ApprovalState
     created_at: datetime | None
 
 
@@ -108,8 +107,7 @@ async def fetch_authored_prompt_responses(db: AsyncSession, author_id: Sqid, lim
                 Profile.chosen_name,
                 PromptTemplate.question,
                 PromptResponse.message,
-                PromptResponse.is_approved,
-                PromptResponse.is_rejected,
+                PromptResponse.state,
                 PromptResponse.created_at,
             )
             .join(ProfilePrompt, ProfilePrompt.id == PromptResponse.profile_prompt_id)
@@ -129,8 +127,7 @@ async def fetch_authored_prompt_responses(db: AsyncSession, author_id: Sqid, lim
             dater_name=dater_name,
             prompt_question=prompt_question,
             message=message,
-            is_approved=is_approved,
-            is_rejected=is_rejected,
+            state=state,
             created_at=created_at,
         )
         for (
@@ -139,8 +136,7 @@ async def fetch_authored_prompt_responses(db: AsyncSession, author_id: Sqid, lim
             dater_name,
             prompt_question,
             message,
-            is_approved,
-            is_rejected,
+            state,
             created_at,
         ) in rows
     ]
@@ -156,22 +152,6 @@ async def fetch_profile_prompt_owner(db: AsyncSession, profile_prompt_id: Sqid) 
             .limit(1)
         )
     ).scalar_one_or_none()
-
-
-async def is_active_wingperson(db: AsyncSession, dater_id: Sqid, winger_id: Sqid) -> bool:
-    """Whether `winger_id` is an active wingperson of `dater_id`."""
-    row = (
-        await db.execute(
-            select(Contact.id)
-            .where(
-                Contact.user_id == dater_id,
-                Contact.winger_id == winger_id,
-                Contact.wingperson_status == WingpersonStatus.ACTIVE,
-            )
-            .limit(1)
-        )
-    ).first()
-    return row is not None
 
 
 async def is_matched_with(db: AsyncSession, viewer_id: Sqid, other_user_id: Sqid) -> bool:

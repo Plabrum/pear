@@ -1,23 +1,26 @@
+import { useState } from 'react';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { Platform } from 'react-native';
 import { toast } from 'sonner-native';
 import { View, Text } from '@/lib/tw';
-import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PearMark } from '@/components/ui/PearMark';
 import { Sprout } from '@/components/ui/Sprout';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { EmailSheet } from '@/components/auth/EmailSheet';
 import { useAuthActions } from '@/context/auth';
+import { toastError } from '@/lib/api/error-toast';
+import { colors } from '@/constants/theme';
 
-const LEAF = '#5A8C3A';
+// Decorative PearMark fills (SVG color props — escape-hatch hex, no token).
 const LEAF2 = '#7BAE52';
 const SKIN = '#E8C77A';
 const BLUSH = '#E9A6A0';
 
 export default function LoginScreen() {
-  const router = useRouter();
   const insets = useSafeAreaInsets();
   const { signInWithApple } = useAuthActions();
+  const [emailOpen, setEmailOpen] = useState(false);
 
   const handleAppleSignIn = async () => {
     if (Platform.OS !== 'ios') return;
@@ -50,13 +53,12 @@ export default function LoginScreen() {
       );
 
       if (error) {
-        toast.error(error.message);
+        toastError(error);
         return;
       }
     } catch (e: any) {
       if (e.code === 'ERR_REQUEST_CANCELED') return;
-      console.error('Apple sign-in error:', e);
-      toast.error(e.message ?? 'Apple sign-in failed');
+      toastError(e, 'Apple sign-in failed');
     }
   };
 
@@ -70,15 +72,15 @@ export default function LoginScreen() {
           <View
             style={{ position: 'absolute', top: 30, left: 18, transform: [{ rotate: '-14deg' }] }}
           >
-            <PearMark size={104} color={LEAF2} leaf={LEAF} />
+            <PearMark size={104} color={LEAF2} leaf={colors.leaf} />
           </View>
           <View style={{ position: 'absolute', top: 0, left: 92, transform: [{ rotate: '8deg' }] }}>
-            <PearMark size={132} color={SKIN} leaf={LEAF} />
+            <PearMark size={132} color={SKIN} leaf={colors.leaf} />
           </View>
           <View
             style={{ position: 'absolute', top: 70, left: 168, transform: [{ rotate: '-4deg' }] }}
           >
-            <PearMark size={68} color={BLUSH} leaf={LEAF} />
+            <PearMark size={68} color={BLUSH} leaf={colors.leaf} />
           </View>
         </View>
       </View>
@@ -133,7 +135,7 @@ export default function LoginScreen() {
         <Sprout
           block
           size="lg"
-          icon={<IconSymbol name="applelogo" size={18} color="#FBF8F1" />}
+          icon={<IconSymbol name="applelogo" size={18} color={colors.white} />}
           onPress={handleAppleSignIn}
         >
           Continue with Apple
@@ -142,8 +144,8 @@ export default function LoginScreen() {
           block
           size="lg"
           variant="secondary"
-          icon={<IconSymbol name="envelope.fill" size={16} color="#1F1B16" />}
-          onPress={() => router.push('/(auth)/email')}
+          icon={<IconSymbol name="envelope.fill" size={16} color={colors.ink} />}
+          onPress={() => setEmailOpen(true)}
         >
           Email
         </Sprout>
@@ -157,6 +159,8 @@ export default function LoginScreen() {
           </Text>
         </Text>
       </View>
+
+      <EmailSheet visible={emailOpen} onClose={() => setEmailOpen(false)} />
     </View>
   );
 }

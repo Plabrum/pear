@@ -15,6 +15,13 @@ export const colors = {
   primary: '#3F6E48',
   primarySoft: '#DDEBDC',
 
+  // Leaf — brighter swipe/affirmative green (distinct from primary CTA leaf)
+  leaf: '#5A8C3A',
+  leafSoft: '#E5EFD8',
+
+  // Pass — swipe-decline red
+  passRed: '#CC4444',
+
   // Foreground
   ink: '#1F1B16',
   inkMid: '#4A4338',

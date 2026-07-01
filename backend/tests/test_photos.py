@@ -24,7 +24,6 @@ from app.domain.photos.exceptions import (
 from app.domain.photos.models import ProfilePhoto
 from app.domain.photos.queries import SuggestedPhotoRow, fetch_own_photos, fetch_suggested_photos
 from app.domain.photos.schemas import CreatePhotoData, ReorderPhotoData
-from app.domain.photos.state_machine import derive_state
 from app.domain.photos.transformers import photos_to_dtos, suggested_photo_to_dto
 from app.platform.actions.base import EmptyActionData
 from app.platform.actions.deps import ActionDeps
@@ -75,7 +74,7 @@ async def test_list_own_photos_ordered_with_suggester(graph: DomainGraph, db_ses
     assert [d.displayOrder for d in dtos] == [0, 1]
     approved, pending = dtos
 
-    assert approved.approvedAt is not None
+    assert approved.status is PhotoApprovalState.APPROVED
     assert approved.suggesterId is None
     assert approved.suggester is None
     # storageUrl is now the resolved (presigned) media URL, keyed by media_id.
@@ -84,7 +83,7 @@ async def test_list_own_photos_ordered_with_suggester(graph: DomainGraph, db_ses
     processed_key = graph.approved_media.processed_key
     assert processed_key is not None and processed_key in approved.storageUrl
 
-    assert pending.approvedAt is None
+    assert pending.status is PhotoApprovalState.PENDING
     assert pending.suggesterId == graph.winger.id
     assert pending.suggester is not None
     assert pending.suggester.chosenName == graph.winger.chosen_name
@@ -107,8 +106,7 @@ async def test_fetch_suggested_photos(graph: DomainGraph, db_session: AsyncSessi
     assert row.id == graph.pending_photo.id
     assert row.dater_id == graph.dater_a.id
     assert row.dater_name == graph.dater_a.chosen_name
-    assert row.approved_at is None
-    assert row.rejected_at is None
+    assert row.state is PhotoApprovalState.PENDING
 
     dto = await suggested_photo_to_dto(row, local_media())
     assert dto.daterId == graph.dater_a.id
@@ -139,7 +137,7 @@ async def test_suggested_photos_honors_limit(graph: DomainGraph, db_session: Asy
             suggester_id=graph.winger.id,
             media_id=media.id,
             display_order=9,
-            approved_at=None,
+            state=PhotoApprovalState.PENDING,
         )
     )
     await db_session.flush()
@@ -148,32 +146,29 @@ async def test_suggested_photos_honors_limit(graph: DomainGraph, db_session: Asy
 
 
 async def test_suggested_photo_status_matrix(graph: DomainGraph, db_session: AsyncSession) -> None:
-    # Fold approval timestamps to the wire status (rejected wins over approved).
-    def _row(approved: datetime | None, rejected: datetime | None) -> SuggestedPhotoRow:
+    # Fold the approval state to the wire status.
+    def _row(state: PhotoApprovalState) -> SuggestedPhotoRow:
         return SuggestedPhotoRow(
             id=graph.pending_photo.id,
             dater_id=graph.dater_a.id,
             dater_name="Dana",
             storage_url="some/key.webp",
-            approved_at=approved,
-            rejected_at=rejected,
+            state=state,
             created_at=datetime(2026, 1, 1, tzinfo=UTC),
         )
 
-    now = datetime(2026, 1, 2, tzinfo=UTC)
     media = local_media()
-    assert (await suggested_photo_to_dto(_row(now, now), media)).status == "not_accepted"
-    assert (await suggested_photo_to_dto(_row(None, now), media)).status == "not_accepted"
-    assert (await suggested_photo_to_dto(_row(now, None), media)).status == "approved"
-    assert (await suggested_photo_to_dto(_row(None, None), media)).status == "pending"
+    assert (await suggested_photo_to_dto(_row(PhotoApprovalState.REJECTED), media)).status == "not_accepted"
+    assert (await suggested_photo_to_dto(_row(PhotoApprovalState.APPROVED), media)).status == "approved"
+    assert (await suggested_photo_to_dto(_row(PhotoApprovalState.PENDING), media)).status == "pending"
 
 
-# ── State derivation ─────────────────────────────────────────────────────────────
+# ── State column ─────────────────────────────────────────────────────────────────
 
 
-async def test_derived_state_reflects_timestamps(graph: DomainGraph, db_session: AsyncSession) -> None:
-    assert derive_state(graph.approved_photo) is PhotoApprovalState.APPROVED
-    assert derive_state(graph.pending_photo) is PhotoApprovalState.PENDING
+async def test_state_column_reflects_lifecycle(graph: DomainGraph, db_session: AsyncSession) -> None:
+    assert graph.approved_photo.state is PhotoApprovalState.APPROVED
+    assert graph.pending_photo.state is PhotoApprovalState.PENDING
 
 
 # ── Actions: create ──────────────────────────────────────────────────────────────
@@ -231,7 +226,7 @@ async def test_create_photo_winger_suggestion_pending_and_pushes(graph: DomainGr
     assert photo.approved_at is None  # winger suggestions start pending
     # dater_a has no push token seeded -> send is skipped, but the suggester-name
     # lookup ran without error. Assert no crash and pending state.
-    assert derive_state(photo) is PhotoApprovalState.PENDING
+    assert photo.state is PhotoApprovalState.PENDING
 
 
 async def test_create_photo_denied_for_non_wingperson(graph: DomainGraph, db_session: AsyncSession) -> None:
@@ -267,7 +262,7 @@ async def test_approve_photo_happy_path(graph: DomainGraph, db_session: AsyncSes
     refreshed = await _get_photo(db_session, photo.id)
     assert refreshed is not None
     assert refreshed.approved_at is not None
-    assert derive_state(refreshed) is PhotoApprovalState.APPROVED
+    assert refreshed.state is PhotoApprovalState.APPROVED
 
 
 async def test_approve_photo_unavailable_when_already_approved(graph: DomainGraph, db_session: AsyncSession) -> None:
@@ -296,7 +291,7 @@ async def test_reject_photo_happy_path(graph: DomainGraph, db_session: AsyncSess
     assert refreshed is not None
     assert refreshed.rejected_at is not None
     assert refreshed.approved_at is None
-    assert derive_state(refreshed) is PhotoApprovalState.REJECTED
+    assert refreshed.state is PhotoApprovalState.REJECTED
 
 
 # ── Actions: delete ──────────────────────────────────────────────────────────────

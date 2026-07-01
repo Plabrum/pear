@@ -41,8 +41,9 @@ export const actionRegistry: ActionRegistry = {
     render: (p) => <SuggestNoteForm {...p} />,
   },
   // Reporting a profile from the swipe deck — a two-step confirm → reason flow.
+  // Keyed on isOpen so the internal step resets to `confirm` on each fresh open.
   dating_profile_swipe_actions__report: {
-    render: (p) => <ReportReasonForm {...p} />,
+    render: (p) => <ReportReasonForm key={p.isOpen ? 'open' : 'closed'} {...p} />,
   },
 };
 

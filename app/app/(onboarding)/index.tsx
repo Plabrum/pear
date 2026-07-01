@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { router } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import ScreenSuspense from '@/components/ui/ScreenSuspense';
-import { useAuth } from '@/context/auth';
+import { authMeQueryKey } from '@/lib/auth-session';
 import {
   useGetApiProfilesMeSuspense,
   useGetApiDatingProfilesMeSuspense,
@@ -17,7 +17,6 @@ type Role = Database['public']['Enums']['user_role'];
 type Step = 'role' | 'setup';
 
 export default function OnboardingScreen() {
-  const { session } = useAuth();
   const queryClient = useQueryClient();
   const { data: profile } = useGetApiProfilesMeSuspense();
   const { data: datingProfile } = useGetApiDatingProfilesMeSuspense();
@@ -35,8 +34,20 @@ export default function OnboardingScreen() {
   }
 
   function invalidateAndRoute(path: string) {
-    queryClient.invalidateQueries({ queryKey: getGetApiProfilesMeQueryKey() });
-    queryClient.invalidateQueries({ queryKey: getGetApiDatingProfilesMeQueryKey() });
+    // Mark these stale without refetching: this screen reads both via Suspense, and a
+    // refetch racing the router.replace below would resolve into the unmounting screen
+    // (the "state update on an unmounted component" warning). They refetch on next read.
+    queryClient.invalidateQueries({
+      queryKey: getGetApiProfilesMeQueryKey(),
+      refetchType: 'none',
+    });
+    queryClient.invalidateQueries({
+      queryKey: getGetApiDatingProfilesMeQueryKey(),
+      refetchType: 'none',
+    });
+    // The routing gate reads role + hasDatingProfile off the session query, so
+    // refresh it too — otherwise a just-onboarded dater is bounced back here.
+    queryClient.invalidateQueries({ queryKey: authMeQueryKey });
     router.replace(path as never);
   }
 
@@ -56,7 +67,7 @@ export default function OnboardingScreen() {
         <ScreenSuspense>
           <ProfileSetup
             role={role!}
-            defaultPhoneNumber={session.user.phone ?? ''}
+            defaultPhoneNumber=""
             initialDpId={dpId}
             onDpCreated={setDpId}
             onFinish={onFinish}

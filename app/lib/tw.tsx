@@ -21,7 +21,8 @@ Text.displayName = 'CSS(Text)';
 
 export const Pressable = (
   props: React.ComponentProps<typeof RNPressable> & { className?: string }
-) => useCssElement(RNPressable, props, { className: 'style' });
+) =>
+  useCssElement(RNPressable as React.ComponentType<any>, props, { className: 'style' });
 Pressable.displayName = 'CSS(Pressable)';
 
 export const ScrollView = (
@@ -30,7 +31,7 @@ export const ScrollView = (
     contentContainerClassName?: string;
   }
 ) =>
-  useCssElement(RNScrollView, props, {
+  useCssElement(RNScrollView as React.ComponentType<any>, props, {
     className: 'style',
     contentContainerClassName: 'contentContainerStyle',
   });

@@ -1,13 +1,12 @@
 import { Alert, Dimensions } from 'react-native';
 import PulseSpinner from '@/components/ui/PulseSpinner';
-import { toast } from 'sonner-native';
 import type { UseFormReturn } from 'react-hook-form';
-import Svg, { Path } from 'react-native-svg';
 
 import type { OwnDatingProfile } from '@/lib/api/generated/model';
 import { useUploadProfilePhoto } from '@/hooks/use-upload-profile-photo';
-import { getPhotoUrl, pickAndResizePhoto } from '@/lib/photos';
+import { pickAndResizePhoto } from '@/lib/photos';
 import { reorderPhoto } from '@/lib/api/actions';
+import { toastError } from '@/lib/api/error-toast';
 import { useActionExecutor } from '@/hooks/actions/use-action-executor';
 import { shortKey, type ActionDTO } from '@/lib/actions/types';
 
@@ -15,59 +14,13 @@ import { ScrollView, Text, Pressable, View } from '@/lib/tw';
 import { PhotoRect } from '@/components/ui/PhotoRect';
 import { FaceAvatar } from '@/components/ui/FaceAvatar';
 import { Sprout } from '@/components/ui/Sprout';
-
-const LINE = 'rgba(31,27,22,0.10)';
-const LEAF = '#5A8C3A';
+import { Card } from '@/components/ui/Card';
+import { FieldLabel } from '@/components/ui/FieldLabel';
+import { PlusIcon, ArrowUpIcon, XIcon } from '@/components/ui/icons';
+import { colors } from '@/constants/theme';
 
 const PHOTO_GAP = 8;
 const PHOTO_COL = (Dimensions.get('window').width - 16 * 2 - PHOTO_GAP * 2) / 3;
-
-function FieldLabel({ children }: { children: string }) {
-  return (
-    <Text
-      className="text-ink-dim"
-      style={{
-        fontSize: 10.5,
-        letterSpacing: 1.4,
-        textTransform: 'uppercase',
-        fontWeight: '600',
-        marginBottom: 8,
-      }}
-    >
-      {children}
-    </Text>
-  );
-}
-
-function PlusIcon({ size = 18, color = LEAF }: { size?: number; color?: string }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Path d="M12 5v14M5 12h14" stroke={color} strokeWidth={2} strokeLinecap="round" />
-    </Svg>
-  );
-}
-
-function ArrowUpIcon({ size = 12, color = '#fff' }: { size?: number; color?: string }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Path
-        d="M12 19V5M5 12l7-7 7 7"
-        stroke={color}
-        strokeWidth={2}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </Svg>
-  );
-}
-
-function XIcon({ size = 12, color = '#fff' }: { size?: number; color?: string }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Path d="M6 6l12 12M18 6L6 18" stroke={color} strokeWidth={2} strokeLinecap="round" />
-    </Svg>
-  );
-}
 
 interface Props {
   form: UseFormReturn<OwnDatingProfile>;
@@ -79,8 +32,8 @@ export function PhotosTab({ form, data, onRefresh }: Props) {
   const { upload, isPending: uploading } = useUploadProfilePhoto();
 
   const photos = form.watch('photos');
-  const selfPhotos = photos.filter((p) => p.suggesterId === null && p.approvedAt !== null);
-  const pending = photos.filter((p) => p.suggesterId !== null && p.approvedAt === null);
+  const selfPhotos = photos.filter((p) => p.suggesterId === null && p.status === 'approved');
+  const pending = photos.filter((p) => p.suggesterId !== null && p.status === 'pending');
 
   // Photo writes flow through the executor, driven by each photo's server actions[]
   // (approve / reject / delete). `silent` keeps the quiet optimistic UX (form.setValue
@@ -94,10 +47,9 @@ export function PhotosTab({ form, data, onRefresh }: Props) {
     const action = photoAction(photoId, 'approve');
     if (!action) return;
     const prev = photos;
-    const now = new Date().toISOString();
     form.setValue(
       'photos',
-      photos.map((p) => (p.id === photoId ? { ...p, approvedAt: now } : p))
+      photos.map((p) => (p.id === photoId ? { ...p, status: 'approved' } : p))
     );
     await executor
       .executeAction(action, undefined, { objectId: photoId, silent: true })
@@ -125,13 +77,11 @@ export function PhotosTab({ form, data, onRefresh }: Props) {
     const prev = photos;
     form.setValue('photos', [...updated.map((p, i) => ({ ...p, displayOrder: i })), ...pending]);
     try {
-      await Promise.all(
-        payload.map(({ id, displayOrder }) => reorderPhoto(id, { displayOrder }))
-      );
+      await Promise.all(payload.map(({ id, displayOrder }) => reorderPhoto(id, { displayOrder })));
       onRefresh();
-    } catch {
+    } catch (err) {
       form.setValue('photos', prev);
-      toast.error('Could not reorder photos.');
+      toastError(err, 'Could not reorder photos.');
     }
   };
 
@@ -161,7 +111,11 @@ export function PhotosTab({ form, data, onRefresh }: Props) {
   const handleAddPhoto = async () => {
     const uri = await pickAndResizePhoto();
     if (!uri) return;
-    const ok = await upload(data.id, uri, `${Date.now()}.jpg`, selfPhotos.length);
+    // The resized file's own basename is already unique (the manipulator writes
+    // to a fresh temp path), so derive the upload filename from it — no need for
+    // an impure `Date.now()` read.
+    const filename = uri.split('/').pop() ?? 'photo.jpg';
+    const ok = await upload(data.id, uri, filename, selfPhotos.length);
     if (ok) await onRefresh();
   };
 
@@ -176,19 +130,13 @@ export function PhotosTab({ form, data, onRefresh }: Props) {
           {pending.map((photo) => {
             const suggesterName = photo.suggester?.chosenName ?? 'a wingperson';
             return (
-              <View
+              <Card
                 key={photo.id}
-                className="bg-surface"
-                style={{
-                  borderRadius: 18,
-                  borderWidth: 1,
-                  borderColor: LINE,
-                  overflow: 'hidden',
-                  marginBottom: 10,
-                }}
+                className="overflow-hidden"
+                style={{ borderRadius: 18, marginBottom: 10 }}
               >
                 <PhotoRect
-                  uri={getPhotoUrl(photo.storageUrl)}
+                  uri={photo.storageUrl}
                   ratio={4 / 3}
                   blur
                   style={{ borderRadius: 0 }}
@@ -223,7 +171,7 @@ export function PhotosTab({ form, data, onRefresh }: Props) {
                     </View>
                   </View>
                 </View>
-              </View>
+              </Card>
             );
           })}
         </View>
@@ -240,7 +188,7 @@ export function PhotosTab({ form, data, onRefresh }: Props) {
             style={{ width: PHOTO_COL, aspectRatio: 3 / 4, position: 'relative' }}
           >
             <PhotoRect
-              uri={getPhotoUrl(photo.storageUrl)}
+              uri={photo.storageUrl}
               ratio={3 / 4}
               style={{ borderRadius: 14 }}
             />
@@ -308,12 +256,12 @@ export function PhotosTab({ form, data, onRefresh }: Props) {
             borderRadius: 14,
             borderWidth: 1.5,
             borderStyle: 'dashed',
-            borderColor: LEAF,
+            borderColor: colors.leaf,
             alignItems: 'center',
             justifyContent: 'center',
           }}
         >
-          {uploading ? <PulseSpinner color={LEAF} /> : <PlusIcon size={20} />}
+          {uploading ? <PulseSpinner color={colors.leaf} /> : <PlusIcon size={20} />}
         </Pressable>
       </View>
 

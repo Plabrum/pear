@@ -7,7 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.contacts.enums import WingpersonStatus
 from app.domain.contacts.models import Contact
-from app.domain.contacts.queries import fetch_push_token, find_profile_id_by_phone
+from app.domain.contacts.queries import (
+    fetch_push_token,
+    find_profile_id_by_phone,
+    has_live_contact,
+)
 from app.domain.contacts.schemas import InviteWingpersonData
 from app.domain.contacts.state_machine import contact_machine
 from app.platform.actions.base import (
@@ -21,6 +25,7 @@ from app.platform.actions.enums import ActionGroupType, ActionIcon
 from app.platform.actions.schemas import ActionExecutionResponse
 from app.platform.auth.principal import User
 from app.platform.state_machine.roles import Role
+from app.utils.exceptions import UserFacingError
 
 
 class ContactActionKey(StrEnum):
@@ -54,6 +59,12 @@ class InviteWingperson(BaseTopLevelAction[InviteWingpersonData]):
         user: User,
         deps: ActionDeps,
     ) -> ActionExecutionResponse:
+        # Reject a duplicate invite up front with a message the client shows
+        # verbatim (UserFacingError → user_facing=True). A `removed` contact does
+        # not block re-inviting.
+        if await has_live_contact(transaction, user.id, data.phoneNumber):
+            raise UserFacingError("You've already invited this person.")
+
         # If a profile already exists with that phone number, link winger_id
         # immediately — the case where the invitee is already a Pear user.
         #
@@ -67,7 +78,7 @@ class InviteWingperson(BaseTopLevelAction[InviteWingpersonData]):
             user_id=user.id,
             phone_number=data.phoneNumber,
             winger_id=winger_id,
-            wingperson_status=WingpersonStatus.INVITED,
+            state=WingpersonStatus.INVITED,
         )
         transaction.add(contact)
         await transaction.flush()
@@ -101,9 +112,7 @@ class AcceptInvite(BaseObjectAction[Contact, EmptyActionData]):
     @classmethod
     def is_available(cls, obj: Contact, user: User, deps: ActionDeps) -> bool:
         # Only the linked winger may accept, and only while still invited.
-        return (
-            obj.winger_id == user.id and user.role is Role.WINGER and obj.wingperson_status == WingpersonStatus.INVITED
-        )
+        return obj.winger_id == user.id and user.role is Role.WINGER and obj.state == WingpersonStatus.INVITED
 
     @classmethod
     async def execute(
@@ -139,9 +148,7 @@ class DeclineInvite(BaseObjectAction[Contact, EmptyActionData]):
     @classmethod
     def is_available(cls, obj: Contact, user: User, deps: ActionDeps) -> bool:
         # Only the linked winger may decline, and only while still invited.
-        return (
-            obj.winger_id == user.id and user.role is Role.WINGER and obj.wingperson_status == WingpersonStatus.INVITED
-        )
+        return obj.winger_id == user.id and user.role is Role.WINGER and obj.state == WingpersonStatus.INVITED
 
     @classmethod
     async def execute(
@@ -182,7 +189,7 @@ class RemoveWingperson(BaseObjectAction[Contact, EmptyActionData]):
         return (
             obj.user_id == user.id
             and user.role is Role.DATER
-            and obj.wingperson_status in (WingpersonStatus.INVITED, WingpersonStatus.ACTIVE)
+            and obj.state in (WingpersonStatus.INVITED, WingpersonStatus.ACTIVE)
         )
 
     @classmethod

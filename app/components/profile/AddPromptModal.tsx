@@ -1,62 +1,22 @@
 import { useState } from 'react';
-import { FlatList, KeyboardAvoidingView, Modal, Platform, StyleSheet } from 'react-native';
-import { z } from 'zod';
+import { FlatList, StyleSheet } from 'react-native';
 
 import { colors } from '@/constants/theme';
 import { getApiPromptTemplates } from '@/lib/api/generated/prompts/prompts';
 import { addProfilePrompt } from '@/lib/api/actions';
+import type { CreateProfilePromptData } from '@/lib/api/generated/model';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { cn } from '@/lib/cn';
-import { View, Text, ScrollView, Pressable, SafeAreaView } from '@/lib/tw';
-import { createForm, RootError, useFormSubmit } from '@/lib/forms';
+import { View, Text, Pressable } from '@/lib/tw';
+import { FullSheet } from '@/components/ui/FullSheet';
+import { createTypedForm } from '@/lib/forms/typed-form';
 
-const answerSchema = z.object({ answer: z.string().trim().min(1) });
-const answerForm = createForm(answerSchema);
+const AnswerForm = createTypedForm<CreateProfilePromptData>();
 
 interface Props {
   visible: boolean;
   onClose: () => void;
   usedTemplateIds: Set<string>;
   onAdded: () => void;
-}
-
-function HeaderSave() {
-  const { submit, isValid, isSubmitting } = useFormSubmit();
-  const disabled = !isValid || isSubmitting;
-  return (
-    <Pressable
-      onPress={submit}
-      disabled={disabled}
-      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-    >
-      <Text className={cn('text-sm font-semibold text-accent', disabled && 'opacity-40')}>
-        {isSubmitting ? 'Saving…' : 'Save'}
-      </Text>
-    </Pressable>
-  );
-}
-
-function HeaderRow({
-  title,
-  onClose,
-  right,
-}: {
-  title: string;
-  onClose: () => void;
-  right?: React.ReactNode;
-}) {
-  return (
-    <View
-      className="flex-row items-center justify-between px-5 py-[14px] bg-white"
-      style={{ borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.divider }}
-    >
-      <Pressable onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-        <Text className="text-sm text-fg-muted">Cancel</Text>
-      </Pressable>
-      <Text className="text-base font-semibold text-fg">{title}</Text>
-      <View>{right ?? <View style={{ width: 36 }} />}</View>
-    </View>
-  );
 }
 
 export function AddPromptModal({ visible, onClose, usedTemplateIds, onAdded }: Props) {
@@ -70,91 +30,69 @@ export function AddPromptModal({ visible, onClose, usedTemplateIds, onAdded }: P
   };
 
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      presentationStyle="pageSheet"
-      onRequestClose={onClose}
-      onShow={onOpen}
-    >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={{ flex: 1 }}
+    <>
+      {/* Step 1 — pick a template (owns its own FlatList scroll). */}
+      <FullSheet
+        visible={visible && !selected}
+        onClose={onClose}
+        onShow={onOpen}
+        step="Step 1 of 2"
+        title="Pick a prompt"
+        scrollable={false}
       >
-        <View className="flex-1 bg-page">
-          <SafeAreaView className="flex-1" edges={['top', 'bottom']}>
-            {!selected ? (
-              <>
-                <HeaderRow title="Pick a Prompt" onClose={onClose} />
-                <FlatList
-                  data={templates}
-                  keyExtractor={(t) => t.id}
-                  renderItem={({ item }) => (
-                    <Pressable
-                      className="flex-row items-center bg-white px-5 py-4"
-                      onPress={() => setSelected(item)}
-                    >
-                      <Text className="flex-1 text-sm text-fg pr-3">{item.question}</Text>
-                      <IconSymbol name="chevron.right" size={15} color={colors.inkGhost} />
-                    </Pressable>
-                  )}
-                  ItemSeparatorComponent={() => (
-                    <View
-                      style={{
-                        height: StyleSheet.hairlineWidth,
-                        backgroundColor: colors.divider,
-                        marginLeft: 20,
-                      }}
-                    />
-                  )}
-                  ListEmptyComponent={
-                    <Text className="p-9 text-center text-fg-muted text-sm">
-                      You{"'"}ve answered all available prompts.
-                    </Text>
-                  }
-                />
-              </>
-            ) : (
-              <answerForm.Form
-                defaultValues={{ answer: '' }}
-                onSubmit={async ({ answer }) => {
-                  await addProfilePrompt({
-                    promptTemplateId: selected.id,
-                    answer: answer.trim(),
-                  });
-                  onAdded();
-                  onClose();
-                }}
-              >
-                <HeaderRow title="Write Your Answer" onClose={onClose} right={<HeaderSave />} />
-                <ScrollView contentContainerClassName="p-5">
-                  <Pressable
-                    onPress={() => setSelected(null)}
-                    className="flex-row items-center gap-1 mb-4"
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  >
-                    <IconSymbol name="chevron.left" size={13} color={colors.primary} />
-                    <Text className="text-sm text-accent">Back to prompts</Text>
-                  </Pressable>
-                  <Text className="text-xl font-bold text-fg font-serif mb-5 leading-7">
-                    {selected.question}
-                  </Text>
-                  <answerForm.TextField
-                    name="answer"
-                    placeholder="Write your answer…"
-                    multiline
-                    autoFocus
-                    maxLength={300}
-                    showCount
-                    minHeightClass="min-h-[130px]"
-                  />
-                  <RootError />
-                </ScrollView>
-              </answerForm.Form>
-            )}
-          </SafeAreaView>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
+        <FlatList
+          data={templates}
+          keyExtractor={(t) => t.id}
+          renderItem={({ item }) => (
+            <Pressable
+              onPress={() => setSelected(item)}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                paddingVertical: 16,
+              }}
+            >
+              <Text style={{ flex: 1, fontSize: 15, color: colors.ink, paddingRight: 12 }}>
+                {item.question}
+              </Text>
+              <IconSymbol name="chevron.right" size={15} color={colors.inkDim} />
+            </Pressable>
+          )}
+          ItemSeparatorComponent={() => (
+            <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: colors.divider }} />
+          )}
+          ListEmptyComponent={
+            <Text style={{ padding: 36, textAlign: 'center', color: colors.inkMid, fontSize: 14 }}>
+              You&apos;ve answered all available prompts.
+            </Text>
+          }
+        />
+      </FullSheet>
+
+      {/* Step 2 — write the answer. */}
+      <AnswerForm.FormFullSheet
+        visible={visible && !!selected}
+        onClose={onClose}
+        onBack={() => setSelected(null)}
+        step="Step 2 of 2"
+        title={selected?.question}
+        submitLabel="Save"
+        defaultValues={{ answer: '' }}
+        onSubmit={async ({ answer }) => {
+          if (!selected) return;
+          await addProfilePrompt({ promptTemplateId: selected.id, answer: answer.trim() });
+          onAdded();
+          onClose();
+        }}
+      >
+        <AnswerForm.TextareaField
+          name="answer"
+          label="Your answer"
+          placeholder="Write your answer…"
+          maxLength={300}
+          autoFocus
+        />
+      </AnswerForm.FormFullSheet>
+    </>
   );
 }

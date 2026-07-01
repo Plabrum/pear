@@ -1,15 +1,16 @@
 import '../global.css';
 import 'react-native-url-polyfill/auto';
 import 'react-native-reanimated';
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router/react-navigation';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
-import { Stack, router, useSegments } from 'expo-router';
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
+import { PortalHost } from '@rn-primitives/portal';
+import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Toaster } from 'sonner-native';
-import { useQuery, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { useEffect } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { useFonts } from 'expo-font';
 import { DMSerifDisplay_400Regular } from '@expo-google-fonts/dm-serif-display';
@@ -22,91 +23,69 @@ import {
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { AuthProvider, useSession } from '@/context/auth';
+import { getAuthGateStatus } from '@/lib/auth-session';
 import { queryClient } from '@/lib/queryClient';
-import {
-  getApiProfilesMe,
-  getGetApiProfilesMeQueryKey,
-  getApiDatingProfilesMe,
-  getGetApiDatingProfilesMeQueryKey,
-} from '@/lib/api/generated/profiles/profiles';
 import { registerPushToken } from '@/lib/push';
 import Splash from '@/components/ui/Splash';
+import { peekPendingWingerInvite, clearPendingWingerInvite } from './invite';
 
 export const unstable_settings = {
   anchor: '(tabs)',
 };
 
 function AppShell() {
-  const { session, loading: authLoading } = useSession();
+  // Pending/offline states are handled inside AuthProvider; here the session is
+  // settled — either null (unauthenticated) or a full Session.
+  const { session } = useSession();
+  const router = useRouter();
 
-  const { data: profile, isPending: profilePending } = useQuery({
-    queryKey: getGetApiProfilesMeQueryKey(),
-    queryFn: getApiProfilesMe,
-    enabled: !!session,
-  });
-  const { data: datingProfile, isPending: datingPending } = useQuery({
-    queryKey: getGetApiDatingProfilesMeQueryKey(),
-    queryFn: getApiDatingProfilesMe,
-    enabled: !!session,
-  });
-
-  const loading = authLoading || (!!session && (profilePending || datingPending));
-  const needsOnboarding =
-    !loading &&
-    !!session &&
-    (!profile?.chosenName || (!datingProfile && profile?.role !== 'winger'));
-  const isWinger =
-    !loading &&
-    !!session &&
-    (profile?.role === 'winger' || datingProfile?.datingStatus === 'winging');
-
+  // Push-token registration is a sanctioned mount/identity effect (genuine
+  // external system), not a routing effect — left in place per CLAUDE.md.
   useEffect(() => {
     if (session?.user.id) registerPushToken(session.user.id);
   }, [session?.user.id]);
 
+  // The auth ladder — single source of truth for "what does this session
+  // resolve to", shared with app/magic-link.tsx's post-verify redirect so the
+  // two can never disagree.
+  const status = getAuthGateStatus(session);
+
+  // One-shot winger-invite handoff. The deep link sets the in-memory intent
+  // while logged out; once the user is authenticated, onboarded, and in dater
+  // mode (the only state where wingpeople is reachable), consume it and jump
+  // there imperatively. Deep-link handling is a sanctioned external event, and
+  // an effect-time `router.replace` is mount-safe — unlike a render-time
+  // <Redirect>, which raced the Stack and caused the flicker/warnings.
   useEffect(() => {
-    if (!session?.user.id) return;
-    AsyncStorage.getItem('pending_invite').then((val) => {
-      if (!val) return;
-      AsyncStorage.removeItem('pending_invite');
-      router.replace('/(tabs)/profile/wingpeople/' as any);
-    });
-  }, [session?.user.id]);
+    if (status === 'dater' && peekPendingWingerInvite()) {
+      clearPendingWingerInvite();
+      router.replace('/(tabs)/profile/wingpeople');
+    }
+  }, [status, router]);
 
-  const segments = useSegments();
-  const currentGroup = segments[0];
-
-  const targetGroup = !session
-    ? '(auth)'
-    : needsOnboarding
-      ? '(onboarding)'
-      : isWinger
-        ? '(winger-tabs)'
-        : '(tabs)';
-
-  useEffect(() => {
-    if (loading) return;
-    if (currentGroup === targetGroup) return;
-    if (currentGroup === 'settings') return;
-    const path =
-      targetGroup === '(auth)'
-        ? '/(auth)/login'
-        : targetGroup === '(onboarding)'
-          ? '/(onboarding)'
-          : targetGroup === '(winger-tabs)'
-            ? '/(winger-tabs)/friends'
-            : '/(tabs)/discover';
-    router.replace(path as never);
-  }, [loading, currentGroup, targetGroup]);
-
-  if (loading) return <Splash />;
-
+  // Declarative auth gate via Stack.Protected — mirrors the routing table in
+  // CLAUDE.md (auth -> onboarding -> winger/dater). When a route's guard is
+  // false it is removed and the router falls back to the first available
+  // screen, so no <Redirect> and no useSegments() bookkeeping is needed. The
+  // utility/deep-link routes carry no guard — always available.
   return (
     <Stack screenOptions={{ animation: 'none' }}>
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen name="(winger-tabs)" options={{ headerShown: false }} />
-      <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-      <Stack.Screen name="(onboarding)" options={{ headerShown: false }} />
+      <Stack.Protected guard={status === 'unauthenticated'}>
+        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+      </Stack.Protected>
+
+      <Stack.Protected guard={status === 'onboarding'}>
+        <Stack.Screen name="(onboarding)" options={{ headerShown: false }} />
+      </Stack.Protected>
+
+      <Stack.Protected guard={status === 'winger'}>
+        <Stack.Screen name="(winger-tabs)" options={{ headerShown: false }} />
+      </Stack.Protected>
+
+      <Stack.Protected guard={status === 'dater'}>
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      </Stack.Protected>
+
       <Stack.Screen name="invite" options={{ headerShown: false }} />
       <Stack.Screen name="magic-link" options={{ headerShown: false }} />
       <Stack.Screen name="settings" options={{ headerShown: false }} />
@@ -132,7 +111,12 @@ export default function RootLayout() {
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
             <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-              <AppShell />
+              <BottomSheetModalProvider>
+                <AppShell />
+                {/* PortalHost sits inside the providers so portaled overlays
+                    (Dialog / Sheet) inherit Query, Auth and Theme context. */}
+                <PortalHost />
+              </BottomSheetModalProvider>
               <Toaster position="bottom-center" richColors />
               <StatusBar style="auto" />
             </ThemeProvider>

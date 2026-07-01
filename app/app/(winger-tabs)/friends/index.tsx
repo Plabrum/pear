@@ -1,13 +1,12 @@
 import { useState } from 'react';
 import { StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import { toast } from 'sonner-native';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Ionicons } from '@expo/vector-icons';
 
 import { colors } from '@/constants/theme';
 import { View, Text, Pressable, ScrollView, SafeAreaView } from '@/lib/tw';
 import { FaceAvatar } from '@/components/ui/FaceAvatar';
+import { PlusIcon } from '@/components/ui/icons';
 import { Sprout } from '@/components/ui/Sprout';
 import ScreenSuspense from '@/components/ui/ScreenSuspense';
 import { InviteWingpersonSheet } from '@/components/wingpeople/InviteWingpersonSheet';
@@ -16,6 +15,7 @@ import {
   useGetApiWingpeopleSuspense,
 } from '@/lib/api/generated/contacts/contacts';
 import { acceptWingperson, declineWingperson } from '@/lib/api/actions';
+import { toastError } from '@/lib/api/error-toast';
 
 function SectionHeader({ title }: { title: string }) {
   return (
@@ -38,20 +38,20 @@ function FriendsContent({ onOpenInvite }: { onOpenInvite: () => void }) {
     queryClient.invalidateQueries({ queryKey: getGetApiWingpeopleQueryKey() });
 
   const handleAccept = async (contactId: string) => {
-    const result = await acceptMutation.mutateAsync(contactId).catch(() => null);
-    if (result == null) {
-      toast.error("Couldn't accept invitation. Try again.");
-      return;
-    }
+    const result = await acceptMutation.mutateAsync(contactId).catch((err) => {
+      toastError(err, "Couldn't accept invitation. Try again.");
+      return null;
+    });
+    if (result == null) return;
     invalidate();
   };
 
   const handleDecline = async (contactId: string) => {
-    const result = await declineMutation.mutateAsync(contactId).catch(() => null);
-    if (result == null) {
-      toast.error("Couldn't decline invitation. Try again.");
-      return;
-    }
+    const result = await declineMutation.mutateAsync(contactId).catch((err) => {
+      toastError(err, "Couldn't decline invitation. Try again.");
+      return null;
+    });
+    if (result == null) return;
     invalidate();
   };
 
@@ -61,11 +61,7 @@ function FriendsContent({ onOpenInvite }: { onOpenInvite: () => void }) {
         <Text className="font-serif text-ink" style={{ fontSize: 28, letterSpacing: -0.5 }}>
           Friends
         </Text>
-        <Sprout
-          size="sm"
-          icon={<Ionicons name="add" size={14} color="#FBF8F1" />}
-          onPress={onOpenInvite}
-        >
+        <Sprout size="sm" icon={<PlusIcon size={14} color={colors.white} />} onPress={onOpenInvite}>
           Invite
         </Sprout>
       </View>

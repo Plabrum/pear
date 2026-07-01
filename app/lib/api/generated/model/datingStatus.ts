@@ -10,5 +10,4 @@ export type DatingStatus = (typeof DatingStatus)[keyof typeof DatingStatus];
 export const DatingStatus = {
   open: 'open',
   break: 'break',
-  winging: 'winging',
 } as const;

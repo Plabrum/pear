@@ -1,10 +1,11 @@
+import type { ColorValue } from 'react-native';
 import Svg, { Defs, Ellipse, Path, RadialGradient, Stop } from 'react-native-svg';
 
 type Variant = 'soft' | 'flat' | 'outline';
 
 type Props = {
   size?: number;
-  color?: string;
+  color?: ColorValue;
   leaf?: string;
   stem?: string;
   variant?: Variant;

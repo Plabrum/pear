@@ -57,7 +57,7 @@ class ProfilesController(Controller):
         media_service: MediaService,
         action_deps: ActionDeps,
     ) -> PublicProfile:
-        bundle = await fetch_public_profile(transaction, userId)
+        bundle = await fetch_public_profile(transaction, userId, user.id)
         if bundle is None:
             raise NotFoundException("Profile not found")
         profile, base, photos, prompts = bundle

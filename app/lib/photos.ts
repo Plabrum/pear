@@ -1,3 +1,4 @@
+import { File, UploadType } from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { toast } from 'sonner-native';
@@ -45,13 +46,17 @@ export async function uploadMedia(
 ): Promise<string> {
   const { mediaId, uploadUrl } = await postApiMediaUploadUrl({ fileName, contentType });
 
-  const blob = await fetch(uri).then((res) => res.blob());
-  const putRes = await fetch(uploadUrl, {
-    method: 'PUT',
-    body: blob,
+  // Stream the local file straight to the presigned URL via the native upload task.
+  // Don't go through fetch().blob() — Expo's winter fetch can't build a Blob from a
+  // file URI's ArrayBuffer, which throws at runtime.
+  const putRes = await new File(uri).upload(uploadUrl, {
+    httpMethod: 'PUT',
+    uploadType: UploadType.BINARY_CONTENT,
     headers: { 'Content-Type': contentType },
   });
-  if (!putRes.ok) throw new Error(`Upload PUT failed: ${putRes.status}`);
+  if (putRes.status < 200 || putRes.status >= 300) {
+    throw new Error(`Upload PUT failed: ${putRes.status}`);
+  }
 
   // Flips the row toward processing; the response state is still PENDING here.
   await postApiMediaUploaded(mediaId);
@@ -64,11 +69,4 @@ export async function uploadMedia(
 export async function uploadAvatar(userId: string, uri: string): Promise<void> {
   const mediaId = await uploadMedia(uri, `${userId}.jpg`, AVATAR_CONTENT_TYPE);
   await updateMyProfile(userId, { avatarMediaId: mediaId });
-}
-
-// Reads return ready-to-load URLs in `storageUrl` / avatar fields (a presigned
-// GET for the READY WebP, falling back to the original while processing). The
-// client never sees a storage key, so this stays a thin null-safe pass-through.
-export function getPhotoUrl(storageUrl: string | null): string | null {
-  return storageUrl ?? null;
 }

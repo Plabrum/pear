@@ -26,7 +26,7 @@ from app.domain.dating_profiles.queries import (
 )
 from app.domain.dating_profiles.schemas import DeclineForDaterData, ReportActionData, SuggestActionData
 from app.domain.dating_profiles.transformers import row_to_swipe_profile
-from app.domain.decisions.enums import DecisionType
+from app.domain.decisions.enums import DecisionState
 from app.domain.decisions.models import Decision
 from app.domain.decisions.queries import find_mutual_match
 from app.domain.profiles.enums import Gender
@@ -107,6 +107,22 @@ async def test_swipe_pool_returns_preference_matches(graph: DomainGraph, db_sess
     assert graph.dater_c.id in user_ids
     # Never include self.
     assert graph.dater_a.id not in user_ids
+
+
+async def test_swipe_pool_excludes_when_candidate_not_interested(graph: DomainGraph, db_session: AsyncSession) -> None:
+    """Matching is bidirectional: a candidate uninterested in the viewer's gender is
+    filtered out even though the viewer wants the candidate's gender."""
+    await _normalize_ages(graph, db_session)
+    # dater_a is MALE. Narrow dater_b to women-only so dater_b is NOT open to dater_a.
+    graph.dating_profile_b.interested_gender = [Gender.FEMALE]
+    await db_session.flush()
+
+    rows = await fetch_swipe_pool(db_session, viewer_id=graph.dater_a.id, page_size=20, page_offset=0)
+    user_ids = {r.user_id for r in rows}
+
+    # dater_b excluded by the reverse-direction filter; dater_c (still open to men) stays.
+    assert graph.dater_b.id not in user_ids
+    assert graph.dater_c.id in user_ids
 
 
 async def test_swipe_pool_orders_suggestions_first(graph: DomainGraph, db_session: AsyncSession) -> None:
@@ -212,7 +228,7 @@ async def test_swipe_pool_excludes_already_decided(graph: DomainGraph, db_sessio
         Decision(
             actor_id=graph.dater_a.id,
             recipient_id=graph.dater_c.id,
-            decision=DecisionType.DECLINED,
+            state=DecisionState.DECLINED,
         )
     )
     await db_session.flush()
@@ -245,7 +261,7 @@ async def test_swipe_pool_likes_you_only_excludes_matched(graph: DomainGraph, db
         Decision(
             actor_id=graph.dater_c.id,
             recipient_id=graph.dater_a.id,
-            decision=DecisionType.APPROVED,
+            state=DecisionState.APPROVED,
         )
     )
     await db_session.flush()
@@ -304,22 +320,20 @@ async def test_like_no_match(graph: DomainGraph, db_session: AsyncSession) -> No
             )
         )
     ).scalar_one()
-    assert row.decision == DecisionType.APPROVED
+    assert row.state == DecisionState.APPROVED
     _push(deps).assert_not_called()
 
 
 async def test_like_creates_match_on_mutual(graph: DomainGraph, db_session: AsyncSession) -> None:
     # Seed dater_c -> dater_a as an existing approval, then dater_a likes dater_c
-    # back: the second approval makes the pair mutual. The Like enqueues the
-    # FORM_MATCH task, which (QUEUE_SYNC=1 -> inline) idempotently inserts the
-    # matches row under system mode. The action returns a non-null `created_id`
-    # purely as the client's match-overlay signal (NOT the real match id, which the
-    # task owns).
+    # back: the second approval makes the pair mutual. The Like forms the match row
+    # in-request (guarded INSERT, gated by the matches_insert RLS floor) and returns
+    # the REAL match id as `created_id`.
     db_session.add(
         Decision(
             actor_id=graph.dater_c.id,
             recipient_id=graph.dater_a.id,
-            decision=DecisionType.APPROVED,
+            state=DecisionState.APPROVED,
         )
     )
     await db_session.flush()
@@ -327,11 +341,10 @@ async def test_like_creates_match_on_mutual(graph: DomainGraph, db_session: Asyn
     deps = _deps(db_session, user_id=graph.dater_a.id)
     result = await Like.execute(graph.dating_profile_c, EmptyActionData(), db_session, deps.user, deps)
 
-    # Non-null overlay signal on a fresh mutual.
-    assert result.created_id is not None
-    # The FORM_MATCH task formed the actual match for the pair.
+    # `created_id` is the real, navigable match id for the freshly-formed pair.
     match = await find_mutual_match(db_session, graph.dater_a.id, graph.dater_c.id)
     assert match is not None
+    assert result.created_id == match.id
 
 
 async def test_like_lands_on_pending_winger_suggestion(graph: DomainGraph, db_session: AsyncSession) -> None:
@@ -356,7 +369,7 @@ async def test_like_lands_on_pending_winger_suggestion(graph: DomainGraph, db_se
     )
     # Still exactly one row (the winger's pending suggestion), now finalised.
     assert len(rows) == 1
-    assert rows[0].decision == DecisionType.APPROVED
+    assert rows[0].state == DecisionState.APPROVED
     assert rows[0].suggested_by == graph.winger.id  # provenance preserved
     # The match for this pair exists (the graph seeds it). The like finalising the
     # pending row doesn't double-create it, so created_id stays None.
@@ -376,7 +389,7 @@ async def test_pass_upserts_declined(graph: DomainGraph, db_session: AsyncSessio
             )
         )
     ).scalar_one()
-    assert row.decision == DecisionType.DECLINED
+    assert row.state == DecisionState.DECLINED
 
 
 async def test_like_role_gate_denies_winger(graph: DomainGraph, db_session: AsyncSession) -> None:
@@ -413,7 +426,7 @@ async def test_suggest_happy(graph: DomainGraph, db_session: AsyncSession) -> No
         )
     ).scalar_one()
     assert row.suggested_by == graph.winger.id
-    assert row.decision is None  # pending — the dater must act
+    assert row.state is DecisionState.PENDING  # the dater must act
     assert row.note == "You two!"
     # A new pending suggestion -> the dater gets a push.
     _push(deps).assert_awaited_once()
@@ -501,7 +514,7 @@ async def test_decline_for_dater_writes_declined_and_no_push(graph: DomainGraph,
             )
         )
     ).scalar_one()
-    assert row.decision == DecisionType.DECLINED
+    assert row.state == DecisionState.DECLINED
     assert row.suggested_by == graph.winger.id  # winger-authored, on the dater's behalf
     # A decline is terminal for the dater — never pings them.
     _push(deps).assert_not_awaited()
@@ -552,7 +565,7 @@ async def test_report_inserts_report_and_declines(graph: DomainGraph, db_session
             )
         )
     ).scalar_one()
-    assert decision.decision == DecisionType.DECLINED
+    assert decision.state == DecisionState.DECLINED
 
 
 async def test_report_self_denied(graph: DomainGraph, db_session: AsyncSession) -> None:

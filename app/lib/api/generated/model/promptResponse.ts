@@ -5,6 +5,7 @@
  * OpenAPI spec version: 1.0.0
  */
 import type { ActionDTO } from './actionDTO';
+import type { ApprovalState } from './approvalState';
 import type { PromptsSchemasPromptResponseAuthor } from './promptsSchemasPromptResponseAuthor';
 
 export interface PromptResponse {
@@ -13,7 +14,7 @@ export interface PromptResponse {
   /** SQID-encoded identifier */
   profilePromptId: string;
   message: string;
-  isApproved: boolean;
+  status: ApprovalState;
   /** SQID-encoded identifier */
   userId: string;
   createdAt: string;

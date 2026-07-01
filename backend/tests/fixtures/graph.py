@@ -11,18 +11,30 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.contacts.enums import WingpersonStatus
 from app.domain.contacts.models import Contact
-from app.domain.dating_profiles.enums import City, DatingStatus, Interest, Religion
 from app.domain.dating_profiles.models import DatingProfile
-from app.domain.decisions.enums import DecisionType
+from app.domain.decisions.enums import DecisionState
 from app.domain.decisions.models import Decision
 from app.domain.matches.models import Match
 from app.domain.messages.models import Message
+from app.domain.photos.enums import PhotoApprovalState
 from app.domain.photos.models import ProfilePhoto
 from app.domain.profiles.enums import Gender, UserRole
 from app.domain.profiles.models import Profile
+from app.domain.prompts.enums import ApprovalState
 from app.domain.prompts.models import ProfilePrompt, PromptResponse, PromptTemplate
-from app.platform.media.enums import MediaState
 from app.platform.media.models import Media
+from tests.factories import (
+    ContactFactory,
+    DatingProfileFactory,
+    DecisionFactory,
+    MatchFactory,
+    MediaFactory,
+    MessageFactory,
+    ProfileFactory,
+    ProfilePhotoFactory,
+    ProfilePromptFactory,
+    PromptResponseFactory,
+)
 
 __all__ = [
     "ActingAs",
@@ -52,7 +64,7 @@ class DomainGraph:
     dating_profile_b: DatingProfile
     dating_profile_c: DatingProfile  # active, so its public profile is discoverable
     contact: Contact
-    suggestion: Decision  # winger-suggested card for dater_a (decision IS NULL)
+    suggestion: Decision  # winger-suggested card for dater_a (PENDING)
     decision: Decision  # dater_a approved dater_b
     match: Match  # dater_a <-> dater_b
     message: Message  # sent by dater_a in the match
@@ -65,51 +77,17 @@ class DomainGraph:
 
 
 async def _make_profile(session: AsyncSession, *, role: UserRole, gender: Gender) -> Profile:
-    profile = Profile(
-        chosen_name=faker.first_name(),
-        last_name=faker.last_name(),
-        phone_number=faker.numerify("+1##########"),
-        date_of_birth=faker.date_of_birth(minimum_age=22, maximum_age=40),
-        gender=gender,
-        role=role,
-    )
-    session.add(profile)
-    await session.flush()
-    return profile
+    return await ProfileFactory.create_async(session, state=role, gender=gender)
 
 
 async def _make_dating_profile(session: AsyncSession, *, user: Profile) -> DatingProfile:
-    dp = DatingProfile(
-        user_id=user.id,
-        bio=faker.sentence(nb_words=12),
-        interested_gender=[Gender.MALE, Gender.FEMALE],
-        age_from=24,
-        age_to=38,
-        religion=Religion.AGNOSTIC,
-        interests=[Interest.TRAVEL, Interest.FOOD, Interest.MUSIC],
-        city=City.BOSTON,
-        is_active=True,
-        dating_status=DatingStatus.OPEN,
-    )
-    session.add(dp)
-    await session.flush()
-    return dp
+    return await DatingProfileFactory.create_async(session, user_id=user.id)
 
 
 async def _make_media(session: AsyncSession, *, owner: Profile) -> Media:
     """A READY media owned by `owner` (file_key + processed WebP), flushed for its id."""
     file_key = f"{owner.id}/{faker.uuid4()}.jpg"
-    media = Media(
-        owner_id=owner.id,
-        file_key=file_key,
-        processed_key=f"{file_key.rsplit('.', 1)[0]}.webp",
-        mime_type="image/jpeg",
-        file_name="photo.jpg",
-        state=MediaState.READY,
-    )
-    session.add(media)
-    await session.flush()
-    return media
+    return await MediaFactory.create_async(session, owner_id=owner.id, file_key=file_key)
 
 
 async def build_domain_graph(session: AsyncSession) -> DomainGraph:
@@ -131,19 +109,20 @@ async def build_domain_graph(session: AsyncSession) -> DomainGraph:
     dating_profile_c = await _make_dating_profile(session, user=dater_c)
 
     # ── Winger ↔ dater_a relationship (active contact) ───────────────────────
-    contact = Contact(
+    contact = await ContactFactory.create_async(
+        session,
         user_id=dater_a.id,
         phone_number=winger.phone_number or faker.numerify("+1##########"),
         winger_id=winger.id,
-        wingperson_status=WingpersonStatus.ACTIVE,
+        state=WingpersonStatus.ACTIVE,
     )
-    session.add(contact)
 
-    # ── Winger-suggested card for dater_a (pending: decision IS NULL) ─────────
-    suggestion = Decision(
+    # ── Winger-suggested card for dater_a (PENDING — not yet acted on) ────────
+    suggestion = await DecisionFactory.create_async(
+        session,
         actor_id=dater_a.id,
         recipient_id=dater_b.id,
-        decision=None,
+        state=DecisionState.PENDING,
         suggested_by=winger.id,
         note=faker.sentence(nb_words=8),
     )
@@ -151,75 +130,60 @@ async def build_domain_graph(session: AsyncSession) -> DomainGraph:
     # ── dater_a's own approval of dater_b ────────────────────────────────────
     # Distinct (actor, recipient) pair from the suggestion to honor
     # unique_actor_recipient: dater_b is the actor here, dater_a the recipient.
-    decision = Decision(
+    decision = await DecisionFactory.create_async(
+        session,
         actor_id=dater_b.id,
         recipient_id=dater_a.id,
-        decision=DecisionType.APPROVED,
-        suggested_by=None,
-        note=None,
+        state=DecisionState.APPROVED,
     )
-    session.add_all([suggestion, decision])
-    await session.flush()
 
     # ── Mutual match (ids ordered to satisfy ordered_match_ids CHECK) ────────
     lo, hi = sorted([dater_a.id, dater_b.id])
-    match = Match(user_a_id=lo, user_b_id=hi)
-    session.add(match)
-    await session.flush()
+    match = await MatchFactory.create_async(session, user_a_id=lo, user_b_id=hi)
 
-    message = Message(
-        match_id=match.id,
-        sender_id=dater_a.id,
-        body=faker.sentence(nb_words=10),
-        is_read=False,
-    )
-    session.add(message)
+    message = await MessageFactory.create_async(session, match_id=match.id, sender_id=dater_a.id)
 
     # ── Media + photos for dater_a: one approved, one pending ────────────────
     # dater_a owns the bytes; the winger only suggests the (already-owner) media.
     approved_media = await _make_media(session, owner=dater_a)
     pending_media = await _make_media(session, owner=dater_a)
-    approved_photo = ProfilePhoto(
+    approved_photo = await ProfilePhotoFactory.create_async(
+        session,
         dating_profile_id=dating_profile_a.id,
         owner_id=dater_a.id,
-        suggester_id=None,  # self-uploaded
         media_id=approved_media.id,
         display_order=0,
+        state=PhotoApprovalState.APPROVED,
         approved_at=datetime.now(tz=UTC),
     )
     # Winger-suggested, still pending approval.
-    pending_photo = ProfilePhoto(
+    pending_photo = await ProfilePhotoFactory.create_async(
+        session,
         dating_profile_id=dating_profile_a.id,
         owner_id=dater_a.id,
         suggester_id=winger.id,
         media_id=pending_media.id,
         display_order=1,
-        approved_at=None,
+        state=PhotoApprovalState.PENDING,
     )
-    session.add_all([approved_photo, pending_photo])
 
     # ── Prompt + response (uses a seeded template) ───────────────────────────
     template = (await session.execute(select(PromptTemplate).limit(1))).scalar_one()
-    profile_prompt = ProfilePrompt(
+    profile_prompt = await ProfilePromptFactory.create_async(
+        session,
         dating_profile_id=dating_profile_a.id,
         owner_id=dater_a.id,
         prompt_template_id=template.id,
-        answer=faker.sentence(nb_words=9),
     )
-    session.add(profile_prompt)
-    await session.flush()
 
     # A comment from the winger on dater_a's prompt, pending approval.
-    prompt_response = PromptResponse(
+    prompt_response = await PromptResponseFactory.create_async(
+        session,
         user_id=winger.id,
         profile_owner_id=dater_a.id,
         profile_prompt_id=profile_prompt.id,
-        message=faker.sentence(nb_words=7),
-        is_approved=False,
-        is_rejected=False,
+        state=ApprovalState.PENDING,
     )
-    session.add(prompt_response)
-    await session.flush()
 
     return DomainGraph(
         dater_a=dater_a,

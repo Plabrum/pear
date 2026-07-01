@@ -7,9 +7,9 @@ from sqlalchemy import asc, desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from app.domain.contacts.enums import WingpersonStatus
-from app.domain.contacts.models import Contact
+from app.domain.contacts.queries import is_active_wingperson  # noqa: F401  (re-exported)
 from app.domain.dating_profiles.models import DatingProfile
+from app.domain.photos.enums import PhotoApprovalState
 from app.domain.photos.models import ProfilePhoto
 from app.domain.profiles.models import Profile
 from app.platform.media.queries import servable_key_expr
@@ -27,8 +27,7 @@ class SuggestedPhotoRow:
     dater_id: Sqid
     dater_name: str | None
     storage_url: str
-    approved_at: datetime | None
-    rejected_at: datetime | None
+    state: PhotoApprovalState
     created_at: datetime | None
 
 
@@ -45,8 +44,7 @@ async def fetch_suggested_photos(db: AsyncSession, suggester_id: Sqid, limit: in
                 DatingProfile.user_id,
                 Profile.chosen_name,
                 servable_key_expr(ProfilePhoto.media_id).label("storage_url"),
-                ProfilePhoto.approved_at,
-                ProfilePhoto.rejected_at,
+                ProfilePhoto.state,
                 ProfilePhoto.created_at,
             )
             .join(DatingProfile, DatingProfile.id == ProfilePhoto.dating_profile_id)
@@ -63,11 +61,10 @@ async def fetch_suggested_photos(db: AsyncSession, suggester_id: Sqid, limit: in
             dater_id=dater_id,
             dater_name=dater_name,
             storage_url=storage_url,
-            approved_at=approved_at,
-            rejected_at=rejected_at,
+            state=state,
             created_at=created_at,
         )
-        for (photo_id, dater_id, dater_name, storage_url, approved_at, rejected_at, created_at) in rows
+        for (photo_id, dater_id, dater_name, storage_url, state, created_at) in rows
     ]
 
 
@@ -95,22 +92,6 @@ async def fetch_dating_profile_owner(db: AsyncSession, dating_profile_id: Sqid) 
     return (
         await db.execute(select(DatingProfile.user_id).where(DatingProfile.id == dating_profile_id).limit(1))
     ).scalar_one_or_none()
-
-
-async def is_active_wingperson(db: AsyncSession, dater_id: Sqid, winger_id: Sqid) -> bool:
-    """Whether `winger_id` is an active wingperson for `dater_id`."""
-    row = (
-        await db.execute(
-            select(Contact.id)
-            .where(
-                Contact.user_id == dater_id,
-                Contact.winger_id == winger_id,
-                Contact.wingperson_status == WingpersonStatus.ACTIVE,
-            )
-            .limit(1)
-        )
-    ).first()
-    return row is not None
 
 
 async def fetch_dater_push_and_suggester_name(

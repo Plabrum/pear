@@ -11,33 +11,11 @@ import { useGetApiWingpeopleSuspense } from '@/lib/api/generated/contacts/contac
 import { useActionExecutor } from '@/hooks/actions/use-action-executor';
 import { shortKey, type ActionDTO } from '@/lib/actions/types';
 import { InviteWingpersonSheet } from '@/components/wingpeople/InviteWingpersonSheet';
+import { SectionLabel } from '@/components/ui/SectionLabel';
+import { colors } from '@/constants/theme';
 
-const INK = '#1F1B16';
-const INK3 = '#8B8170';
-const PAPER = '#FBF8F1';
-const LINE = 'rgba(31,27,22,0.10)';
-const LEAF_SOFT = 'rgba(90,140,58,0.12)';
-
-// ── SectionLabel ──────────────────────────────────────────────────────────────
-
-function SectionLabel({ children }: { children: string }) {
-  return (
-    <Text
-      className="text-ink-dim"
-      style={{
-        fontSize: 11,
-        letterSpacing: 1.2,
-        textTransform: 'uppercase',
-        fontWeight: '600',
-        paddingHorizontal: 16,
-        paddingTop: 18,
-        paddingBottom: 8,
-      }}
-    >
-      {children}
-    </Text>
-  );
-}
+// Preserve this screen's slightly tighter section heading spacing.
+const sectionLabelStyle = { letterSpacing: 1.2, paddingTop: 18 };
 
 // ── Inner content (Suspense boundary child) ────────────────────────────────────
 
@@ -86,7 +64,9 @@ function WingpeopleContent({ onOpenInvite }: ContentProps) {
   return (
     <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
       {/* ── Section 1: Your Wingpeople ─────────────────────────────────────── */}
-      <SectionLabel>{`Your wingpeople · ${wingpeople.length} of 5`}</SectionLabel>
+      <SectionLabel
+        style={sectionLabelStyle}
+      >{`Your wingpeople · ${wingpeople.length} of 5`}</SectionLabel>
 
       {wingpeople.length === 0 ? (
         <Text
@@ -119,7 +99,7 @@ function WingpeopleContent({ onOpenInvite }: ContentProps) {
                   paddingVertical: 10,
                   borderRadius: 16,
                   borderWidth: 1,
-                  borderColor: LINE,
+                  borderColor: colors.divider,
                 }}
               >
                 <FaceAvatar name={name} size={44} photoUri={w.winger?.avatarUrl ?? null} />
@@ -132,7 +112,7 @@ function WingpeopleContent({ onOpenInvite }: ContentProps) {
                   </Text>
                 </View>
                 <Pressable hitSlop={8} style={{ padding: 6 }} onPress={() => handleRemove(w)}>
-                  <Ionicons name="ellipsis-vertical" size={18} color={INK3} />
+                  <Ionicons name="ellipsis-vertical" size={18} color={colors.inkDim} />
                 </Pressable>
               </Pressable>
             );
@@ -143,7 +123,9 @@ function WingpeopleContent({ onOpenInvite }: ContentProps) {
       {/* ── Section 2: Sent Invites ─────────────────────────────────────────── */}
       {sentInvitations.length > 0 && (
         <>
-          <SectionLabel>{`Sent invites · ${sentInvitations.length}`}</SectionLabel>
+          <SectionLabel
+            style={sectionLabelStyle}
+          >{`Sent invites · ${sentInvitations.length}`}</SectionLabel>
           <View style={{ paddingHorizontal: 16, gap: 10 }}>
             {sentInvitations.map((inv) => {
               const displayName = inv.winger?.chosenName ?? inv.phoneNumber ?? 'Unknown';
@@ -159,7 +141,7 @@ function WingpeopleContent({ onOpenInvite }: ContentProps) {
                     paddingVertical: 10,
                     borderRadius: 16,
                     borderWidth: 1,
-                    borderColor: LINE,
+                    borderColor: colors.divider,
                   }}
                 >
                   <FaceAvatar name={displayName} size={44} />
@@ -184,7 +166,9 @@ function WingpeopleContent({ onOpenInvite }: ContentProps) {
       {/* ── Section 3: Invitations ──────────────────────────────────────────── */}
       {invitations.length > 0 && (
         <>
-          <SectionLabel>{`Invitations · ${invitations.length}`}</SectionLabel>
+          <SectionLabel
+            style={sectionLabelStyle}
+          >{`Invitations · ${invitations.length}`}</SectionLabel>
           <View style={{ paddingHorizontal: 16, gap: 10 }}>
             {invitations.map((inv) => {
               const name = inv.dater?.chosenName ?? 'Unknown';
@@ -198,7 +182,7 @@ function WingpeopleContent({ onOpenInvite }: ContentProps) {
                     gap: 10,
                     paddingHorizontal: 14,
                     paddingVertical: 12,
-                    backgroundColor: LEAF_SOFT,
+                    backgroundColor: colors.leafSoft,
                     borderRadius: 16,
                   }}
                 >
@@ -228,7 +212,7 @@ function WingpeopleContent({ onOpenInvite }: ContentProps) {
       {/* ── Section 4: You're Winging For ──────────────────────────────────── */}
       {wingingFor.length > 0 && (
         <>
-          <SectionLabel>{`You're winging for`}</SectionLabel>
+          <SectionLabel style={sectionLabelStyle}>{`You're winging for`}</SectionLabel>
           <View style={{ paddingHorizontal: 16, gap: 12 }}>
             {wingingFor.map((wf) => {
               const name = wf.dater?.chosenName ?? 'Unknown';
@@ -241,7 +225,7 @@ function WingpeopleContent({ onOpenInvite }: ContentProps) {
                   style={{
                     borderRadius: 18,
                     borderWidth: 1,
-                    borderColor: LINE,
+                    borderColor: colors.divider,
                     padding: 14,
                   }}
                 >
@@ -282,7 +266,7 @@ function WingpeopleContent({ onOpenInvite }: ContentProps) {
                       <Sprout
                         block
                         size="sm"
-                        icon={<Ionicons name="heart" size={14} color={PAPER} />}
+                        icon={<Ionicons name="heart" size={14} color={colors.white} />}
                         onPress={() =>
                           router.push(
                             `/(tabs)/profile/wingpeople/wingswipe?daterId=${daterId}` as any
@@ -320,7 +304,7 @@ export default function WingpeopleScreen() {
           hitSlop={12}
           style={{ padding: 8, marginLeft: -4 }}
         >
-          <Ionicons name="chevron-back" size={22} color={INK} />
+          <Ionicons name="chevron-back" size={22} color={colors.ink} />
         </Pressable>
         <Text
           className="font-serif text-ink"
@@ -330,7 +314,7 @@ export default function WingpeopleScreen() {
         </Text>
         <Sprout
           size="sm"
-          icon={<Ionicons name="add" size={14} color={PAPER} />}
+          icon={<Ionicons name="add" size={14} color={colors.white} />}
           onPress={() => setInviteVisible(true)}
         >
           Invite

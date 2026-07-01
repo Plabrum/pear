@@ -3,7 +3,7 @@ from enum import StrEnum, auto
 import sqlalchemy as sa
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.platform.base.rls_mixins import UserScopedMixin
+from app.platform.base.rls import Authenticated, Owner, RLSScopedMixin
 from app.platform.state_machine.models import StateMachineMixin
 from app.utils.sqids import Sqid, SqidType
 
@@ -17,11 +17,11 @@ class SampleStatus(StrEnum):
 
 class SampleWidget(
     StateMachineMixin(state_enum=SampleStatus, initial_state=SampleStatus.DRAFT),
-    UserScopedMixin,
+    RLSScopedMixin(read=Authenticated, edit=Owner("user_id")),
 ):
     __tablename__ = "sample_widgets"
 
-    # Owning user — `UserScopedMixin` registers the RLS policy that reads this.
+    # Owning user — the `Owner("user_id")` write scope reads this.
     # Soft reference only (no FK): kept decoupled from the prod schema.
     user_id: Mapped[Sqid] = mapped_column(SqidType, index=True, nullable=False)
 

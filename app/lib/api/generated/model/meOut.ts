@@ -8,4 +8,5 @@ import type { UserOut } from './userOut';
 
 export interface MeOut {
   user: UserOut;
+  hasDatingProfile?: boolean;
 }

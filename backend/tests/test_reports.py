@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.dating_profiles.actions import Report
 from app.domain.dating_profiles.schemas import ReportActionData
-from app.domain.decisions.enums import DecisionType
+from app.domain.decisions.enums import DecisionState
 from app.domain.decisions.models import Decision
 from app.domain.reports.models import ProfileReport
 from app.platform.actions.deps import ActionDeps
@@ -66,7 +66,7 @@ async def test_report_inserts_report_and_declines(graph: DomainGraph, db_session
             )
         )
     ).scalar_one()
-    assert decision.decision == DecisionType.DECLINED
+    assert decision.state == DecisionState.DECLINED
 
 
 async def test_report_overwrites_existing_decision_to_declined(graph: DomainGraph, db_session: AsyncSession) -> None:
@@ -76,7 +76,7 @@ async def test_report_overwrites_existing_decision_to_declined(graph: DomainGrap
         Decision(
             actor_id=graph.dater_a.id,
             recipient_id=graph.dater_c.id,
-            decision=DecisionType.APPROVED,
+            state=DecisionState.APPROVED,
         )
     )
     await db_session.flush()
@@ -99,7 +99,7 @@ async def test_report_overwrites_existing_decision_to_declined(graph: DomainGrap
         .all()
     )
     assert len(rows) == 1
-    assert rows[0].decision == DecisionType.DECLINED
+    assert rows[0].state == DecisionState.DECLINED
 
 
 # ── reports RLS: own-report scoping ──────────────────────────────────────────

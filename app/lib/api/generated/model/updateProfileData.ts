@@ -5,14 +5,12 @@
  * OpenAPI spec version: 1.0.0
  */
 import type { Gender } from './gender';
-import type { UserRole } from './userRole';
 
 export interface UpdateProfileData {
   chosenName?: string;
   dateOfBirth?: string | null;
   phoneNumber?: string | null;
   gender?: Gender | null;
-  role?: UserRole;
   pushToken?: string | null;
   avatarMediaId?: string | null;
 }

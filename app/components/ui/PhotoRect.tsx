@@ -14,13 +14,13 @@ export function PhotoRect({ uri, ratio = 4 / 5, blur = false, style }: Props) {
       {uri ? (
         <Image
           source={{ uri }}
-          style={StyleSheet.absoluteFillObject}
+          style={StyleSheet.absoluteFill}
           contentFit="cover"
           blurRadius={blur ? 20 : 0}
           transition={200}
         />
       ) : (
-        <View style={[StyleSheet.absoluteFillObject, styles.placeholder]} />
+        <View style={[StyleSheet.absoluteFill, styles.placeholder]} />
       )}
     </View>
   );

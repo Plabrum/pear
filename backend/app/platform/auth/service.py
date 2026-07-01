@@ -109,7 +109,8 @@ class AuthService:
     async def _create_profile(self, *, name: str | None = None) -> Profile:
         """Create a bootstrap profile row. Onboarding fills in role/chosen_name.
 
-        The `profiles` identity table carries no RLS (see `rls_policies._RLS_TABLES`),
+        The `profiles` identity table carries no RLS (see `_INTENTIONAL_NO_RLS` in
+        `tests/test_rls_coverage.py`),
         so the unauthenticated first-login bootstrap just inserts the row — no actor
         scoping or system-mode escape needed. The id is assigned by the serial PK and
         comes back through `SqidType`'s result processor, so `profile.id` is a `Sqid`
@@ -130,4 +131,4 @@ class AuthService:
 
     @staticmethod
     def profile_role_value(profile: Profile) -> str | None:
-        return profile.role.value if isinstance(profile.role, UserRole) else None
+        return profile.state.value if isinstance(profile.state, UserRole) else None

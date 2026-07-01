@@ -5,7 +5,6 @@
  * OpenAPI spec version: 1.0.0
  */
 import type { City } from './city';
-import type { DatingStatus } from './datingStatus';
 import type { Gender } from './gender';
 import type { Interest } from './interest';
 import type { Religion } from './religion';
@@ -19,6 +18,5 @@ export interface UpdateDatingProfileData {
   religion?: Religion;
   religiousPreference?: Religion | null;
   interests?: Interest[];
-  datingStatus?: DatingStatus;
   isActive?: boolean;
 }

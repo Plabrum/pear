@@ -10,8 +10,9 @@ class TaskName(StrEnum):
     SEND_PUSH = auto()
     # Normalize an uploaded image to WebP (worker-driven) — runs in SYSTEM mode.
     PROCESS_IMAGE = auto()
-    # Idempotently form a match for a mutually-approved pair — runs in SYSTEM mode.
-    FORM_MATCH = auto()
+    # Push both sides of a freshly-formed match — runs in SYSTEM mode (the match row
+    # is created in-request by the Like action; this is the side-effect fan-out only).
+    NOTIFY_MATCH = auto()
 
 
 class TaskRoleType(StrEnum):

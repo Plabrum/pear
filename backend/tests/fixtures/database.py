@@ -11,8 +11,8 @@ from sqlalchemy.pool import NullPool
 
 from app.config import TestConfig
 from app.platform.base.models import BaseDBModel
+from app.platform.base.rls import RLS_POLICY_REGISTRY
 from app.platform.base.rls_grants import APP_ROLE
-from app.platform.base.rls_mixins import RLS_POLICY_REGISTRY
 
 # Throwaway models that apply the RLS mixins. Importing them attaches their
 # mappers + registers their mixin policies, so the test DB can build the tables and
@@ -62,18 +62,21 @@ def _reset_schema(conn, app_password: str) -> None:
     conn.execute(text(f"GRANT USAGE ON SCHEMA public TO {APP_ROLE}"))
 
 
-def _build_mixin_table(conn, tablename: str, signature: str) -> None:
-    """Create a mixin-backed test table, force RLS, apply its registered policy.
+def _build_mixin_table(conn, tablename: str) -> None:
+    """Create a model-declared test table, force RLS, apply its registered policies.
 
-    Looks the policy up in `RLS_POLICY_REGISTRY` by (table, signature) so the SQL
-    under test is the mixin's own output, then grants CRUD to `pear_app`.
+    Replays every `RLSScopedMixin`-emitted policy for the table from
+    `RLS_POLICY_REGISTRY`, so the test exercises exactly the SQL the mixin generates,
+    then grants CRUD to `pear_app`. These test-only tables live outside app/, so
+    Alembic never creates them.
     """
     BaseDBModel.metadata.create_all(bind=conn, tables=[BaseDBModel.metadata.tables[tablename]])
     conn.execute(text(f"ALTER TABLE public.{tablename} ENABLE ROW LEVEL SECURITY"))
     conn.execute(text(f"ALTER TABLE public.{tablename} FORCE ROW LEVEL SECURITY"))
 
-    policy = next(p for p in RLS_POLICY_REGISTRY if p.on_entity == f"public.{tablename}" and p.signature == signature)
-    conn.execute(text(f"CREATE POLICY {policy.signature} ON {policy.on_entity} {policy.definition}"))
+    policies = [p for p in RLS_POLICY_REGISTRY if p.on_entity == f"public.{tablename}"]
+    for policy in policies:
+        conn.execute(text(f"CREATE POLICY {policy.signature} ON {policy.on_entity} {policy.definition}"))
     conn.execute(text(f"GRANT SELECT, INSERT, UPDATE, DELETE ON public.{tablename} TO {APP_ROLE}"))
 
 
@@ -117,35 +120,17 @@ def setup_database(test_engine, test_config: TestConfig):
     if result.returncode != 0:
         raise RuntimeError(f"Alembic migration failed:\n{result.stdout}\n{result.stderr}")
 
-    # ── Test-only `sample_widgets` table ─────────────────────────────────────
-    # The sample model lives outside app/, so Alembic never creates its table.
-    # Build it here (against the admin engine) for the actions/state-machine
-    # fixtures, mirroring the RLS + grants the prod migration applies to real
-    # tables: the policy uses the same `is_system_mode() OR (user_id = me)` shape,
-    # and CRUD is granted to the NON-superuser `pear_app` role the tests run as.
+    # ── Test-only tables ─────────────────────────────────────────────────────
+    # These models live outside app/, so Alembic never creates their tables.
+    # Build each here and apply the *registered* `RLSScopedMixin` policy SQL
+    # verbatim, so the test exercises exactly what the mixin generates rather than a
+    # hand-copied predicate. Same RLS + grant shape as the prod tables.
+    #   - `sample_widgets` backs the actions / state-machine fixtures.
+    #   - `rls_owned_things` / `rls_wing_things` back the RLS mixin tests.
     with admin_engine.begin() as conn:
-        BaseDBModel.metadata.create_all(
-            bind=conn,
-            tables=[BaseDBModel.metadata.tables[SampleWidget.__tablename__]],
-        )
-        conn.execute(text("ALTER TABLE public.sample_widgets ENABLE ROW LEVEL SECURITY"))
-        conn.execute(text("ALTER TABLE public.sample_widgets FORCE ROW LEVEL SECURITY"))
-        conn.execute(
-            text(
-                "CREATE POLICY user_scope_policy ON public.sample_widgets "
-                "AS PERMISSIVE FOR ALL TO public USING ("
-                "  public.is_system_mode()"
-                "  OR (user_id = public.current_user_id()))"
-            )
-        )
-        conn.execute(text(f"GRANT SELECT, INSERT, UPDATE, DELETE ON public.sample_widgets TO {APP_ROLE}"))
-
-        # ── Test-only mixin-backed tables ────────────────────────────────────
-        # Build each throwaway table and apply the *registered* mixin policy SQL
-        # verbatim, so the test exercises exactly what the mixin generates rather
-        # than a hand-copied predicate. Same RLS + grant shape as the prod tables.
-        _build_mixin_table(conn, RlsOwnedThing.__tablename__, "user_scope_policy")
-        _build_mixin_table(conn, RlsWingThing.__tablename__, "wingperson_scope_policy")
+        _build_mixin_table(conn, SampleWidget.__tablename__)
+        _build_mixin_table(conn, RlsOwnedThing.__tablename__)
+        _build_mixin_table(conn, RlsWingThing.__tablename__)
 
     yield
 

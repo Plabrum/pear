@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
+from app.domain.prompts.enums import ApprovalState
 from app.platform.actions.schemas import ActionableList
 from app.platform.base.schemas import BaseSchema
 from app.utils.sqids import Sqid
@@ -27,7 +28,7 @@ class PromptResponse(ActionableList):
     id: Sqid
     profilePromptId: Sqid
     message: str
-    isApproved: bool
+    status: ApprovalState
     userId: Sqid
     createdAt: str
     author: PromptResponseAuthor | None

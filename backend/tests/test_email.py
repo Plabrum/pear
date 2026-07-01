@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -17,7 +18,7 @@ from tests.fixtures.ids import fake_id
 
 def _email_service(transaction: AsyncSession) -> tuple[EmailService, MagicMock]:
     """EmailService wired to the real Jinja engine + a mock request."""
-    engine = JinjaTemplateEngine(directory=config.EMAIL_TEMPLATES_DIR)
+    engine = JinjaTemplateEngine(directory=Path(config.EMAIL_TEMPLATES_DIR))
     request = MagicMock()
     return EmailService(template_engine=engine, transaction=transaction, request=request), request
 

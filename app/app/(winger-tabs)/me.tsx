@@ -1,8 +1,9 @@
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 
 import { useAuth } from '@/context/auth';
+import { colors } from '@/constants/theme';
 import { View, Text, Pressable, SafeAreaView } from '@/lib/tw';
+import { SettingsIcon } from '@/components/ui/icons';
 import { AvatarPicker } from '@/components/ui/AvatarPicker';
 import ScreenSuspense from '@/components/ui/ScreenSuspense';
 import { useGetApiProfilesMeSuspense } from '@/lib/api/generated/profiles/profiles';
@@ -30,7 +31,7 @@ function MeContent() {
           hitSlop={8}
           style={{ padding: 6 }}
         >
-          <Ionicons name="settings-outline" size={22} color="#4A4338" />
+          <SettingsIcon size={22} color={colors.inkMid} />
         </Pressable>
       </View>
 
@@ -81,7 +82,7 @@ function MeContent() {
             {wingingForCount} {wingingForCount === 1 ? 'friend trusts' : 'friends trust'} your taste
           </Text>
           <Text className="text-surface" style={{ fontSize: 12.5, opacity: 0.7, marginTop: 6 }}>
-            Send picks from Scout. Track replies in Activity.
+            Send picks from Friends. Track replies in Activity.
           </Text>
         </View>
       </View>

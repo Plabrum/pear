@@ -1,13 +1,14 @@
 import { useState } from 'react';
-import { Modal, StyleSheet } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { WingingForRow } from '@/lib/api/generated/model';
 import { useActionExecutor } from '@/hooks/actions/use-action-executor';
 import { useActionFormRenderer } from '@/hooks/actions/use-action-form-renderer';
 import type { ActionDTO } from '@/lib/actions/types';
 import { View, Text, Pressable } from '@/lib/tw';
+import { Sheet } from '@/components/ui/Sheet';
 import { FaceAvatar } from '@/components/ui/FaceAvatar';
+import { colors } from '@/constants/theme';
 
 // Suggest is an object action on the target DatingProfile; the sheet collects the
 // note and the chosen dater, so the body is built per-send (daterId varies).
@@ -17,10 +18,9 @@ const SUGGEST: ActionDTO = {
   action_group_type: 'dating_profile_swipe_actions',
 };
 
-const INK = '#1F1B16';
-const INK_SUBTLE = '#8B8170';
-const PAPER = '#FBF8F1';
-const LINE = 'rgba(31,27,22,0.10)';
+const INK = colors.ink;
+const INK_SUBTLE = colors.inkDim;
+const LINE = colors.divider;
 
 type Props = {
   visible: boolean;
@@ -44,7 +44,6 @@ export function ForwardSheet({
   excludeDaterId,
   onClose,
 }: Props) {
-  const insets = useSafeAreaInsets();
   const [pendingDater, setPendingDater] = useState<{ id: string; name: string } | null>(null);
 
   const executor = useActionExecutor({ actionGroup: 'dating_profile_swipe_actions' });
@@ -83,115 +82,53 @@ export function ForwardSheet({
 
   return (
     <>
-      <Modal
+      <Sheet
         visible={visible && pendingDater === null}
-        animationType="slide"
-        transparent
-        onRequestClose={handleClose}
+        onClose={handleClose}
+        title="Forward to"
+        subtitle="Suggest this profile to someone you're winging for."
       >
-        <View style={{ flex: 1, backgroundColor: 'rgba(31,27,22,0.45)' }}>
-          <Pressable style={{ flex: 1 }} onPress={handleClose} />
-          <View
-            style={{
-              backgroundColor: PAPER,
-              borderTopLeftRadius: 24,
-              borderTopRightRadius: 24,
-              paddingTop: 14,
-              paddingBottom: insets.bottom + 24,
-            }}
-          >
-            <View
-              style={{
-                alignSelf: 'center',
-                width: 40,
-                height: 4,
-                borderRadius: 2,
-                backgroundColor: LINE,
-                marginBottom: 16,
-              }}
-            />
-            <Text
-              style={{
-                fontFamily: 'DMSerifDisplay',
-                fontSize: 22,
-                letterSpacing: -0.3,
-                color: INK,
-                paddingHorizontal: 20,
-                marginBottom: 6,
-              }}
-            >
-              Forward to
-            </Text>
-            <Text
-              style={{
-                fontSize: 13,
-                color: INK_SUBTLE,
-                paddingHorizontal: 20,
-                marginBottom: 4,
-              }}
-            >
-              Suggest this profile to someone you{"'"}re winging for.
-            </Text>
-
-            {targets.length === 0 ? (
-              <Text
+        {targets.length === 0 ? (
+          <Text style={{ fontSize: 14, color: INK_SUBTLE, paddingVertical: 20, textAlign: 'center' }}>
+            No one else to forward to right now.
+          </Text>
+        ) : (
+          targets.map((row) => {
+            const dater = row.dater;
+            if (!dater) return null;
+            return (
+              <Pressable
+                key={row.id}
+                onPress={() =>
+                  setPendingDater({
+                    id: dater.id,
+                    name: dater.chosenName ?? '',
+                  })
+                }
                 style={{
-                  fontSize: 14,
-                  color: INK_SUBTLE,
-                  paddingHorizontal: 20,
-                  paddingVertical: 20,
-                  textAlign: 'center',
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  paddingVertical: 14,
+                  borderBottomWidth: StyleSheet.hairlineWidth,
+                  borderBottomColor: LINE,
                 }}
               >
-                No one else to forward to right now.
-              </Text>
-            ) : (
-              targets.map((row, i) => {
-                const dater = row.dater;
-                if (!dater) return null;
-                return (
-                  <Pressable
-                    key={row.id}
-                    onPress={() =>
-                      setPendingDater({
-                        id: dater.id,
-                        name: dater.chosenName ?? '',
-                      })
-                    }
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      paddingHorizontal: 20,
-                      paddingVertical: 14,
-                      borderTopWidth: StyleSheet.hairlineWidth,
-                      borderTopColor: LINE,
-                      marginTop: i === 0 ? 10 : 0,
-                    }}
-                  >
-                    <FaceAvatar
-                      name={dater.chosenName ?? '?'}
-                      size={38}
-                      photoUri={dater.avatarUrl ?? null}
-                    />
-                    <Text
-                      style={{
-                        flex: 1,
-                        fontSize: 16,
-                        fontWeight: '500',
-                        color: INK,
-                        marginLeft: 12,
-                      }}
-                    >
-                      {dater.chosenName ?? 'Unnamed'}
-                    </Text>
-                    <Ionicons name="chevron-forward" size={18} color={INK_SUBTLE} />
-                  </Pressable>
-                );
-              })
-            )}
-          </View>
-        </View>
-      </Modal>
+                <FaceAvatar
+                  name={dater.chosenName ?? '?'}
+                  size={38}
+                  photoUri={dater.avatarUrl ?? null}
+                />
+                <Text
+                  style={{ flex: 1, fontSize: 16, fontWeight: '500', color: INK, marginLeft: 12 }}
+                >
+                  {dater.chosenName ?? 'Unnamed'}
+                </Text>
+                <Ionicons name="chevron-forward" size={18} color={INK_SUBTLE} />
+              </Pressable>
+            );
+          })
+        )}
+      </Sheet>
 
       {pendingDater &&
         renderSuggestForm({

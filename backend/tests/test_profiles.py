@@ -14,6 +14,7 @@ import app.domain.dating_profiles.actions  # noqa: F401, E402  (registers DATING
 import app.domain.photos.actions  # noqa: F401, E402  (registers PHOTO_ACTIONS)
 import app.domain.prompts.actions  # noqa: F401, E402  (registers PROFILE_PROMPT/PROMPT_RESPONSE_ACTIONS)
 from app.domain.dating_profiles.enums import City, DatingStatus, Interest, Religion
+from app.domain.photos.enums import PhotoApprovalState
 from app.domain.profiles.actions import (
     CreateDatingProfile,
     UpdateDatingProfile,
@@ -41,6 +42,7 @@ from app.domain.profiles.transformers import (
     public_media_ids,
     row_to_profile,
 )
+from app.domain.prompts.enums import ApprovalState
 from app.platform.actions.deps import ActionDeps
 from app.platform.actions.enums import ActionGroupType
 from app.platform.actions.hydrate import resolve_group
@@ -92,8 +94,9 @@ async def test_get_own_profile(graph: DomainGraph, db_session: AsyncSession) -> 
     # gender serializes by .value through msgspec -> matches the Zod enum wire form.
     assert dto.gender is Gender.MALE
     # The owner sees the edit action on their own profile row.
-    assert _keys(dto.actions) == {"update"}
-    update = dto.actions[0]
+    # A dater also sees the role transition into winging ("just winging").
+    assert _keys(dto.actions) == {"update", "switch_to_winger"}
+    update = next(a for a in dto.actions if a.action.endswith("__update"))
     assert update.action_group_type == ActionGroupType.PROFILE_ACTIONS
 
 
@@ -136,12 +139,12 @@ async def test_get_own_dating_profile_bundle(graph: DomainGraph, db_session: Asy
     assert len(dto.photos) == 2
     assert [p.displayOrder for p in dto.photos] == [0, 1]
     approved, pending = dto.photos
-    assert approved.approvedAt is not None and approved.suggester is None
+    assert approved.status is PhotoApprovalState.APPROVED and approved.suggester is None
     # The approved photo resolved to its READY processed (WebP) media URL.
     assert approved.storageUrl.startswith("http")
     processed_key = graph.approved_media.processed_key
     assert processed_key is not None and processed_key in approved.storageUrl
-    assert pending.approvedAt is None and pending.suggesterId == graph.winger.id
+    assert pending.status is PhotoApprovalState.PENDING and pending.suggesterId == graph.winger.id
     assert pending.suggester is not None
     assert pending.suggester.chosenName == graph.winger.chosen_name
     # 1 prompt with 1 (pending) response carrying its winger author.
@@ -150,7 +153,7 @@ async def test_get_own_dating_profile_bundle(graph: DomainGraph, db_session: Asy
     assert prompt.template.question  # joined template text present
     assert len(prompt.responses) == 1
     resp = prompt.responses[0]
-    assert resp.isApproved is False
+    assert resp.status is ApprovalState.PENDING
     assert resp.author is not None and resp.author.id == graph.winger.id
     # ripeness is the documented 0-100 completeness score.
     assert 0 <= dto.ripeness <= 100
@@ -158,7 +161,8 @@ async def test_get_own_dating_profile_bundle(graph: DomainGraph, db_session: Asy
     # ── Hydrated actions, viewed as the owning dater ──────────────────────────
     # base -> the EDIT group (DATING_PROFILE_ACTIONS), never the swipe group. The
     # owner sees `update`; `create` is a top-level action so it never rides on a row.
-    assert _keys(dto.actions) == {"update"}
+    # An OPEN dating profile also offers `pause` (take a break).
+    assert _keys(dto.actions) == {"update", "pause"}
     assert all(a.action_group_type == ActionGroupType.DATING_PROFILE_ACTIONS for a in dto.actions)
 
     # Approved (self-uploaded) photo: owner may only delete it — approve/reject gate
@@ -182,7 +186,7 @@ async def test_get_own_dating_profile_returns_none_when_absent(db_session: Async
 
 
 async def test_get_public_profile(graph: DomainGraph, db_session: AsyncSession) -> None:
-    bundle = await fetch_public_profile(db_session, graph.dater_b.id)
+    bundle = await fetch_public_profile(db_session, graph.dater_b.id, graph.dater_a.id)
     assert bundle is not None
     profile, base, photos, prompts = bundle
     url_by_media = await MediaService(db_session, local_media()).resolve_urls(public_media_ids(profile, photos))
@@ -205,13 +209,13 @@ async def test_get_public_profile(graph: DomainGraph, db_session: AsyncSession) 
 
 
 async def test_get_public_profile_missing_returns_none(db_session: AsyncSession) -> None:
-    assert await fetch_public_profile(db_session, fake_id()) is None
+    assert await fetch_public_profile(db_session, fake_id(), fake_id()) is None
 
 
 async def test_public_profile_only_serves_approved_photos(graph: DomainGraph, db_session: AsyncSession) -> None:
     # dater_a has 1 approved + 1 pending photo; a public read drops the pending one,
     # so only the approved photo's media id resolves to a URL.
-    bundle = await fetch_public_profile(db_session, graph.dater_a.id)
+    bundle = await fetch_public_profile(db_session, graph.dater_a.id, graph.dater_b.id)
     assert bundle is not None
     profile, base, photos, prompts = bundle
 
@@ -231,8 +235,35 @@ async def test_public_profile_only_serves_approved_photos(graph: DomainGraph, db
     assert dto.datingProfile is not None
     # Exactly the one approved photo is visible, with a resolved URL.
     assert len(dto.datingProfile.photos) == 1
-    assert dto.datingProfile.photos[0].approvedAt is not None
+    assert dto.datingProfile.photos[0].status is PhotoApprovalState.APPROVED
     assert dto.datingProfile.photos[0].storageUrl.startswith("http")
+
+
+async def test_public_profile_of_inactive_other_user_has_no_dating_content(
+    graph: DomainGraph, db_session: AsyncSession
+) -> None:
+    """An inactive other user's public profile returns the base profile but NO dating
+    content — the real floor now that RLS on dating_profiles is coarsened.
+
+    `fetch_dating_profile_base` gates on `is_active OR user_id == viewer_id`, so a
+    *different* viewer (dater_b) sees dater_a's identity row but a `None` dating
+    profile (and therefore no photos / prompts) once dater_a goes inactive.
+    """
+    graph.dating_profile_a.is_active = False
+    await db_session.flush()
+
+    bundle = await fetch_public_profile(db_session, graph.dater_a.id, graph.dater_b.id)
+    assert bundle is not None
+    profile, base, photos, prompts = bundle
+    assert profile.id == graph.dater_a.id  # identity row still returned
+    assert base is None  # ...but no dating profile for an inactive other user
+    assert photos == []
+    assert prompts == []
+
+    # The owner themselves still sees their own inactive profile (viewer == user).
+    own = await fetch_public_profile(db_session, graph.dater_a.id, graph.dater_a.id)
+    assert own is not None
+    assert own[1] is not None
 
 
 async def test_avatar_media_id_resolves_to_url_on_own_profile(graph: DomainGraph, db_session: AsyncSession) -> None:
@@ -268,7 +299,7 @@ def test_compute_ripeness_matches_hono_formula() -> None:
     # interests, city) -> 100. Mirrors the TS weighting 30/25/20/15/10.
     assert compute_ripeness([], [], None, [], None) == 0
 
-    photo = MagicMock(approvedAt="2026-01-01T00:00:00Z")
+    photo = MagicMock(status=PhotoApprovalState.APPROVED)
     prompt = MagicMock()
     full = compute_ripeness([photo] * 6, [prompt] * 3, "bio", ["Travel"], City.BOSTON)
     assert full == 100
@@ -316,9 +347,10 @@ async def test_update_profile_sets_avatar_media_id(graph: DomainGraph, db_sessio
 async def test_update_dating_profile_mutates_row(graph: DomainGraph, db_session: AsyncSession) -> None:
     deps = _deps(db_session, user_id=graph.dater_a.id)
     dp = graph.dating_profile_a
+    # dating_status (now `state`) is NOT a generic-PATCH field — it moves through the
+    # transition actions; the generic update only touches descriptive fields.
     data = UpdateDatingProfileData(
         bio="Updated bio",
-        datingStatus=DatingStatus.WINGING,
         interests=[Interest.ART, Interest.MUSIC],
     )
 
@@ -326,16 +358,15 @@ async def test_update_dating_profile_mutates_row(graph: DomainGraph, db_session:
     result = await UpdateDatingProfile.execute(dp, data, db_session, deps.user, deps)
 
     assert result.message == "Dating profile updated"
-    base = await fetch_dating_profile_base(db_session, graph.dater_a.id)
+    base = await fetch_dating_profile_base(db_session, graph.dater_a.id, viewer_id=graph.dater_a.id)
     assert base is not None
     assert base.bio == "Updated bio"
-    assert base.dating_status == DatingStatus.WINGING
     assert base.interests == [Interest.ART, Interest.MUSIC]
 
 
 async def test_create_dating_profile_inserts(graph: DomainGraph, db_session: AsyncSession) -> None:
     # dater_c has a dating profile in the graph; create one for a fresh profile.
-    new_profile = ProfileModel(chosen_name="Fresh", role=UserRole.DATER, gender=Gender.FEMALE)
+    new_profile = ProfileModel(chosen_name="Fresh", state=UserRole.DATER, gender=Gender.FEMALE)
     db_session.add(new_profile)
     await db_session.flush()
 
@@ -352,14 +383,14 @@ async def test_create_dating_profile_inserts(graph: DomainGraph, db_session: Asy
     result = await CreateDatingProfile.execute(data, db_session, deps.user, deps)
     assert result.created_id is not None
 
-    base = await fetch_dating_profile_base(db_session, new_profile.id)
+    base = await fetch_dating_profile_base(db_session, new_profile.id, viewer_id=new_profile.id)
     assert base is not None
     assert base.id == result.created_id
     assert base.city == City.NEW_YORK
     assert base.age_from == 25
     assert base.bio == "Hello"
-    # datingStatus defaults to 'open' when omitted.
-    assert base.dating_status == DatingStatus.OPEN
+    # dating status defaults to OPEN when omitted.
+    assert base.state == DatingStatus.OPEN
 
 
 # ── Actions: gate denials ───────────────────────────────────────────────────────

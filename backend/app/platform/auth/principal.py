@@ -20,7 +20,8 @@ class User:
 
     @classmethod
     def from_profile(cls, profile: Profile) -> User:
-        profile_role = profile.role
+        # `profile.state` (UserRole) is the persisted dater|winger mode.
+        profile_role = profile.state
         transition_role = Role.WINGER if profile_role is UserRole.WINGER else Role.DATER
         return cls(
             id=profile.id,

@@ -239,10 +239,20 @@ async def test_route_uploaded_denied_for_non_owner(graph: DomainGraph, db_sessio
 async def test_route_get_one_resolves_url(graph: DomainGraph, db_session: AsyncSession) -> None:
     media = await _seed_media(db_session, graph.dater_a.id)
     client = local_media()
-    resp = await MediaController.get_one.fn(_SELF, media.id, db_session, client)
+    resp = await MediaController.get_one.fn(_SELF, media.id, _user(graph.dater_a.id), db_session, client)
     assert resp.id == media.id
     # Not READY -> falls back to presigning the original file_key.
     assert resp.url.startswith("http")
+
+
+async def test_route_get_one_non_owner_non_winger_404s(graph: DomainGraph, db_session: AsyncSession) -> None:
+    """get_one is explicitly owner/active-winger-only: a stranger gets 404, not a
+    presign — closing the direct-by-id route as a presign oracle regardless of the
+    broad media SELECT floor."""
+    media = await _seed_media(db_session, graph.dater_a.id)
+    client = local_media()
+    with pytest.raises(MediaNotFoundError):
+        await MediaController.get_one.fn(_SELF, media.id, _user(graph.dater_c.id), db_session, client)
 
 
 async def test_route_delete_removes_file_and_row(graph: DomainGraph, db_session: AsyncSession) -> None:
@@ -265,4 +275,4 @@ async def test_route_delete_removes_file_and_row(graph: DomainGraph, db_session:
 async def test_route_get_one_missing_raises(graph: DomainGraph, db_session: AsyncSession) -> None:
     client = local_media()
     with pytest.raises(MediaNotFoundError):
-        await MediaController.get_one.fn(_SELF, fake_id(), db_session, client)
+        await MediaController.get_one.fn(_SELF, fake_id(), _user(graph.dater_a.id), db_session, client)

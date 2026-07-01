@@ -8,11 +8,8 @@ import {
 import type { OwnDatingProfile } from '@/lib/api/generated/model';
 import { View, Text, ScrollView, SafeAreaView, Pressable } from '@/lib/tw';
 import { FaceAvatar } from '@/components/ui/FaceAvatar';
+import { colors } from '@/constants/theme';
 import ScreenSuspense from '@/components/ui/ScreenSuspense';
-
-const INK = '#1F1B16';
-const LEAF = '#5A8C3A';
-const LINE = 'rgba(31,27,22,0.10)';
 
 // ── Ripeness helpers ──────────────────────────────────────────────────────────
 
@@ -25,7 +22,7 @@ function ripenessLabel(score: number): string {
 }
 
 function ripenessHint(data: OwnDatingProfile): string | null {
-  const approvedPhotos = data.photos.filter((p) => p.approvedAt !== null);
+  const approvedPhotos = data.photos.filter((p) => p.status === 'approved');
   if (data.prompts.length < 3) return 'Add one more prompt to ripen';
   if (approvedPhotos.length < 6) return 'Add more photos';
   if (!data.bio) return 'Add a bio';
@@ -74,7 +71,7 @@ function MenuRow({
       style={{
         borderRadius: 14,
         borderWidth: 1,
-        borderColor: LINE,
+        borderColor: colors.divider,
         paddingHorizontal: 14,
         paddingVertical: 12,
         gap: 12,
@@ -98,7 +95,7 @@ function MenuRow({
             style={{
               fontSize: 12.5,
               marginTop: 1,
-              color: subAccent ? '#C0392B' : 'rgba(31,27,22,0.50)',
+              color: subAccent ? colors.passRed : 'rgba(31,27,22,0.50)',
             }}
             numberOfLines={1}
           >
@@ -122,7 +119,7 @@ function RipenessBar({ data }: { data: OwnDatingProfile }) {
       style={{
         borderRadius: 18,
         borderWidth: 1,
-        borderColor: LINE,
+        borderColor: colors.divider,
         padding: 16,
         marginBottom: 4,
       }}
@@ -143,7 +140,7 @@ function RipenessBar({ data }: { data: OwnDatingProfile }) {
           className="bg-primary-soft"
           style={{ borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 }}
         >
-          <Text style={{ fontSize: 12, fontWeight: '700', color: LEAF }}>{score}% ripe</Text>
+          <Text style={{ fontSize: 12, fontWeight: '700', color: colors.leaf }}>{score}% ripe</Text>
         </View>
       </View>
       <View className="bg-surface-muted" style={{ height: 6, borderRadius: 3, overflow: 'hidden' }}>
@@ -151,7 +148,7 @@ function RipenessBar({ data }: { data: OwnDatingProfile }) {
           style={{
             height: 6,
             borderRadius: 3,
-            backgroundColor: LEAF,
+            backgroundColor: colors.leaf,
             width: `${score}%`,
           }}
         />
@@ -180,7 +177,7 @@ function WingpersonResponseRow({
   response: {
     id: string;
     message: string;
-    isApproved: boolean;
+    status: 'pending' | 'approved' | 'rejected';
     author: { id: string; chosenName: string | null; avatarUrl: string | null } | null;
   };
 }) {
@@ -190,7 +187,7 @@ function WingpersonResponseRow({
       style={{
         borderRadius: 14,
         borderWidth: 1,
-        borderColor: LINE,
+        borderColor: colors.divider,
         padding: 12,
         marginBottom: 8,
         flexDirection: 'row',
@@ -212,8 +209,8 @@ function WingpersonResponseRow({
         <Text className="text-fg" style={{ fontSize: 13.5, lineHeight: 19 }}>
           {response.message}
         </Text>
-        {!response.isApproved ? (
-          <Text style={{ fontSize: 11, color: LEAF, marginTop: 3, fontWeight: '600' }}>
+        {response.status !== 'approved' ? (
+          <Text style={{ fontSize: 11, color: colors.leaf, marginTop: 3, fontWeight: '600' }}>
             Pending approval
           </Text>
         ) : null}
@@ -241,7 +238,7 @@ function EditProfileHub() {
             hitSlop={12}
             style={{ padding: 8, marginLeft: -4 }}
           >
-            <Ionicons name="chevron-back" size={22} color={INK} />
+            <Ionicons name="chevron-back" size={22} color={colors.ink} />
           </Pressable>
           <Text
             className="font-serif text-fg"
@@ -256,9 +253,9 @@ function EditProfileHub() {
 
   const name = profile?.chosenName ?? null;
   const age = profile?.dateOfBirth ? computeAge(profile.dateOfBirth) : null;
-  const approvedPhotos = datingProfile.photos.filter((p) => p.approvedAt !== null);
+  const approvedPhotos = datingProfile.photos.filter((p) => p.status === 'approved');
   const suggestedPending = datingProfile.photos.filter(
-    (p) => p.suggesterId !== null && p.approvedAt === null
+    (p) => p.suggesterId !== null && p.status === 'pending'
   );
 
   const photoSub = [
@@ -314,7 +311,7 @@ function EditProfileHub() {
           hitSlop={12}
           style={{ padding: 8, marginLeft: -4 }}
         >
-          <Ionicons name="chevron-back" size={22} color={INK} />
+          <Ionicons name="chevron-back" size={22} color={colors.ink} />
         </Pressable>
         <Text className="font-serif text-fg" style={{ fontSize: 26, letterSpacing: -0.4, flex: 1 }}>
           Edit profile

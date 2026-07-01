@@ -26,7 +26,7 @@ class EmailService:
 
     def validate_email_address(self, email: str) -> str:
         try:
-            valid = validate_email(email, check_deliverability=False)
+            valid = validate_email(email, check_deliverability=False, test_environment=config.IS_DEV)
             return valid.normalized
         except EmailNotValidError as e:
             raise ValueError(f"Invalid email address: {email}") from e

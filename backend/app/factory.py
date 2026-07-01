@@ -38,6 +38,7 @@ from app.platform.auth.principal import User
 from app.platform.auth.routes import auth_router
 from app.platform.base.models import BaseDBModel
 from app.platform.base.soft_delete import install_soft_delete_filter
+from app.platform.media.local_routes import local_media_router
 from app.platform.media.routes import media_router
 from app.platform.plugins import SqidSchemaPlugin
 from app.platform.queue.config import queue_config
@@ -228,6 +229,10 @@ def create_app(
             # auth exclude list, so SessionAuth runs on the upgrade and authenticates
             # the handshake via the session cookie (see realtime/routes.py).
             realtime_ws,
+            # Dev/test only: backs the `LocalMediaClient` presigned `/_local-media/*`
+            # URLs with an on-disk sink so uploads round-trip with no S3. The handlers'
+            # `requires_local` guard rejects the route in prod (mirrors sloopquest).
+            local_media_router,
         ],
         plugins=plugins,
         middleware=middleware,

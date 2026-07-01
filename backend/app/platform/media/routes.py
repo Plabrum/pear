@@ -3,6 +3,7 @@ from __future__ import annotations
 from litestar import Controller, Request, Router, delete, get, post
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.domain.contacts.queries import is_active_wingperson
 from app.platform.auth.guards import requires_session
 from app.platform.auth.principal import User
 from app.platform.media.client import BaseMediaClient
@@ -66,12 +67,22 @@ class MediaController(Controller):
     async def get_one(
         self,
         media_id: Sqid,
+        user: User,
         transaction: AsyncSession,
         media: BaseMediaClient,
     ) -> MediaResponse:
-        """Owner or active wingperson (via RLS) -> the resolved (best servable) URL."""
+        """Owner or active wingperson -> the resolved (best servable) URL.
+
+        The media SELECT floor is broad (it mirrors photo visibility so feeds can
+        presign other daters' approved photos). This direct-by-id route, though,
+        only ever serves owned/winged media, so gate it explicitly — owner or the
+        owner's active wingperson — and 404 otherwise, closing it as a presign oracle
+        independent of the RLS policy.
+        """
         row = await fetch_media(transaction, media_id)
         if row is None:
+            raise MediaNotFoundError()
+        if row.owner_id != user.id and not await is_active_wingperson(transaction, row.owner_id, user.id):
             raise MediaNotFoundError()
         service = MediaService(transaction, media)
         url = await service.resolve_url(row)

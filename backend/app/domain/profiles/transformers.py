@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import date, datetime
 
 from app.domain.dating_profiles.models import DatingProfile
+from app.domain.photos.enums import PhotoApprovalState
 from app.domain.photos.models import ProfilePhoto
 from app.domain.profiles.models import Profile as ProfileModel
 from app.domain.profiles.schemas import (
@@ -50,7 +51,7 @@ def row_to_profile(row: ProfileModel, url_by_media: UrlByMedia, group: ActionGro
         phoneNumber=row.phone_number,
         dateOfBirth=_iso(row.date_of_birth),
         gender=row.gender,
-        role=row.role,
+        role=row.state,
         pushToken=row.push_token,
     )
     dto.actions = actions_for(group, deps, row)
@@ -68,7 +69,7 @@ def _photo_to_own(
         id=photo.id,
         storageUrl=_resolve(photo.media_id, url_by_media) or "",
         displayOrder=photo.display_order,
-        approvedAt=_iso(photo.approved_at),
+        status=photo.state,
         suggesterId=photo.suggester_id,
         suggester=(
             PhotoSuggester(id=photo.suggester_id, chosenName=suggester_name) if photo.suggester_id is not None else None
@@ -92,7 +93,7 @@ def _prompt_to_own(
         response_dto = OwnPromptResponse(
             id=response.id,
             message=response.message,
-            isApproved=response.is_approved,
+            status=response.state,
             userId=response.user_id,
             createdAt=_iso(response.created_at) or "",
             author=(
@@ -126,7 +127,7 @@ def compute_ripeness(
     city: object,
 ) -> int:
     """A 0-100 profile-completeness score."""
-    approved_photos = [p for p in photos if p.approvedAt is not None]
+    approved_photos = [p for p in photos if p.status is PhotoApprovalState.APPROVED]
     photo_score = min(len(approved_photos) / 6, 1) * 30
     prompt_score = min(len(prompts) / 3, 1) * 25
     bio_score = 20 if bio else 0
@@ -184,7 +185,7 @@ def dating_profile_to_own(
         religiousPreference=base.religious_preference,
         interests=list(base.interests),
         isActive=base.is_active,
-        datingStatus=base.dating_status,
+        datingStatus=base.state,
         createdAt=_iso(base.created_at) or "",
         updatedAt=_iso(base.updated_at) or "",
         photos=mapped_photos,
@@ -212,7 +213,7 @@ def bundle_to_public_profile(
             id=photo.id,
             storageUrl=_resolve(photo.media_id, url_by_media) or "",
             displayOrder=photo.display_order,
-            approvedAt=_iso(photo.approved_at),
+            status=photo.state,
             suggesterId=photo.suggester_id,
         )
         for photo, _ in photos

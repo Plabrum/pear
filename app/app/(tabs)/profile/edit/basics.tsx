@@ -1,9 +1,5 @@
 import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner-native';
-import { Controller, useForm } from 'react-hook-form';
-import { z } from 'zod';
-import { zodResolver } from '@hookform/resolvers/zod';
 
 import {
   useGetApiDatingProfilesMeSuspense,
@@ -11,39 +7,33 @@ import {
   getGetApiDatingProfilesMeQueryKey,
 } from '@/lib/api/generated/profiles/profiles';
 import { updateDatingProfile } from '@/lib/api/actions';
+import { toastError } from '@/lib/api/error-toast';
 import type { City } from '@/lib/api/generated/model';
 import { CITIES } from '@/constants/enums';
 import { View, Text, ScrollView, SafeAreaView, Pressable } from '@/lib/tw';
 import { cn } from '@/lib/cn';
+import { colors } from '@/constants/theme';
 import { NavHeader } from '@/components/ui/NavHeader';
+import { SectionLabel } from '@/components/ui/SectionLabel';
 import ScreenSuspense from '@/components/ui/ScreenSuspense';
+import { createTypedForm } from '@/lib/forms/typed-form';
 
-const LINE = 'rgba(31,27,22,0.10)';
+type Values = { city: City };
+const BasicsForm = createTypedForm<Values>();
 
-const schema = z.object({
-  city: z.enum(CITIES),
-});
-
-type Values = z.infer<typeof schema>;
-
-function SectionLabel({ children }: { children: string }) {
-  return (
-    <Text
-      style={{
-        fontSize: 10,
-        letterSpacing: 1.2,
-        textTransform: 'uppercase',
-        fontWeight: '500',
-        fontFamily: 'Menlo',
-        color: 'rgba(31,27,22,0.45)',
-        marginBottom: 10,
-        marginTop: 20,
-      }}
-    >
-      {children}
-    </Text>
-  );
-}
+// Preserve this screen's tighter monospace section heading look.
+const sectionLabelStyle = {
+  fontSize: 10,
+  letterSpacing: 1.2,
+  fontWeight: '500' as const,
+  fontFamily: 'Menlo',
+  color: 'rgba(31,27,22,0.45)',
+  marginBottom: 10,
+  marginTop: 20,
+  paddingHorizontal: 0,
+  paddingTop: 0,
+  paddingBottom: 0,
+};
 
 function BasicsScreenInner() {
   const router = useRouter();
@@ -51,80 +41,80 @@ function BasicsScreenInner() {
   const { data: datingProfile } = useGetApiDatingProfilesMeSuspense();
   const { data: profile } = useGetApiProfilesMeSuspense();
 
-  const { control } = useForm<Values>({
-    resolver: zodResolver(schema),
-    defaultValues: { city: datingProfile?.city ?? CITIES[0] },
-  });
-
   const saveCity = async (city: string) => {
     if (!datingProfile) return;
     try {
       await updateDatingProfile(datingProfile.id, { city: city as City });
       queryClient.invalidateQueries({ queryKey: getGetApiDatingProfilesMeQueryKey() });
-    } catch {
-      toast.error('Could not save city. Try again.');
+    } catch (err) {
+      toastError(err, 'Could not save city. Try again.');
     }
   };
 
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top', 'bottom']}>
       <NavHeader back title="Name & basics" onBack={() => router.back()} />
-      <ScrollView
-        contentContainerStyle={{ padding: 16, paddingBottom: 48 }}
-        showsVerticalScrollIndicator={false}
+      <BasicsForm.Form
+        defaultValues={{ city: datingProfile?.city ?? CITIES[0] }}
+        onSubmit={() => {}}
       >
-        <SectionLabel>Name</SectionLabel>
-        <View
-          className="bg-surface"
-          style={{
-            borderRadius: 14,
-            borderWidth: 1,
-            borderColor: LINE,
-            paddingHorizontal: 14,
-            paddingVertical: 14,
-          }}
+        <ScrollView
+          contentContainerStyle={{ padding: 16, paddingBottom: 48 }}
+          showsVerticalScrollIndicator={false}
         >
-          <Text className="text-fg" style={{ fontSize: 15 }}>
-            {profile?.chosenName ?? '—'}
-          </Text>
-          <Text style={{ fontSize: 12, color: 'rgba(31,27,22,0.40)', marginTop: 3 }}>
-            Name is set during onboarding and cannot be changed here.
-          </Text>
-        </View>
+          <SectionLabel style={sectionLabelStyle}>Name</SectionLabel>
+          <View
+            className="bg-surface"
+            style={{
+              borderRadius: 14,
+              borderWidth: 1,
+              borderColor: colors.divider,
+              paddingHorizontal: 14,
+              paddingVertical: 14,
+            }}
+          >
+            <Text className="text-fg" style={{ fontSize: 15 }}>
+              {profile?.chosenName ?? '—'}
+            </Text>
+            <Text style={{ fontSize: 12, color: 'rgba(31,27,22,0.40)', marginTop: 3 }}>
+              Name is set during onboarding and cannot be changed here.
+            </Text>
+          </View>
 
-        <SectionLabel>City</SectionLabel>
-        <Controller
-          control={control}
-          name="city"
-          render={({ field }) => (
-            <View className="flex-row flex-wrap" style={{ gap: 8 }}>
-              {CITIES.map((city) => {
-                const active = field.value === city;
-                return (
-                  <Pressable
-                    key={city}
-                    onPress={() => {
-                      field.onChange(city);
-                      saveCity(city);
-                    }}
-                    className={cn(
-                      'px-4 rounded-[24px] border-[1.5px] border-separator bg-white',
-                      active && 'border-accent bg-accent-muted'
-                    )}
-                    style={{ paddingVertical: 10 }}
-                  >
-                    <Text
-                      className={cn('text-sm text-fg-muted font-medium', active && 'text-accent')}
+          <SectionLabel style={sectionLabelStyle}>City</SectionLabel>
+          <BasicsForm.CustomField
+            name="city"
+            bare
+            render={({ value, onChange }) => (
+              <View className="flex-row flex-wrap" style={{ gap: 8 }}>
+                {CITIES.map((city) => {
+                  const active = value === city;
+                  return (
+                    <Pressable
+                      key={city}
+                      onPress={() => {
+                        onChange(city);
+                        saveCity(city);
+                      }}
+                      className={cn(
+                        'px-4 rounded-[24px] border-[1.5px] border-separator bg-white',
+                        active && 'border-accent bg-accent-muted'
+                      )}
+                      style={{ paddingVertical: 10 }}
                     >
-                      {city}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          )}
-        />
-      </ScrollView>
+                      <Text
+                        className={cn('text-sm text-fg-muted font-medium', active && 'text-accent')}
+                      >
+                        {city}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )}
+          />
+        </ScrollView>
+      </BasicsForm.Form>
     </SafeAreaView>
   );
 }

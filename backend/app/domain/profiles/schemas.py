@@ -4,7 +4,9 @@ import msgspec
 from msgspec import UNSET, UnsetType
 
 from app.domain.dating_profiles.enums import City, DatingStatus, Interest, Religion
+from app.domain.photos.enums import PhotoApprovalState
 from app.domain.profiles.enums import Gender, UserRole
+from app.domain.prompts.enums import ApprovalState
 from app.platform.actions.schemas import Actionable, ActionableDetail
 from app.platform.base.schemas import BaseSchema
 from app.utils.sqids import Sqid
@@ -33,7 +35,6 @@ class UpdateProfileData(BaseSchema):
     dateOfBirth: str | None | UnsetType = UNSET
     phoneNumber: str | None | UnsetType = UNSET
     gender: Gender | None | UnsetType = UNSET
-    role: UserRole | UnsetType = UNSET
     pushToken: str | None | UnsetType = UNSET
     avatarMediaId: Sqid | None | UnsetType = UNSET
 
@@ -50,7 +51,7 @@ class PromptResponseAuthor(BaseSchema):
 class OwnPromptResponse(Actionable):
     id: Sqid
     message: str
-    isApproved: bool
+    status: ApprovalState
     userId: Sqid
     createdAt: str
     author: PromptResponseAuthor | None
@@ -78,7 +79,7 @@ class OwnProfilePhoto(Actionable):
     id: Sqid
     storageUrl: str
     displayOrder: int
-    approvedAt: str | None
+    status: PhotoApprovalState
     suggesterId: Sqid | None
     suggester: PhotoSuggester | None
 
@@ -132,7 +133,6 @@ class UpdateDatingProfileData(BaseSchema):
     religion: Religion | UnsetType = UNSET
     religiousPreference: Religion | None | UnsetType = UNSET
     interests: list[Interest] | UnsetType = UNSET
-    datingStatus: DatingStatus | UnsetType = UNSET
     isActive: bool | UnsetType = UNSET
 
 
@@ -143,7 +143,7 @@ class PublicProfilePhoto(BaseSchema):
     id: Sqid
     storageUrl: str
     displayOrder: int
-    approvedAt: str | None
+    status: PhotoApprovalState
     suggesterId: Sqid | None
 
 

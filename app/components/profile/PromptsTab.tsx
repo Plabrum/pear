@@ -6,7 +6,6 @@ import {
   NativeSyntheticEvent,
   StyleSheet,
 } from 'react-native';
-import { toast } from 'sonner-native';
 import type { UseFormReturn } from 'react-hook-form';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -16,14 +15,15 @@ import {
   deletePromptResponse,
   approvePromptResponse,
 } from '@/lib/api/actions';
+import { toastError } from '@/lib/api/error-toast';
 
 import { FaceAvatar } from '@/components/ui/FaceAvatar';
 import { ScrollView, Text, View, Pressable } from '@/lib/tw';
 import { Sprout } from '@/components/ui/Sprout';
+import { Card } from '@/components/ui/Card';
+import { FieldLabel } from '@/components/ui/FieldLabel';
+import { colors } from '@/constants/theme';
 import { AddPromptModal } from './AddPromptModal';
-
-const LINE = 'rgba(31,27,22,0.10)';
-const LEAF = '#5A8C3A';
 
 // screen width minus paddings: outer padding 16 + inner card padding 14
 const SLIDE_WIDTH = Dimensions.get('window').width - 16 * 2 - 14 * 2;
@@ -31,23 +31,6 @@ const PEEK = 20;
 const SNAP_INTERVAL = SLIDE_WIDTH - PEEK + 8;
 
 type ApprovedResponse = OwnPromptResponse;
-
-function FieldLabel({ children }: { children: string }) {
-  return (
-    <Text
-      className="text-ink-dim"
-      style={{
-        fontSize: 10.5,
-        letterSpacing: 1.4,
-        textTransform: 'uppercase',
-        fontWeight: '600',
-        marginBottom: 6,
-      }}
-    >
-      {children}
-    </Text>
-  );
-}
 
 function ApprovedResponsesCarousel({ responses }: { responses: ApprovedResponse[] }) {
   const [activeIdx, setActiveIdx] = useState(0);
@@ -62,7 +45,7 @@ function ApprovedResponsesCarousel({ responses }: { responses: ApprovedResponse[
         marginTop: 12,
         paddingTop: 12,
         borderTopWidth: StyleSheet.hairlineWidth,
-        borderTopColor: LINE,
+        borderTopColor: colors.divider,
       }}
     >
       <ScrollView
@@ -118,7 +101,7 @@ function ApprovedResponsesCarousel({ responses }: { responses: ApprovedResponse[
                 width: i === activeIdx ? 14 : 6,
                 height: 6,
                 borderRadius: 3,
-                backgroundColor: i === activeIdx ? LEAF : 'rgba(31,27,22,0.20)',
+                backgroundColor: i === activeIdx ? colors.leaf : 'rgba(31,27,22,0.20)',
               }}
             />
           ))}
@@ -157,7 +140,7 @@ export function PromptsTab({ form, onRefresh }: Props) {
           ? {
               ...p,
               responses: p.responses.map((r) =>
-                r.id === responseId ? { ...r, isApproved: true } : r
+                r.id === responseId ? { ...r, status: 'approved' } : r
               ),
             }
           : p
@@ -165,9 +148,9 @@ export function PromptsTab({ form, onRefresh }: Props) {
     );
     try {
       await approvePromptResponse(responseId);
-    } catch {
+    } catch (err) {
       form.setValue('prompts', prev);
-      toast.error('Could not approve comment.');
+      toastError(err, 'Could not approve comment.');
     }
   };
 
@@ -181,9 +164,9 @@ export function PromptsTab({ form, onRefresh }: Props) {
     );
     try {
       await deletePromptResponse(responseId);
-    } catch {
+    } catch (err) {
       form.setValue('prompts', prev);
-      toast.error('Could not reject comment.');
+      toastError(err, 'Could not reject comment.');
     }
   };
 
@@ -195,9 +178,9 @@ export function PromptsTab({ form, onRefresh }: Props) {
     );
     try {
       await deleteProfilePrompt(promptId);
-    } catch {
+    } catch (err) {
       form.setValue('prompts', prev);
-      toast.error('Could not remove prompt.');
+      toastError(err, 'Could not remove prompt.');
     }
   };
 
@@ -207,16 +190,7 @@ export function PromptsTab({ form, onRefresh }: Props) {
       showsVerticalScrollIndicator={false}
     >
       {prompts.length === 0 ? (
-        <View
-          className="bg-surface"
-          style={{
-            borderRadius: 18,
-            borderWidth: 1,
-            borderColor: LINE,
-            padding: 24,
-            alignItems: 'center',
-          }}
-        >
+        <Card style={{ borderRadius: 18, padding: 24, alignItems: 'center' }}>
           <Text className="text-ink" style={{ fontSize: 14, fontWeight: '600' }}>
             No prompts yet.
           </Text>
@@ -226,26 +200,17 @@ export function PromptsTab({ form, onRefresh }: Props) {
           >
             Add one to give people something to connect with.
           </Text>
-        </View>
+        </Card>
       ) : null}
 
       {prompts.map((prompt) => {
-        const pendingR = prompt.responses.filter((r) => !r.isApproved);
-        const approvedR = prompt.responses.filter((r) => r.isApproved);
+        const pendingR = prompt.responses.filter((r) => r.status !== 'approved');
+        const approvedR = prompt.responses.filter((r) => r.status === 'approved');
         const isExpanded = expanded.has(prompt.id);
 
         return (
-          <View
-            key={prompt.id}
-            className="bg-surface"
-            style={{
-              borderRadius: 18,
-              borderWidth: 1,
-              borderColor: LINE,
-              padding: 14,
-            }}
-          >
-            <FieldLabel>{prompt.template.question}</FieldLabel>
+          <Card key={prompt.id} style={{ borderRadius: 18, padding: 14 }}>
+            <FieldLabel style={{ marginBottom: 6 }}>{prompt.template.question}</FieldLabel>
             <Text
               className="font-serif text-ink"
               style={{
@@ -269,7 +234,7 @@ export function PromptsTab({ form, onRefresh }: Props) {
                     marginTop: 12,
                     paddingTop: 12,
                     borderTopWidth: StyleSheet.hairlineWidth,
-                    borderTopColor: LINE,
+                    borderTopColor: colors.divider,
                   }}
                 >
                   <Text
@@ -281,7 +246,7 @@ export function PromptsTab({ form, onRefresh }: Props) {
                   <Ionicons
                     name={isExpanded ? 'chevron-up' : 'chevron-down'}
                     size={12}
-                    color={LEAF}
+                    color={colors.leaf}
                   />
                 </Pressable>
                 {isExpanded
@@ -333,14 +298,14 @@ export function PromptsTab({ form, onRefresh }: Props) {
                 marginTop: 12,
                 paddingTop: 12,
                 borderTopWidth: StyleSheet.hairlineWidth,
-                borderTopColor: LINE,
+                borderTopColor: colors.divider,
               }}
             >
               <Text className="text-destructive" style={{ fontSize: 13, fontWeight: '500' }}>
                 Remove prompt
               </Text>
             </Pressable>
-          </View>
+          </Card>
         );
       })}
 
@@ -353,12 +318,12 @@ export function PromptsTab({ form, onRefresh }: Props) {
           borderRadius: 18,
           borderWidth: 1.5,
           borderStyle: 'dashed',
-          borderColor: LEAF,
+          borderColor: colors.leaf,
           minHeight: 52,
           marginTop: 4,
         }}
       >
-        <Ionicons name="add" size={18} color={LEAF} />
+        <Ionicons name="add" size={18} color={colors.leaf} />
         <Text className="text-primary" style={{ fontSize: 14, fontWeight: '600' }}>
           Add prompt
         </Text>

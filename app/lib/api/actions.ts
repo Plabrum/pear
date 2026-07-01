@@ -64,6 +64,29 @@ export function updateMyProfile(
   });
 }
 
+/**
+ * Switch the caller into winger mode ("just winging"). Object-scoped: pass the
+ * caller's own profile id (Profile.id === userId). Their dating profile is kept but
+ * hidden from feeds while role === winger.
+ */
+export function switchToWinger(profileId: string): Promise<ActionExecutionResponse> {
+  return apiActionsActionGroupObjectIdExecuteObjectAction('profile_actions', profileId, {
+    action: 'profile_actions__switch_to_winger',
+    data: EMPTY,
+  });
+}
+
+/**
+ * Switch the caller back into dater mode (start / resume dating). Object-scoped:
+ * pass the caller's own profile id (Profile.id === userId).
+ */
+export function switchToDater(profileId: string): Promise<ActionExecutionResponse> {
+  return apiActionsActionGroupObjectIdExecuteObjectAction('profile_actions', profileId, {
+    action: 'profile_actions__switch_to_dater',
+    data: EMPTY,
+  });
+}
+
 // ── dating_profile_actions ───────────────────────────────────────────────────
 
 /**
@@ -91,6 +114,30 @@ export function updateDatingProfile(
     'dating_profile_actions',
     datingProfileId,
     { action: 'dating_profile_actions__update', data }
+  );
+}
+
+/**
+ * Pause dating (take a break). Object-scoped: pass the caller's own dating-profile
+ * id (OwnDatingProfile.id). Moves dating status OPEN -> BREAK.
+ */
+export function pauseDating(datingProfileId: string): Promise<ActionExecutionResponse> {
+  return apiActionsActionGroupObjectIdExecuteObjectAction(
+    'dating_profile_actions',
+    datingProfileId,
+    { action: 'dating_profile_actions__pause', data: EMPTY }
+  );
+}
+
+/**
+ * Resume dating. Object-scoped: pass the caller's own dating-profile id
+ * (OwnDatingProfile.id). Moves dating status BREAK -> OPEN.
+ */
+export function resumeDating(datingProfileId: string): Promise<ActionExecutionResponse> {
+  return apiActionsActionGroupObjectIdExecuteObjectAction(
+    'dating_profile_actions',
+    datingProfileId,
+    { action: 'dating_profile_actions__resume', data: EMPTY }
   );
 }
 

@@ -9,30 +9,6 @@ from app.platform.state_machine.machine import State, StateMachine, Transition
 from app.platform.state_machine.roles import Role
 
 
-def derive_state(photo: ProfilePhoto) -> PhotoApprovalState:
-    if photo.rejected_at is not None:
-        return PhotoApprovalState.REJECTED
-    if photo.approved_at is not None:
-        return PhotoApprovalState.APPROVED
-    return PhotoApprovalState.PENDING
-
-
-def _set_state(photo: ProfilePhoto, value: PhotoApprovalState) -> None:
-    # No-op: the canonical column writes happen in the State.on_enter hooks. The
-    # StateMachineService assigns `obj.state = to` as part of its generic flow; we
-    # accept it without mutating columns so the timestamp pair stays the single
-    # source of truth.
-    return None
-
-
-# Attach the derived `state` view onto the ORM model so the platform
-# StateMachineService (which reads/writes `obj.state`) can drive transitions
-# without `profile_photos` carrying a dedicated status column. Callers that need
-# the value in typed code use `derive_state(photo)` instead (the dynamic property
-# is invisible to the type checker, by design — only the Any-typed machine uses it).
-ProfilePhoto.state = property(derive_state, _set_state)  # type: ignore[attr-defined]
-
-
 class PendingState(State[PhotoApprovalState, ProfilePhoto]):
     value = PhotoApprovalState.PENDING
     transitions = [

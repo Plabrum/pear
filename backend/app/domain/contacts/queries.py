@@ -26,10 +26,33 @@ async def fetch_push_token(db: AsyncSession, user_id: Sqid) -> str | None:
     return (await db.execute(select(Profile.push_token).where(Profile.id == user_id).limit(1))).scalar_one_or_none()
 
 
+async def is_active_wingperson(db: AsyncSession, dater_id: Sqid, winger_id: Sqid) -> bool:
+    """Whether `winger_id` is an ACTIVE wingperson for `dater_id`.
+
+    The single shared predicate — the decisions / photos / prompts / dating_profiles
+    domains all reach for this one helper rather than re-deriving the active-contact
+    check (mirrors the `public.is_active_wingperson` SQL function used in RLS).
+    """
+    row = (
+        await db.execute(
+            select(Contact.id)
+            .where(
+                and_(
+                    Contact.user_id == dater_id,
+                    Contact.winger_id == winger_id,
+                    Contact.state == WingpersonStatus.ACTIVE,
+                )
+            )
+            .limit(1)
+        )
+    ).first()
+    return row is not None
+
+
 # ── Action-gating: real Contact rows keyed by id ─────────────────────────────
 #
 # The roster loaders above project loose dataclass rows that DROP the scalar
-# columns action gating reads (`user_id`, `winger_id`, `wingperson_status`).
+# columns action gating reads (`user_id`, `winger_id`, `state`).
 # These bulk fetchers return the matching Contact ORM rows — one query per
 # actionable bucket, mirroring each loader's filter — so the route can hydrate
 # `CONTACT_ACTIONS` per row. Contact has NO ORM relationships, so gating touches
@@ -43,7 +66,7 @@ async def fetch_active_wingperson_contacts(db: AsyncSession, dater_id: Sqid) -> 
             select(Contact).where(
                 and_(
                     Contact.user_id == dater_id,
-                    Contact.wingperson_status == WingpersonStatus.ACTIVE,
+                    Contact.state == WingpersonStatus.ACTIVE,
                 )
             )
         )
@@ -58,7 +81,7 @@ async def fetch_incoming_invitation_contacts(db: AsyncSession, winger_id: Sqid) 
             select(Contact).where(
                 and_(
                     Contact.winger_id == winger_id,
-                    Contact.wingperson_status == WingpersonStatus.INVITED,
+                    Contact.state == WingpersonStatus.INVITED,
                 )
             )
         )
@@ -73,7 +96,7 @@ async def fetch_sent_invitation_contacts(db: AsyncSession, dater_id: Sqid) -> di
             select(Contact).where(
                 and_(
                     Contact.user_id == dater_id,
-                    Contact.wingperson_status == WingpersonStatus.INVITED,
+                    Contact.state == WingpersonStatus.INVITED,
                 )
             )
         )
@@ -97,7 +120,7 @@ async def fetch_active_wingpeople(db: AsyncSession, dater_id: Sqid) -> list[Wing
             .where(
                 and_(
                     Contact.user_id == dater_id,
-                    Contact.wingperson_status == WingpersonStatus.ACTIVE,
+                    Contact.state == WingpersonStatus.ACTIVE,
                 )
             )
             .order_by(asc(Contact.created_at))
@@ -130,7 +153,7 @@ async def fetch_incoming_invitations(db: AsyncSession, winger_id: Sqid) -> list[
             .where(
                 and_(
                     Contact.winger_id == winger_id,
-                    Contact.wingperson_status == WingpersonStatus.INVITED,
+                    Contact.state == WingpersonStatus.INVITED,
                 )
             )
             .order_by(desc(Contact.created_at))
@@ -157,7 +180,7 @@ async def fetch_sent_invitations(db: AsyncSession, dater_id: Sqid) -> list[SentI
             .where(
                 and_(
                     Contact.user_id == dater_id,
-                    Contact.wingperson_status == WingpersonStatus.INVITED,
+                    Contact.state == WingpersonStatus.INVITED,
                 )
             )
             .order_by(desc(Contact.created_at))
@@ -193,7 +216,7 @@ async def fetch_winging_for(db: AsyncSession, winger_id: Sqid) -> list[WingingFo
             .where(
                 and_(
                     Contact.winger_id == winger_id,
-                    Contact.wingperson_status == WingpersonStatus.ACTIVE,
+                    Contact.state == WingpersonStatus.ACTIVE,
                 )
             )
             .order_by(asc(Contact.created_at))
@@ -232,7 +255,7 @@ async def fetch_winging_for_tabs(db: AsyncSession, winger_id: Sqid) -> list[Wing
             .where(
                 and_(
                     Contact.winger_id == winger_id,
-                    Contact.wingperson_status == WingpersonStatus.ACTIVE,
+                    Contact.state == WingpersonStatus.ACTIVE,
                 )
             )
             .order_by(desc(Contact.created_at))
@@ -291,3 +314,23 @@ async def find_profile_id_by_phone(db: AsyncSession, phone_number: str) -> Sqid 
     return (
         await db.execute(select(Profile.id).where(Profile.phone_number == phone_number).limit(1))
     ).scalar_one_or_none()
+
+
+async def has_live_contact(db: AsyncSession, user_id: Sqid, phone_number: str) -> bool:
+    """True if this dater already has a non-removed contact for that phone number.
+
+    Guards the invite action against creating a duplicate wingperson row. A
+    `removed` contact does not count — re-inviting a removed wingperson is allowed.
+    """
+    contact_id = (
+        await db.execute(
+            select(Contact.id)
+            .where(
+                Contact.user_id == user_id,
+                Contact.phone_number == phone_number,
+                Contact.state != WingpersonStatus.REMOVED,
+            )
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    return contact_id is not None

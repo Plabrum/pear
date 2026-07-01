@@ -1,14 +1,13 @@
 import { useState } from 'react';
-import { StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
 
-import { colors } from '@/constants/theme';
 import { View, Text, ScrollView, SafeAreaView } from '@/lib/tw';
 import { TextTabBar } from '@/components/ui/TextTabBar';
 import { FaceAvatar } from '@/components/ui/FaceAvatar';
+import { Card } from '@/components/ui/Card';
 import ScreenSuspense from '@/components/ui/ScreenSuspense';
 import { cn } from '@/lib/cn';
-import { getPhotoUrl } from '@/lib/photos';
+import { relativeTime } from '@/lib/time';
 import { useGetApiDecisionsMySuggestionsSuspense } from '@/lib/api/generated/decisions/decisions';
 import { useGetApiPhotosSuggestedSuspense } from '@/lib/api/generated/photos/photos';
 import { useGetApiPromptResponsesMeSuspense } from '@/lib/api/generated/prompts/prompts';
@@ -17,24 +16,6 @@ import type {
   SuggestedPhoto,
   AuthoredPromptResponse,
 } from '@/lib/api/generated/model';
-
-function formatRelativeTime(iso: string): string {
-  const then = new Date(iso.replace(' ', 'T')).getTime();
-  if (Number.isNaN(then)) return '';
-  const diffMs = Date.now() - then;
-  const minutes = Math.round(diffMs / 60_000);
-  if (minutes < 1) return 'just now';
-  if (minutes < 60) return `${minutes}m`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours}h`;
-  const days = Math.round(hours / 24);
-  if (days === 1) return 'yesterday';
-  if (days < 7) return `${days}d`;
-  if (days < 14) return '1w';
-  const weeks = Math.round(days / 7);
-  if (weeks < 5) return `${weeks}w`;
-  return `${Math.round(days / 30)}mo`;
-}
 
 type PillVariant = 'positive' | 'neutral' | 'muted';
 
@@ -112,27 +93,17 @@ function promptPill(status: AuthoredPromptResponse['status']): {
   }
 }
 
-function Card({ children, muted }: { children: React.ReactNode; muted?: boolean }) {
+function ActivityCard({ children, muted }: { children: React.ReactNode; muted?: boolean }) {
   return (
-    <View
-      className="bg-white rounded-2xl px-3.5 py-3"
-      style={{
-        borderWidth: StyleSheet.hairlineWidth,
-        borderColor: colors.divider,
-        opacity: muted ? 0.55 : 1,
-      }}
-    >
+    <Card className="px-3.5 py-3" style={muted ? { opacity: 0.55 } : undefined}>
       {children}
-    </View>
+    </Card>
   );
 }
 
 function EmptyState({ message }: { message: string }) {
   return (
-    <View
-      className="mt-2 p-5 rounded-2xl bg-accent-muted"
-      style={{ borderWidth: 1, borderColor: 'rgba(90,140,58,0.13)' }}
-    >
+    <View className="mt-2 p-5 rounded-2xl bg-accent-muted border border-leaf-soft">
       <Text className="text-xs uppercase mb-2 text-primary" style={{ letterSpacing: 1.4 }}>
         Nothing yet
       </Text>
@@ -158,7 +129,7 @@ function PeopleTab() {
       {data.map((item: MySuggestion) => {
         const meta = peopleMeta(item);
         return (
-          <Card key={item.id} muted={item.status === 'not_accepted'}>
+          <ActivityCard key={item.id} muted={item.status === 'not_accepted'}>
             <View className="flex-row gap-3 items-start">
               <FaceAvatar name={item.daterName} size={40} />
               <View className="flex-1">
@@ -168,14 +139,14 @@ function PeopleTab() {
                     <Text className="text-fg-muted">{` · ${item.suggestedName}`}</Text>
                   </Text>
                   <Text className="text-xs text-fg-subtle ml-3">
-                    {formatRelativeTime(item.createdAt)}
+                    {relativeTime(item.createdAt)}
                   </Text>
                 </View>
                 <Text className="text-sm mt-0.5 text-fg-muted">{meta.message}</Text>
                 <StatusPill label={meta.label} variant={meta.variant} />
               </View>
             </View>
-          </Card>
+          </ActivityCard>
         );
       })}
     </View>
@@ -193,9 +164,9 @@ function PhotosTab() {
     <View style={{ gap: 8 }}>
       {data.map((item: SuggestedPhoto) => {
         const meta = photoMeta(item);
-        const photoUrl = getPhotoUrl(item.storageUrl);
+        const photoUrl = item.storageUrl;
         return (
-          <Card key={item.id} muted={item.status === 'not_accepted'}>
+          <ActivityCard key={item.id} muted={item.status === 'not_accepted'}>
             <View className="flex-row gap-3 items-start">
               {photoUrl ? (
                 <Image
@@ -216,14 +187,14 @@ function PhotosTab() {
                     </Text>
                   </View>
                   <Text className="text-xs text-fg-subtle ml-3">
-                    {formatRelativeTime(item.createdAt)}
+                    {relativeTime(item.createdAt)}
                   </Text>
                 </View>
                 <Text className="text-sm mt-0.5 text-fg-muted">{meta.message}</Text>
                 <StatusPill label={meta.label} variant={meta.variant} />
               </View>
             </View>
-          </Card>
+          </ActivityCard>
         );
       })}
     </View>
@@ -242,7 +213,7 @@ function PromptsTab() {
       {data.map((item: AuthoredPromptResponse) => {
         const pill = promptPill(item.status);
         return (
-          <Card key={item.id} muted={item.status === 'not_accepted'}>
+          <ActivityCard key={item.id} muted={item.status === 'not_accepted'}>
             <View className="flex-row gap-3 items-start">
               <FaceAvatar name={item.daterName} size={40} />
               <View className="flex-row justify-between items-start flex-1">
@@ -257,11 +228,11 @@ function PromptsTab() {
                   <StatusPill {...pill} />
                 </View>
                 <Text className="text-xs text-fg-subtle ml-3 mt-0.5">
-                  {formatRelativeTime(item.createdAt)}
+                  {relativeTime(item.createdAt)}
                 </Text>
               </View>
             </View>
-          </Card>
+          </ActivityCard>
         );
       })}
     </View>

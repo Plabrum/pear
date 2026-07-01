@@ -3,12 +3,19 @@ from datetime import datetime
 import sqlalchemy as sa
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.platform.base.models import BaseDBModel
-from app.platform.base.rls_mixins import WingpersonScopedMixin
+from app.domain.photos.enums import PhotoApprovalState
+from app.platform.base.rls import Authenticated, OwnerOrWinger, RLSScopedMixin
+from app.platform.state_machine.models import StateMachineMixin
 from app.utils.sqids import Sqid, SqidType
 
 
-class ProfilePhoto(BaseDBModel, WingpersonScopedMixin, owner_column="owner_id"):
+class ProfilePhoto(
+    StateMachineMixin(state_enum=PhotoApprovalState, initial_state=PhotoApprovalState.PENDING),
+    # Read floor coarsened to "any authenticated actor" (discover/matches render
+    # other daters' photos); approval/active filtering lives in the app query layer.
+    # Writes stay owner + active wingperson (the dater's winger curates photos).
+    RLSScopedMixin(read=Authenticated, edit=OwnerOrWinger("owner_id")),
+):
     __tablename__ = "profile_photos"
 
     # SQL: not null references dating_profiles(id) on delete cascade
@@ -40,9 +47,10 @@ class ProfilePhoto(BaseDBModel, WingpersonScopedMixin, owner_column="owner_id"):
         nullable=False,
     )
     display_order: Mapped[int] = mapped_column(sa.Integer, nullable=False)
-    # null = pending approval
+    # Approval truth lives in `state` (PENDING|APPROVED|REJECTED, via StateMachineMixin).
+    # These stay as AUDIT timestamps written by the state machine's on_enter hooks —
+    # "when was this approved/rejected" for display — not the source of approval.
     approved_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True), nullable=True)
-    # non-null = winger-suggested photo rejected by the dater
     rejected_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True), nullable=True)
 
     __table_args__ = (

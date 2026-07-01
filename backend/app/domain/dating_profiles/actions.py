@@ -12,15 +12,14 @@ from app.domain.dating_profiles.schemas import (
     ReportActionData,
     SuggestActionData,
 )
-from app.domain.decisions.enums import DecisionType
+from app.domain.decisions.enums import DecisionState
 from app.domain.decisions.queries import (
-    both_sides_approved,
+    apply_dater_decision,
     dater_push_and_winger_name,
-    find_mutual_match,
+    form_match_if_mutual,
     insert_wing_suggestion,
-    upsert_direct_decision,
 )
-from app.domain.reports.queries import insert_report, upsert_decline_decision
+from app.domain.reports.queries import insert_report
 from app.platform.actions.base import (
     BaseObjectAction,
     EmptyActionData,
@@ -33,23 +32,8 @@ from app.platform.auth.principal import User
 from app.platform.queue.enums import TaskName
 from app.platform.queue.transactions import dispatch_task
 from app.platform.state_machine.roles import Role
-from app.utils.sqids import Sqid
 
 SUGGESTION_PUSH_TITLE = "New profile suggestion 👀"
-
-
-async def _is_fresh_mutual(transaction: AsyncSession, user_a: Sqid, user_b: Sqid) -> bool:
-    """True when the pair just became mutually approved and no match exists yet.
-
-    Read under the caller's OWN RLS scope: the Like actor is the actor of
-    (me -> target) and the recipient of (target -> me), so `decisions_select`
-    exposes both directions; `matches_select` exposes any existing pair match. This
-    is purely the client-overlay signal — the match row itself is formed by the
-    FORM_MATCH task (system mode), never in this request.
-    """
-    if await find_mutual_match(transaction, user_a, user_b) is not None:
-        return False
-    return await both_sides_approved(transaction, user_a, user_b)
 
 
 # ── Action keys + group ────────────────────────────────────────────────────────
@@ -75,12 +59,13 @@ dating_profile_swipe_actions = action_group_factory(
 
 @dating_profile_swipe_actions
 class Like(BaseObjectAction[DatingProfile, EmptyActionData]):
-    """A dater likes the target dating profile (upsert approved + match signal).
+    """A dater likes the target dating profile (upsert approved + form match).
 
     Absorbs the former act-on-suggestion path: the upsert lands on the winger's
     pending row when one exists (preserving `suggested_by`), else creates a fresh
-    row. Match formation itself is deferred to the FORM_MATCH task (system mode);
-    this action only enqueues it and reports the overlay signal to the client.
+    row. When the like completes a mutual pair the match row is formed IN-REQUEST
+    (gated by the `matches_insert` RLS floor), so the action returns the real match
+    id; the "It's a Match!" push is enqueued (off the request hot path).
     """
 
     action_key: ClassVar[DatingProfileActionKey] = DatingProfileActionKey.LIKE
@@ -103,24 +88,25 @@ class Like(BaseObjectAction[DatingProfile, EmptyActionData]):
     ) -> ActionExecutionResponse:
         actor_id = user.id
         recipient_id = obj.user_id
-        # Upsert the actor's OWN decision under their RLS scope (lands on a winger's
-        # pending row when one exists, preserving `suggested_by`).
-        await upsert_direct_decision(transaction, actor_id, recipient_id, DecisionType.APPROVED)
+        # Apply the actor's OWN decision under their RLS scope (transitions a winger's
+        # pending row when one exists, preserving `suggested_by`; else creates it).
+        await apply_dater_decision(transaction, deps.state_machine_service, user, recipient_id, DecisionState.APPROVED)
 
-        # Detect mutual under the actor's OWN scope purely for the client overlay
-        # signal; the match row is formed by the FORM_MATCH task (system mode),
-        # enqueued after this decision commits so the task sees it.
-        fresh_match = await _is_fresh_mutual(transaction, actor_id, recipient_id)
-        if fresh_match:
+        # Form the match in-request via the guarded `INSERT ... SELECT WHERE mutual`.
+        # Returns the real id only when THIS like completed the pair (None otherwise),
+        # so the client shows the overlay AND navigates to a thread that exists.
+        match_id = await form_match_if_mutual(transaction, actor_id, recipient_id)
+        if match_id is not None:
+            # Side effect only — the row already exists; the task just pushes both sides.
             await dispatch_task(
                 transaction,
                 deps.request,
-                TaskName.FORM_MATCH,
-                actor_id=int(actor_id),
-                recipient_id=int(recipient_id),
+                TaskName.NOTIFY_MATCH,
+                user_a_id=int(actor_id),
+                user_b_id=int(recipient_id),
             )
         return ActionExecutionResponse(
-            message="It's a match!" if fresh_match else "Liked",
+            message="It's a match!" if match_id is not None else "Liked",
             invalidate_queries=[
                 "/decisions",
                 "/winger-tabs",
@@ -128,10 +114,8 @@ class Like(BaseObjectAction[DatingProfile, EmptyActionData]):
                 "/conversations",
                 "/dating-profiles/me",
             ],
-            # Non-null => the client shows the match overlay. The real match id is
-            # not known here (the task creates the row); a sentinel preserves the
-            # existing `created_id != null` contract without forging a match row.
-            created_id=Sqid(0) if fresh_match else None,
+            # The real match id (non-null => client shows the overlay and opens the thread).
+            created_id=match_id,
         )
 
 
@@ -159,7 +143,7 @@ class Pass(BaseObjectAction[DatingProfile, EmptyActionData]):
         user: User,
         deps: ActionDeps,
     ) -> ActionExecutionResponse:
-        await upsert_direct_decision(transaction, user.id, obj.user_id, DecisionType.DECLINED)
+        await apply_dater_decision(transaction, deps.state_machine_service, user, obj.user_id, DecisionState.DECLINED)
         return ActionExecutionResponse(
             message="Passed",
             invalidate_queries=["/decisions", "/winger-tabs", "/dating-profiles/me"],
@@ -218,7 +202,7 @@ class Suggest(BaseObjectAction[DatingProfile, SuggestActionData]):
             recipient_id,
             winger_id,
             data.note,
-            None,
+            DecisionState.PENDING,
         )
 
         # Notify only on a genuinely new suggestion — a no-op conflict (the pair was
@@ -277,7 +261,7 @@ class DeclineForDater(BaseObjectAction[DatingProfile, DeclineForDaterData]):
             recipient_id,
             winger_id,
             None,
-            DecisionType.DECLINED,
+            DecisionState.DECLINED,
         )
 
         return ActionExecutionResponse(
@@ -319,7 +303,9 @@ class Report(BaseObjectAction[DatingProfile, ReportActionData]):
         reporter_id = user.id
         reported_id = obj.user_id
         await insert_report(transaction, reporter_id, reported_id, data.reason)
-        await upsert_decline_decision(transaction, reporter_id, reported_id)
+        # Block: ensure a DECLINED decision exists so the reported profile leaves the
+        # reporter's queue — create it, or transition any prior like/pending row.
+        await apply_dater_decision(transaction, deps.state_machine_service, user, reported_id, DecisionState.DECLINED)
         return ActionExecutionResponse(
             message="Report filed",
             invalidate_queries=[

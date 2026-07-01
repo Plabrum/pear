@@ -3,7 +3,7 @@ import { Image, Platform, StyleSheet } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
-import { useWingSwipe } from '@/hooks/use-wing-swipe';
+import { useSwipeDeck } from '@/hooks/use-swipe-deck';
 import { View, Text, Pressable, ScrollView, SafeAreaView } from '@/lib/tw';
 import { FaceAvatar } from '@/components/ui/FaceAvatar';
 import { Pill } from '@/components/ui/Pill';
@@ -11,17 +11,10 @@ import { ForwardSheet } from '@/components/ui/ForwardSheet';
 import { NoteModal } from '@/components/ui/NoteModal';
 import { useGetApiProfilesUserIdSuspense } from '@/lib/api/generated/profiles/profiles';
 import type { SwipeProfile } from '@/lib/api/generated/model';
-import { useGetApiDatingProfilesSwipeSuspense } from '@/lib/api/generated/dating-profiles/dating-profiles';
 import { useGetApiWingpeopleSuspense } from '@/lib/api/generated/contacts/contacts';
 import ScreenSuspense from '@/components/ui/ScreenSuspense';
 import { cardButtonShadow } from '@/lib/styles';
-
-const PAGE_SIZE = 20;
-
-const INK = '#1F1B16';
-const INK2 = '#4A4338';
-const PAPER = '#FBF8F1';
-const LINE = 'rgba(31,27,22,0.10)';
+import { colors } from '@/constants/theme';
 
 // ── WingCardEditorial ────────────────────────────────────────────────────────
 
@@ -41,7 +34,7 @@ function WingCardEditorial({
         borderRadius: 22,
         overflow: 'hidden',
         borderWidth: 1,
-        borderColor: LINE,
+        borderColor: colors.divider,
         ...Platform.select({
           ios: {
             shadowColor: '#000',
@@ -127,13 +120,13 @@ function WingCardEditorial({
               aspectRatio: 3 / 4,
               borderRadius: 12,
               overflow: 'hidden',
-              backgroundColor: '#ebebf0',
+              backgroundColor: colors.muted,
             }}
           >
             {card.firstPhoto != null && (
               <Image
                 source={{ uri: card.firstPhoto }}
-                style={StyleSheet.absoluteFillObject}
+                style={StyleSheet.absoluteFill}
                 resizeMode="cover"
               />
             )}
@@ -194,29 +187,35 @@ function WingSwipeContent() {
   const { daterId } = useLocalSearchParams<{ daterId: string }>();
 
   const { data: daterContext } = useGetApiProfilesUserIdSuspense(daterId);
-  const { data: initialPool } = useGetApiDatingProfilesSwipeSuspense({
-    daterId,
-    pageSize: PAGE_SIZE,
-    pageOffset: 0,
-  });
 
-  const { pool, index, suggest, decline } = useWingSwipe(daterId, initialPool);
+  // daterId scopes the feed and is injected into every action body (formContext).
+  const deck = useSwipeDeck({
+    params: { daterId },
+    actionGroup: 'dating_profile_swipe_actions',
+    formContext: { daterId },
+  });
+  const card = deck.currentCard;
+  const remaining = deck.remaining;
   const { data: wingpeopleData } = useGetApiWingpeopleSuspense();
-  const card = pool[index] ?? null;
 
   const daterName = daterContext?.chosenName ?? '';
   const firstName = daterName.split(' ')[0] || daterName;
-  const remaining = Math.max(pool.length - index, 0);
 
   const forwardTargets = wingpeopleData.wingingFor.filter((r) => r.dater?.id !== daterId);
 
   const [noteVisible, setNoteVisible] = useState(false);
   const [forwardOpen, setForwardOpen] = useState(false);
 
+  // Suggest targets the DatingProfile (profileId); daterId comes from formContext.
   async function handleSuggest(note: string | null) {
     setNoteVisible(false);
-    await suggest(note);
+    if (card) await deck.run(card, 'suggest', { note });
   }
+
+  // Fire-and-forget — no rollback (matches prior behavior).
+  const decline = () => {
+    if (card) void deck.run(card, 'decline', undefined, { rollback: false });
+  };
 
   return (
     <>
@@ -229,7 +228,7 @@ function WingSwipeContent() {
           paddingTop: 8,
           paddingBottom: 12,
           borderBottomWidth: 1,
-          borderBottomColor: LINE,
+          borderBottomColor: colors.divider,
         }}
       >
         <Pressable
@@ -237,7 +236,7 @@ function WingSwipeContent() {
           hitSlop={12}
           style={{ padding: 8, marginLeft: -4 }}
         >
-          <Ionicons name="chevron-back" size={22} color={INK} />
+          <Ionicons name="chevron-back" size={22} color={colors.ink} />
         </Pressable>
         <FaceAvatar name={daterName || '?'} size={32} photoUri={daterContext?.avatarUrl ?? null} />
         <View style={{ flex: 1 }}>
@@ -277,7 +276,7 @@ function WingSwipeContent() {
                   justifyContent: 'center',
                 }}
               >
-                <Ionicons name="arrow-redo-outline" size={16} color={INK2} />
+                <Ionicons name="arrow-redo-outline" size={16} color={colors.inkMid} />
               </Pressable>
             )}
           </>
@@ -318,14 +317,14 @@ function WingSwipeContent() {
                 height: 60,
                 borderRadius: 30,
                 borderWidth: 1,
-                borderColor: LINE,
+                borderColor: colors.divider,
                 alignItems: 'center',
                 justifyContent: 'center',
               },
               cardButtonShadow,
             ]}
           >
-            <Ionicons name="close" size={24} color={INK2} />
+            <Ionicons name="close" size={24} color={colors.inkMid} />
           </Pressable>
           <Pressable
             onPress={() => setNoteVisible(true)}
@@ -341,7 +340,7 @@ function WingSwipeContent() {
               cardButtonShadow,
             ]}
           >
-            <Ionicons name="heart" size={24} color={PAPER} />
+            <Ionicons name="heart" size={24} color={colors.white} />
           </Pressable>
         </View>
       )}

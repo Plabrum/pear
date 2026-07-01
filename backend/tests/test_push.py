@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.dating_profiles.actions import Like
-from app.domain.decisions.enums import DecisionType
+from app.domain.decisions.enums import DecisionState
 from app.domain.decisions.models import Decision
 from app.domain.profiles.models import Profile
 from app.platform.actions.base import EmptyActionData
@@ -290,16 +290,16 @@ async def test_match_action_fires_push(graph: DomainGraph, db_session: AsyncSess
         Decision(
             actor_id=graph.dater_c.id,
             recipient_id=graph.dater_a.id,
-            decision=DecisionType.APPROVED,
+            state=DecisionState.APPROVED,
         )
     )
     await db_session.flush()
 
     deps = _deps(db_session, user_id=graph.dater_a.id)
-    # The match push now fires inside the FORM_MATCH task (system mode), which the
-    # Like enqueues and QUEUE_SYNC=1 runs inline. The task builds its own push
-    # client (no ctx-injected one in sync dispatch), so patch the builder to assert
-    # the fan-out. dater_a liking dater_c's profile makes the pair mutual.
+    # The match push fires inside the NOTIFY_MATCH task (system mode), which the Like
+    # enqueues after forming the match in-request; QUEUE_SYNC=1 runs it inline. The
+    # task builds its own push client (no ctx-injected one in sync dispatch), so patch
+    # the builder to assert the fan-out. dater_a liking dater_c makes the pair mutual.
     client = MagicMock()
     client.send = AsyncMock(return_value=PushSendResult(delivered=True))
     with patch("app.domain.decisions.tasks.build_push_client", return_value=client):

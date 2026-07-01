@@ -2,7 +2,7 @@
 
 ## What This App Is
 
-Pear (package `hane`, slug `wingmate`) is an iOS dating app. Two roles:
+Pear (package `pear`, slug `wingmate`) is an iOS dating app. Two roles:
 
 - **Dater** — browses profiles, swipes, chats with matches.
 - **Winger** — a trusted friend who swipes on behalf of a dater.

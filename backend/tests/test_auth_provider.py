@@ -148,7 +148,7 @@ async def auth_app(
             await db_session.execute(text("SET LOCAL app.is_system_mode = false"))
             if principal is not None:
                 # Authenticated request (/me, /logout): scope to the session user.
-                await db_session.execute(text(f"SET LOCAL app.user_id = '{principal.id}'"))
+                await db_session.execute(text(f"SET LOCAL app.user_id = {int(principal.id)}"))
             try:
                 yield db_session
             finally:
@@ -426,7 +426,11 @@ async def test_me_with_session_returns_user(auth_app: AsyncTestClient) -> None:
     login = (await _magic_login(auth_app, "me-valid@example.com")).json()
     resp = await auth_app.get("/auth/me")
     assert resp.status_code == 200, resp.text
-    assert resp.json()["user"]["id"] == login["id"]
+    body = resp.json()
+    assert body["user"]["id"] == login["id"]
+    # A freshly-bootstrapped user has no dating profile yet — the gate uses this
+    # to route into onboarding.
+    assert body["hasDatingProfile"] is False
 
 
 async def test_me_without_session_rejected(auth_app: AsyncTestClient) -> None:

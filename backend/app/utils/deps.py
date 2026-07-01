@@ -26,52 +26,46 @@ def get_dependencies() -> dict[str, Any]:
     return dict(_registry)
 
 
-@dep("transaction")
-async def provide_transaction(db_session: AsyncSession, request: Request) -> AsyncGenerator[AsyncSession]:
-    """Provide a request-scoped DB transaction with RLS session variables set.
-
-    Pear has no organization concept — scope is relationship-based (dater <-> winger
-    <-> match), so only `app.user_id` is set, sourced from the authenticated user's id.
+@asynccontextmanager
+async def rls_transaction(db_session: AsyncSession, *, user_id: int | None) -> AsyncGenerator[AsyncSession]:
+    """Open one transaction with Pear's RLS session variables set — the primitive
+    behind every scoped DB unit of work.
 
     The connection already runs as the dedicated NON-superuser `pear_app` role
-    (`ASYNC_DATABASE_URL`), so there is no per-request `SET ROLE`: the role *is* the
-    non-superuser, non-owner role from the moment the connection is opened, and
-    FORCE RLS applies natively. We only set the per-request GUCs:
+    (`ASYNC_DATABASE_URL`), so there is no `SET ROLE`: the role *is* the non-owner
+    role from the moment the connection opens, and FORCE RLS applies natively. We
+    only set the per-tx GUCs — both `SET LOCAL`, so they die with the transaction
+    and cannot leak across pooled connections:
 
-    * `app.user_id` — the authenticated principal's id (an int), put on
-      `request.scope["user"]` by SessionAuth's `retrieve_user_handler` after it
-      rehydrates the principal from the cookie session. `public.current_user_id()`
-      reads it. Unauthenticated requests set none, so RLS fails closed (policies
+    * `app.is_system_mode = false` — the trusted-operation escape, defensively
+      pinned off. Only the first-login bootstrap and system/worker jobs set it true.
+    * `app.user_id` — the actor `public.current_user_id()` reads. `user_id=None`
+      (an unauthenticated request) sets none, so RLS fails closed (policies
       comparing against `current_user_id()` deny).
-    * `app.is_system_mode = false` — defensively pinned off for ordinary requests.
-      Only the `AuthService` first-login bootstrap and system/worker jobs ever set
-      it true. `SET LOCAL` is transaction-scoped, so it cannot leak across pooled
-      connections; this is belt-and-suspenders against a stale GUC.
-    """
-    async with db_session.begin():
-        # Trusted-operation escape is OFF for ordinary requests (tx-scoped).
-        await db_session.execute(text("SET LOCAL app.is_system_mode = false"))
-        if request.scope.get("user") is not None:
-            # `request.user.id` is the authenticated principal's id (an int).
-            user_id = int(request.user.id)
-            await db_session.execute(text(f"SET LOCAL app.user_id = {user_id}"))
-        yield db_session
 
-
-@asynccontextmanager
-async def rls_transaction(db_session: AsyncSession, *, user_id: int) -> AsyncGenerator[AsyncSession]:
-    """Short-lived RLS-scoped transaction for long-running handlers (e.g. WebSockets).
-
-    The request-scoped `transaction` dep wraps the entire request in a single
-    `db_session.begin()` context. Long-lived handlers run for minutes and would
-    either hold one transaction open the whole time or break that context manager
-    by committing inside. Use this helper to wrap each unit of work in its own
-    short-lived transaction with the RLS session variables set.
-
-    Like `provide_transaction`, the connection is already the non-superuser
-    `pear_app` role, so no `SET ROLE` is needed — just the per-tx GUCs.
+    Used directly by long-lived handlers (e.g. WebSockets) that outlive a single
+    transaction: a socket runs for minutes and would either hold one transaction
+    open the whole time or break the request-scoped context manager by committing
+    inside, so it wraps each unit of work in its own short-lived `rls_transaction`.
     """
     async with db_session.begin():
         await db_session.execute(text("SET LOCAL app.is_system_mode = false"))
-        await db_session.execute(text(f"SET LOCAL app.user_id = {int(user_id)}"))
+        if user_id is not None:
+            await db_session.execute(text(f"SET LOCAL app.user_id = {int(user_id)}"))
         yield db_session
+
+
+@dep("transaction")
+async def provide_transaction(db_session: AsyncSession, request: Request) -> AsyncGenerator[AsyncSession]:
+    """Request-scoped application of `rls_transaction`: one transaction per request,
+    scoped to the authenticated principal.
+
+    Pear has no organization concept — scope is relationship-based (dater <-> winger
+    <-> match), so the only actor is `app.user_id`, sourced from the principal that
+    SessionAuth's `retrieve_user_handler` put on `request.scope["user"]` after
+    rehydrating it from the cookie session. Unauthenticated requests (login,
+    magic-link) have no principal, so the actor is None and RLS fails closed.
+    """
+    user_id = int(request.user.id) if request.scope.get("user") is not None else None
+    async with rls_transaction(db_session, user_id=user_id) as tx:
+        yield tx

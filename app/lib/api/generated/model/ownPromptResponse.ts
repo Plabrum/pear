@@ -5,13 +5,14 @@
  * OpenAPI spec version: 1.0.0
  */
 import type { ActionDTO } from './actionDTO';
+import type { ApprovalState } from './approvalState';
 import type { ProfilesSchemasPromptResponseAuthor } from './profilesSchemasPromptResponseAuthor';
 
 export interface OwnPromptResponse {
   /** SQID-encoded identifier */
   id: string;
   message: string;
-  isApproved: boolean;
+  status: ApprovalState;
   /** SQID-encoded identifier */
   userId: string;
   createdAt: string;

@@ -1,10 +1,9 @@
-import { Modal, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
-import { toast } from 'sonner-native';
+import { toastError } from '@/lib/api/error-toast';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/context/auth';
 import {
@@ -13,15 +12,19 @@ import {
   getGetApiDatingProfilesMeQueryKey,
   getGetApiProfilesMeQueryKey,
 } from '@/lib/api/generated/profiles/profiles';
-import { updateDatingProfile } from '@/lib/api/actions';
+import { switchToWinger, switchToDater, pauseDating, resumeDating } from '@/lib/api/actions';
 import { useGetApiWingpeopleSuspense } from '@/lib/api/generated/contacts/contacts';
+import { authMeQueryKey } from '@/lib/auth-session';
 import { View, Text, ScrollView, Pressable, SafeAreaView } from '@/lib/tw';
+import { Sheet } from '@/components/ui/Sheet';
 import ScreenSuspense from '@/components/ui/ScreenSuspense';
+import { SectionLabel } from '@/components/ui/SectionLabel';
+import { colors } from '@/constants/theme';
 
-const INK = '#1F1B16';
-const INK3 = '#8B8170';
-const LINE = 'rgba(31,27,22,0.10)';
-const DANGER = '#A33';
+const INK = colors.ink;
+const INK3 = colors.inkDim;
+const LINE = colors.divider;
+const DANGER = colors.passRed;
 
 const STATUS_OPTIONS = [
   { label: 'Open to Dating', value: 'open' as const },
@@ -32,26 +35,6 @@ const STATUS_OPTIONS = [
 const STATUS_LABEL: Record<string, string> = Object.fromEntries(
   STATUS_OPTIONS.map((o) => [o.value, o.label])
 );
-
-function SectionLabel({ children }: { children: string }) {
-  if (!children) return <View style={{ height: 8 }} />;
-  return (
-    <Text
-      className="text-ink-dim"
-      style={{
-        fontSize: 11,
-        letterSpacing: 1.2,
-        textTransform: 'uppercase',
-        fontWeight: '600',
-        paddingHorizontal: 24,
-        paddingTop: 18,
-        paddingBottom: 8,
-      }}
-    >
-      {children}
-    </Text>
-  );
-}
 
 type RowProps = {
   label: string;
@@ -96,7 +79,9 @@ function Row({ label, detail, danger, last, onPress }: RowProps) {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <View style={{ marginBottom: 22 }}>
-      <SectionLabel>{title}</SectionLabel>
+      <SectionLabel style={{ letterSpacing: 1.2, paddingHorizontal: 24, paddingTop: 18 }}>
+        {title}
+      </SectionLabel>
       <View
         className="bg-surface"
         style={{
@@ -117,7 +102,6 @@ function SettingsScreenInner() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { signOut } = useAuth();
-  const insets = useSafeAreaInsets();
 
   const { data: profile } = useGetApiProfilesMeSuspense();
   const { data: datingProfile } = useGetApiDatingProfilesMeSuspense();
@@ -128,25 +112,54 @@ function SettingsScreenInner() {
   const wingCount = wingpeopleData.wingpeople.length;
   const phoneDetail = profile?.phoneNumber ?? undefined;
 
-  const currentStatus =
-    datingProfile?.datingStatus ?? (profile?.role === 'winger' ? 'winging' : undefined);
+  // "Winging" is no longer a dating_status — it's role === winger. Project the two
+  // independent lifecycles (profile role + dating status) back onto the 3-way UI.
+  const isWinger = profile?.role === 'winger';
+  const currentStatus = isWinger ? 'winging' : datingProfile?.datingStatus;
   const statusDetail = currentStatus ? STATUS_LABEL[currentStatus] : undefined;
 
   const updateStatus = useMutation({
-    mutationFn: (datingStatus: 'open' | 'break' | 'winging') => {
-      if (!datingProfile) throw new Error('No dating profile');
-      return updateDatingProfile(datingProfile.id, { datingStatus });
+    // Returns whether the profile role (and therefore the tab shell) changed, so
+    // onSuccess can dismiss Settings and drop the user into the new shell.
+    mutationFn: async (target: 'open' | 'break' | 'winging'): Promise<{ roleChanged: boolean }> => {
+      if (!profile) throw new Error('No profile');
+      if (target === 'winging') {
+        if (!isWinger) {
+          await switchToWinger(profile.id);
+          return { roleChanged: true };
+        }
+        return { roleChanged: false };
+      }
+      // target is open|break — first leave winger mode, then set the dating status.
+      const roleChanged = isWinger;
+      if (isWinger) await switchToDater(profile.id);
+      if (datingProfile) {
+        if (target === 'break' && datingProfile.datingStatus !== 'break') {
+          await pauseDating(datingProfile.id);
+        }
+        if (target === 'open' && datingProfile.datingStatus !== 'open') {
+          await resumeDating(datingProfile.id);
+        }
+      }
+      return { roleChanged };
     },
-    onSuccess: () => {
+    onSuccess: ({ roleChanged }) => {
       queryClient.invalidateQueries({ queryKey: getGetApiDatingProfilesMeQueryKey() });
       queryClient.invalidateQueries({ queryKey: getGetApiProfilesMeQueryKey() });
+      // Refetch the session so the routing gate re-evaluates role and flips the
+      // tab shell (dater ↔ winger) immediately.
+      queryClient.invalidateQueries({ queryKey: authMeQueryKey });
+      // Settings sits on top of the tab shell as a root route, so a role switch
+      // swaps the shell underneath without the user seeing it. Dismiss Settings
+      // so they land in the freshly-swapped tabs.
+      if (roleChanged) router.back();
     },
-    onError: () => toast.error("Couldn't update dating status. Try again."),
+    onError: (err) => toastError(err, "Couldn't update dating status. Try again."),
     onSettled: () => setStatusPickerVisible(false),
   });
 
   const handleSelectStatus = (value: 'open' | 'break' | 'winging') => {
-    if (!datingProfile || value === datingProfile.datingStatus) {
+    if (value === currentStatus) {
       setStatusPickerVisible(false);
       return;
     }
@@ -155,7 +168,7 @@ function SettingsScreenInner() {
 
   const handleLogOut = async () => {
     const { error } = await signOut();
-    if (error) toast.error('Could not log out. Please try again.');
+    if (error) toastError(error, 'Could not log out. Please try again.');
   };
 
   return (
@@ -192,78 +205,41 @@ function SettingsScreenInner() {
         </Section>
 
         {/* ── Dating Status Picker ─────────────────────────────────────────────── */}
-        <Modal
+        <Sheet
           visible={statusPickerVisible}
-          animationType="slide"
-          transparent
-          onRequestClose={() => setStatusPickerVisible(false)}
+          onClose={() => setStatusPickerVisible(false)}
+          title="Dating status"
         >
-          <View style={{ flex: 1, backgroundColor: 'rgba(31,27,22,0.45)' }}>
-            <Pressable style={{ flex: 1 }} onPress={() => setStatusPickerVisible(false)} />
-            <View
-              style={{
-                backgroundColor: '#F5F1E8',
-                borderTopLeftRadius: 24,
-                borderTopRightRadius: 24,
-                paddingTop: 14,
-                paddingBottom: insets.bottom + 24,
-              }}
-            >
-              <View
+          {STATUS_OPTIONS.map((opt) => {
+            const selected = currentStatus === opt.value;
+            return (
+              <Pressable
+                key={opt.value}
+                onPress={() => !updateStatus.isPending && handleSelectStatus(opt.value)}
                 style={{
-                  alignSelf: 'center',
-                  width: 40,
-                  height: 4,
-                  borderRadius: 2,
-                  backgroundColor: LINE,
-                  marginBottom: 18,
-                }}
-              />
-              <Text
-                style={{
-                  fontFamily: 'DMSerifDisplay_400Regular',
-                  fontSize: 22,
-                  letterSpacing: -0.3,
-                  color: INK,
-                  paddingHorizontal: 20,
-                  marginBottom: 14,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  paddingVertical: 16,
+                  borderTopWidth: StyleSheet.hairlineWidth,
+                  borderTopColor: LINE,
+                  opacity: updateStatus.isPending ? 0.5 : 1,
                 }}
               >
-                Dating Status
-              </Text>
-              {STATUS_OPTIONS.map((opt) => {
-                const selected = currentStatus === opt.value;
-                return (
-                  <Pressable
-                    key={opt.value}
-                    onPress={() => !updateStatus.isPending && handleSelectStatus(opt.value)}
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      paddingHorizontal: 20,
-                      paddingVertical: 16,
-                      borderTopWidth: StyleSheet.hairlineWidth,
-                      borderTopColor: LINE,
-                      opacity: updateStatus.isPending ? 0.5 : 1,
-                    }}
-                  >
-                    <Text
-                      style={{
-                        flex: 1,
-                        fontSize: 16,
-                        fontWeight: selected ? '600' : '400',
-                        color: selected ? '#5A8C3A' : INK,
-                      }}
-                    >
-                      {opt.label}
-                    </Text>
-                    {selected ? <Ionicons name="checkmark" size={20} color="#5A8C3A" /> : null}
-                  </Pressable>
-                );
-              })}
-            </View>
-          </View>
-        </Modal>
+                <Text
+                  style={{
+                    flex: 1,
+                    fontSize: 16,
+                    fontWeight: selected ? '600' : '400',
+                    color: selected ? colors.leaf : INK,
+                  }}
+                >
+                  {opt.label}
+                </Text>
+                {selected ? <Ionicons name="checkmark" size={20} color={colors.leaf} /> : null}
+              </Pressable>
+            );
+          })}
+        </Sheet>
 
         <Section title="Wingpeople">
           <Row label="Who can suggest profiles" detail="Wingpeople" />

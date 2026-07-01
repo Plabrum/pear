@@ -18,7 +18,7 @@ from app.domain.photos.queries import (
     is_active_wingperson,
 )
 from app.domain.photos.schemas import CreatePhotoData, ReorderPhotoData
-from app.domain.photos.state_machine import derive_state, photo_approval_machine
+from app.domain.photos.state_machine import photo_approval_machine
 from app.platform.actions.base import (
     BaseObjectAction,
     BaseTopLevelAction,
@@ -79,7 +79,9 @@ class CreatePhoto(BaseTopLevelAction[CreatePhotoData]):
             media_id=data.mediaId,
             display_order=data.displayOrder,
             suggester_id=None if is_owner else user.id,
-            # Self-uploads are auto-approved; winger suggestions start pending.
+            # Self-uploads are created already APPROVED; winger suggestions start PENDING.
+            # `approved_at` is the matching audit timestamp for the auto-approved case.
+            state=PhotoApprovalState.APPROVED if is_owner else PhotoApprovalState.PENDING,
             approved_at=datetime.now(tz=UTC) if is_owner else None,
         )
         transaction.add(photo)
@@ -115,7 +117,7 @@ class ApprovePhoto(BaseObjectAction[ProfilePhoto, EmptyActionData]):
     def is_available(cls, obj: ProfilePhoto, user: User, deps: ActionDeps) -> bool:
         # Owner (dater) only, and only while the photo is still pending. Ownership
         # is a flat column compare now that owner_id rides on the row.
-        return derive_state(obj) is PhotoApprovalState.PENDING and obj.owner_id == user.id
+        return obj.state is PhotoApprovalState.PENDING and obj.owner_id == user.id
 
     @classmethod
     async def execute(
@@ -152,7 +154,7 @@ class RejectPhoto(BaseObjectAction[ProfilePhoto, EmptyActionData]):
     @classmethod
     def is_available(cls, obj: ProfilePhoto, user: User, deps: ActionDeps) -> bool:
         # Owner (dater) only, only while pending — flat column compare on owner_id.
-        return derive_state(obj) is PhotoApprovalState.PENDING and obj.owner_id == user.id
+        return obj.state is PhotoApprovalState.PENDING and obj.owner_id == user.id
 
     @classmethod
     async def execute(

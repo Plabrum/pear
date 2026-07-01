@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from sqlalchemy import asc, select
+from sqlalchemy import asc, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.domain.dating_profiles.models import DatingProfile
+from app.domain.photos.enums import PhotoApprovalState
 from app.domain.photos.models import ProfilePhoto
 from app.domain.profiles.models import Profile
 from app.domain.profiles.transformers import PhotoBundle, PromptBundle, ResponseBundle
@@ -16,9 +17,23 @@ async def fetch_profile(db: AsyncSession, user_id: Sqid) -> Profile | None:
     return (await db.execute(select(Profile).where(Profile.id == user_id).limit(1))).scalar_one_or_none()
 
 
-async def fetch_dating_profile_base(db: AsyncSession, user_id: Sqid) -> DatingProfile | None:
+async def fetch_dating_profile_base(db: AsyncSession, user_id: Sqid, *, viewer_id: Sqid) -> DatingProfile | None:
+    """The dating profile for `user_id`, visible to `viewer_id`.
+
+    The RLS floor on `dating_profiles` is coarsened to "any authenticated actor", so
+    the business-visibility gate now lives here: another user's *inactive* profile is
+    hidden. The owner always passes (`user_id == viewer_id`), so own-profile and
+    onboarding callers — which pass the same id as both args — never trip the gate.
+    """
     return (
-        await db.execute(select(DatingProfile).where(DatingProfile.user_id == user_id).limit(1))
+        await db.execute(
+            select(DatingProfile)
+            .where(
+                DatingProfile.user_id == user_id,
+                or_(DatingProfile.is_active.is_(True), DatingProfile.user_id == viewer_id),
+            )
+            .limit(1)
+        )
     ).scalar_one_or_none()
 
 
@@ -34,7 +49,7 @@ async def _fetch_photos(db: AsyncSession, dating_profile_id: Sqid, *, approved_o
         # Storage-RLS "approved-public read" intent: a PUBLIC viewer only ever sees
         # (and gets a presigned URL for) approved photos. The owner's own view
         # (approved_only=False) still shows pending photos in the editor.
-        stmt = stmt.where(ProfilePhoto.approved_at.is_not(None))
+        stmt = stmt.where(ProfilePhoto.state == PhotoApprovalState.APPROVED)
     rows = (await db.execute(stmt)).all()
     return [(photo, name) for photo, name in rows]
 
@@ -72,7 +87,7 @@ async def _fetch_prompts(db: AsyncSession, dating_profile_id: Sqid) -> PromptBun
 async def fetch_own_dating_profile(
     db: AsyncSession, user_id: Sqid
 ) -> tuple[DatingProfile, PhotoBundle, PromptBundle] | None:
-    base = await fetch_dating_profile_base(db, user_id)
+    base = await fetch_dating_profile_base(db, user_id, viewer_id=user_id)
     if base is None:
         return None
     photos = await _fetch_photos(db, base.id)
@@ -81,12 +96,12 @@ async def fetch_own_dating_profile(
 
 
 async def fetch_public_profile(
-    db: AsyncSession, user_id: Sqid
+    db: AsyncSession, user_id: Sqid, viewer_id: Sqid
 ) -> tuple[Profile, DatingProfile | None, PhotoBundle, PromptBundle] | None:
     profile = await fetch_profile(db, user_id)
     if profile is None:
         return None
-    base = await fetch_dating_profile_base(db, user_id)
+    base = await fetch_dating_profile_base(db, user_id, viewer_id=viewer_id)
     if base is None:
         return profile, None, [], []
     # Public viewers only see approved photos (approved-public read intent).

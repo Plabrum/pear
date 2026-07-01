@@ -9,7 +9,6 @@ module.exports = {
     icon: './assets/images/icon.png',
     scheme: 'pear',
     userInterfaceStyle: 'light',
-    newArchEnabled: true,
     ios: {
       supportsTablet: true,
       bundleIdentifier: 'com.plabrum.wingmate',
@@ -37,9 +36,14 @@ module.exports = {
         },
       ],
       '@react-native-community/datetimepicker',
+      'expo-font',
+      'expo-image',
+      'expo-status-bar',
+      'expo-web-browser',
     ],
     experiments: {
       typedRoutes: true,
+      reactCompiler: true,
     },
     extra: {
       router: {},

@@ -2,12 +2,7 @@ import logging
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.domain.decisions.queries import (
-    both_sides_approved,
-    find_mutual_match,
-    push_tokens_for,
-)
-from app.domain.matches.models import Match
+from app.domain.decisions.queries import push_tokens_for
 from app.platform.push.client import build_push_client
 from app.platform.queue.enums import TaskName, TaskRoleType
 from app.platform.queue.registry import task
@@ -21,47 +16,31 @@ MATCH_PUSH_TITLE = "It's a Match! 🎉"
 MATCH_PUSH_BODY = "You have a new match. Say hello!"
 
 
-# NOTE: the function name MUST match TaskName.FORM_MATCH's value ("form_match").
+# NOTE: the function name MUST match TaskName.NOTIFY_MATCH's value ("notify_match").
 # SAQ identifies tasks by __qualname__, which doubles as the pickle re-import path
 # under the `spawn` start method (macOS / Python 3.13). A mismatched name makes the
 # task un-picklable and crashes the SAQ worker on startup.
-@task(TaskName.FORM_MATCH)
+@task(TaskName.NOTIFY_MATCH)
 @with_transaction(role_type=TaskRoleType.SYSTEM)
-async def form_match(
+async def notify_match(
     ctx: AppContext,
     *,
     transaction: AsyncSession,
-    actor_id: Sqid,
-    recipient_id: Sqid,
+    user_a_id: Sqid,
+    user_b_id: Sqid,
 ) -> None:
-    """Idempotently form the match for a mutually-approved pair, then push both sides.
+    """Push the "It's a Match!" notification to both sides of a freshly-formed match.
 
-    Runs under the SYSTEM transaction (`app.is_system_mode = true`), so the
-    `matches_insert` RLS policy (`WITH CHECK (public.is_system_mode())`) is
-    satisfied here — and ONLY here. The Like action enqueues this after its own
-    decision commits; this task re-derives the mutual condition independently:
+    The match row itself is created in-request by the Like action (gated by the
+    `matches_insert` RLS floor); this task only fans the push out, keeping the
+    direct-APNs sends off the request hot path. Enqueued exactly once — by the like
+    that actually formed the row — so there's no double-send to guard against.
 
-      * if a match already joins the pair -> nothing to do (idempotent re-run),
-      * else if both directions are 'approved' -> insert the ordered matches row
-        and notify both users,
-      * else -> a no-op (the second approval hasn't landed; the pair's later like
-        will enqueue this again).
+    Runs under the SYSTEM transaction so it can read both users' push tokens
+    regardless of the actor scope.
     """
-    a = actor_id
-    b = recipient_id
-
-    if await find_mutual_match(transaction, a, b) is not None:
-        return
-    if not await both_sides_approved(transaction, a, b):
-        return
-
-    lo, hi = (a, b) if a < b else (b, a)
-    match = Match(user_a_id=lo, user_b_id=hi)
-    transaction.add(match)
-    await transaction.flush()
-
     # Worker-injected client (set at queue startup); build one if absent (sync dispatch).
     push_client = ctx.get("push_client") or build_push_client(ctx["config"])
-    tokens = await push_tokens_for(transaction, [lo, hi])
+    tokens = await push_tokens_for(transaction, [user_a_id, user_b_id])
     for token in tokens:
         await push_client.send(token, MATCH_PUSH_TITLE, MATCH_PUSH_BODY)

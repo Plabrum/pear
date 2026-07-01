@@ -34,7 +34,6 @@ from app.domain.prompts.schemas import (
     CreateProfilePromptData,
     CreatePromptResponseData,
 )
-from app.domain.prompts.state_machine import adapt
 from app.domain.prompts.transformers import (
     authored_response_to_dto,
     row_to_profile_prompt,
@@ -107,7 +106,7 @@ async def test_get_own_profile_prompts_bundle(graph: DomainGraph, db_session: As
     assert prompt.template.question  # joined template text present
     assert len(prompt.responses) == 1
     resp = prompt.responses[0]
-    assert resp.isApproved is False
+    assert resp.status is ApprovalState.PENDING
     assert resp.author is not None and resp.author.id == graph.winger.id
     assert resp.author.chosenName == graph.winger.chosen_name
 
@@ -154,7 +153,7 @@ async def test_own_profile_prompts_response_actions_drop_approve_when_approved(
 ) -> None:
     # Once approved, the profile owner no longer sees `approve` (gate narrows to
     # pending) but may still delete.
-    graph.prompt_response.is_approved = True
+    graph.prompt_response.state = ApprovalState.APPROVED
     await db_session.flush()
     bundles = await fetch_own_profile_prompts(db_session, graph.dater_a.id)
     deps = _deps(db_session, user_id=graph.dater_a.id)
@@ -179,8 +178,7 @@ async def test_fetch_authored_prompt_responses(graph: DomainGraph, db_session: A
     assert row.dater_id == graph.dater_a.id
     assert row.dater_name == graph.dater_a.chosen_name
     assert row.message == graph.prompt_response.message
-    assert row.is_approved is False
-    assert row.is_rejected is False
+    assert row.state is ApprovalState.PENDING
 
     dto = authored_response_to_dto(row)
     assert dto.daterId == graph.dater_a.id
@@ -201,8 +199,7 @@ async def test_authored_prompt_responses_honors_limit(graph: DomainGraph, db_ses
             profile_owner_id=graph.dater_a.id,
             profile_prompt_id=graph.profile_prompt.id,
             message="another comment",
-            is_approved=False,
-            is_rejected=False,
+            state=ApprovalState.PENDING,
         )
     )
     await db_session.flush()
@@ -211,23 +208,20 @@ async def test_authored_prompt_responses_honors_limit(graph: DomainGraph, db_ses
 
 
 async def test_authored_response_status_matrix(graph: DomainGraph, db_session: AsyncSession) -> None:
-    def _row(is_approved: bool, is_rejected: bool) -> AuthoredResponseRow:
+    def _row(state: ApprovalState) -> AuthoredResponseRow:
         return AuthoredResponseRow(
             id=graph.prompt_response.id,
             dater_id=graph.dater_a.id,
             dater_name="Dana",
             prompt_question="Q?",
             message="hi",
-            is_approved=is_approved,
-            is_rejected=is_rejected,
+            state=state,
             created_at=datetime(2026, 1, 1, tzinfo=UTC),
         )
 
-    # rejected wins over approved.
-    assert authored_response_to_dto(_row(True, True)).status == "not_accepted"
-    assert authored_response_to_dto(_row(False, True)).status == "not_accepted"
-    assert authored_response_to_dto(_row(True, False)).status == "accepted"
-    assert authored_response_to_dto(_row(False, False)).status == "pending"
+    assert authored_response_to_dto(_row(ApprovalState.REJECTED)).status == "not_accepted"
+    assert authored_response_to_dto(_row(ApprovalState.APPROVED)).status == "accepted"
+    assert authored_response_to_dto(_row(ApprovalState.PENDING)).status == "pending"
 
 
 # ── Actions: CreateProfilePrompt ─────────────────────────────────────────────────
@@ -248,7 +242,7 @@ async def test_create_profile_prompt_inserts(graph: DomainGraph, db_session: Asy
 
 async def test_create_profile_prompt_no_dating_profile(db_session: AsyncSession) -> None:
     # A profile with no dating profile -> 404.
-    fresh = ProfileModel(chosen_name="NoDP", role=UserRole.DATER, gender=Gender.FEMALE)
+    fresh = ProfileModel(chosen_name="NoDP", state=UserRole.DATER, gender=Gender.FEMALE)
     db_session.add(fresh)
     await db_session.flush()
     template = (await db_session.execute(select(PromptTemplate).limit(1))).scalar_one()
@@ -299,7 +293,7 @@ async def test_create_prompt_response_as_owner(graph: DomainGraph, db_session: A
     row = (await db_session.execute(select(PromptResponse).where(PromptResponse.id == result.created_id))).scalar_one()
     assert row.user_id == graph.dater_a.id
     assert row.message == "self note"
-    assert row.is_approved is False
+    assert row.state is ApprovalState.PENDING
 
 
 async def test_create_prompt_response_as_active_wingperson(graph: DomainGraph, db_session: AsyncSession) -> None:
@@ -340,16 +334,14 @@ async def test_approve_prompt_response_owner_transitions(graph: DomainGraph, db_
     response = graph.prompt_response
     deps = _deps(db_session, user_id=graph.dater_a.id)
 
-    # Adapter projects the pending booleans onto ApprovalState.
-    assert adapt(response).state is ApprovalState.PENDING
+    assert response.state is ApprovalState.PENDING
     assert ApprovePromptResponse.is_available(response, deps.user, deps) is True
 
     result = await ApprovePromptResponse.execute(response, EmptyActionData(), db_session, deps.user, deps)
     assert result.message == "Comment approved"
 
     refreshed = (await db_session.execute(select(PromptResponse).where(PromptResponse.id == response.id))).scalar_one()
-    assert refreshed.is_approved is True
-    assert refreshed.is_rejected is False
+    assert refreshed.state is ApprovalState.APPROVED
 
     # The transition wrote an audit log row (PENDING -> APPROVED).
     logs = (
@@ -380,7 +372,7 @@ async def test_approve_prompt_response_denied_for_non_owner(graph: DomainGraph, 
 async def test_approve_prompt_response_not_available_when_already_approved(
     graph: DomainGraph, db_session: AsyncSession
 ) -> None:
-    graph.prompt_response.is_approved = True
+    graph.prompt_response.state = ApprovalState.APPROVED
     await db_session.flush()
     deps = _deps(db_session, user_id=graph.dater_a.id)
     # Already approved -> not pending -> is_available is False.

@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 import { View, Text, TextInput, Pressable } from '@/lib/tw';
-import { Sprout } from '@/components/ui/Sprout';
+import { Dialog } from '@/components/ui/Dialog';
 
 const INK = '#1F1B16';
 const INK3 = '#8B8170';
@@ -116,59 +116,20 @@ export function ContactsPicker({ visible, contacts, onClose, onInvite }: Props) 
         />
       </View>
 
-      {pendingContact != null && (
-        <View
-          style={{
-            position: 'absolute',
-            inset: 0,
-            backgroundColor: 'rgba(31,27,22,0.5)',
-            alignItems: 'center',
-            justifyContent: 'center',
-            paddingHorizontal: 28,
-          }}
-        >
-          <View
-            className="bg-background"
-            style={{
-              borderRadius: 20,
-              padding: 24,
-              width: '100%',
-            }}
-          >
-            <Text
-              className="font-serif text-ink"
-              style={{
-                fontSize: 22,
-                letterSpacing: -0.3,
-                marginBottom: 8,
-              }}
-            >
-              Invite {pendingContact.name}?
-            </Text>
-            <Text style={{ fontSize: 13, color: INK3, lineHeight: 19, marginBottom: 20 }}>
-              We{"'"}ll send {pendingContact.name} a text inviting them to be your wingperson on
-              Pear.
-            </Text>
-            <View style={{ flexDirection: 'row', gap: 10 }}>
-              <View style={{ flex: 1 }}>
-                <Sprout block variant="secondary" onPress={() => setPendingContact(null)}>
-                  No
-                </Sprout>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Sprout
-                  block
-                  onPress={handleContactConfirm}
-                  loading={contactInviting}
-                  disabled={contactInviting}
-                >
-                  Yes, invite
-                </Sprout>
-              </View>
-            </View>
-          </View>
-        </View>
-      )}
+      <Dialog
+        visible={pendingContact != null}
+        onClose={() => !contactInviting && setPendingContact(null)}
+        title={pendingContact ? `Invite ${pendingContact.name}?` : undefined}
+        body={
+          pendingContact
+            ? `We'll send ${pendingContact.name} a text inviting them to be your wingperson on Pear.`
+            : undefined
+        }
+        actions={[
+          { label: 'Yes, invite', onClick: handleContactConfirm, loading: contactInviting },
+          { label: 'No', onClick: () => setPendingContact(null), disabled: contactInviting },
+        ]}
+      />
     </Modal>
   );
 }

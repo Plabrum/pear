@@ -4,6 +4,7 @@ from datetime import date, datetime
 from typing import TYPE_CHECKING
 
 from app.domain.profiles.models import Profile
+from app.domain.prompts.enums import ApprovalState
 from app.domain.prompts.models import ProfilePrompt, PromptResponse, PromptTemplate
 from app.domain.prompts.schemas import (
     AuthoredPromptResponse,
@@ -51,7 +52,7 @@ def row_to_prompt_response(
         id=response.id,
         profilePromptId=response.profile_prompt_id,
         message=response.message,
-        isApproved=response.is_approved,
+        status=response.state,
         userId=response.user_id,
         createdAt=_iso(response.created_at),
         author=(
@@ -108,9 +109,9 @@ def row_to_profile_prompt(
 
 
 def _authored_status(row: AuthoredResponseRow) -> AuthoredResponseStatus:
-    if row.is_rejected:
+    if row.state is ApprovalState.REJECTED:
         return "not_accepted"
-    if row.is_approved:
+    if row.state is ApprovalState.APPROVED:
         return "accepted"
     return "pending"
 

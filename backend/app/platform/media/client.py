@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from pathlib import Path
 
 import aioboto3
 
@@ -148,10 +149,16 @@ class LocalMediaClient(BaseMediaClient):
         self.ttl = config.S3_PRESIGN_TTL_SECONDS
         self._base = config.LOCAL_MEDIA_BASE_URL.rstrip("/")
         self._public_base = config.S3_PUBLIC_BASE_URL.rstrip("/") or f"{self._base}/public"
+        self._root = Path(config.LOCAL_MEDIA_DIR)
         self.deleted: list[str] = []
-        # In-memory object store so download/upload round-trip in tests with no S3.
-        # Keyed by object key -> (bytes, content_type).
+        # In-memory object store so download/upload round-trip within a single
+        # client instance (tests). Keyed by object key -> (bytes, content_type).
         self.store: dict[str, tuple[bytes, str]] = {}
+
+    def _disk_path(self, key: str) -> Path:
+        # Keep the on-disk layout flat under the bucket folder; the bucket segment in
+        # the presigned URL is cosmetic, so the dev routes key off `key` alone.
+        return self._root / self.bucket / key
 
     async def presign_upload(self, key: str, *, content_type: str = DEFAULT_CONTENT_TYPE) -> PresignedUpload:
         # A deterministic PUT target a fake/dev client can no-op against.
@@ -159,24 +166,39 @@ class LocalMediaClient(BaseMediaClient):
         return PresignedUpload(upload_url=url, key=key)
 
     async def presign_download(self, key: str) -> str:
+        # Seeded dev fixtures store a full external portrait URL as the key — serve
+        # it verbatim so local images actually render (no S3, no local object store).
+        if key.startswith("http"):
+            return key
         return f"{self._base}/download/{self.bucket}/{key}?expires={self.ttl}"
 
     def public_url(self, key: str) -> str:
+        if key.startswith("http"):
+            return key
         return f"{self._public_base}/{key}"
 
     async def delete(self, key: str) -> None:
         self.deleted.append(key)
         self.store.pop(key, None)
-        logger.info("[media] LOCAL delete (not real): key=%s", key)
+        self._disk_path(key).unlink(missing_ok=True)
+        logger.info("[media] LOCAL delete: key=%s", key)
 
     async def download(self, key: str) -> bytes:
         entry = self.store.get(key)
-        if entry is None:
+        if entry is not None:
+            return entry[0]
+        # Cross-process/cross-request fallback: the bytes the app PUT live on disk
+        # (the in-memory store is per-instance), so the worker can read them too.
+        path = self._disk_path(key)
+        if not path.is_file():
             raise MediaError(f"Could not download object (no local bytes for {key})")
-        return entry[0]
+        return path.read_bytes()
 
     async def upload(self, key: str, data: bytes, *, content_type: str) -> None:
         self.store[key] = (data, content_type)
+        path = self._disk_path(key)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
 
 
 def build_media_client(config: Config) -> BaseMediaClient:

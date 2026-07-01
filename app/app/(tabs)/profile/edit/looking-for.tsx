@@ -1,24 +1,39 @@
 import { useState } from 'react';
-import { StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner-native';
-import { Controller, useForm } from 'react-hook-form';
-import { z } from 'zod';
-import { zodResolver } from '@hookform/resolvers/zod';
+import { useFormContext } from 'react-hook-form';
 
 import {
   useGetApiDatingProfilesMeSuspense,
   getGetApiDatingProfilesMeQueryKey,
 } from '@/lib/api/generated/profiles/profiles';
 import { updateDatingProfile } from '@/lib/api/actions';
-import type { UpdateDatingProfileData, Religion } from '@/lib/api/generated/model';
+import { toastError } from '@/lib/api/error-toast';
+import type { UpdateDatingProfileData, Religion, Gender } from '@/lib/api/generated/model';
 import { GENDERS, RELIGIONS } from '@/constants/enums';
-import { View, Text, ScrollView, SafeAreaView, Pressable, TextInput, Modal } from '@/lib/tw';
+import { View, Text, ScrollView, SafeAreaView, Pressable, TextInput } from '@/lib/tw';
+import { Sheet } from '@/components/ui/Sheet';
 import { cn } from '@/lib/cn';
 import { colors } from '@/constants/theme';
 import { NavHeader } from '@/components/ui/NavHeader';
+import { SectionLabel } from '@/components/ui/SectionLabel';
 import ScreenSuspense from '@/components/ui/ScreenSuspense';
+import { createTypedForm } from '@/lib/forms/typed-form';
+
+// Preserve this screen's tighter monospace section heading look.
+const sectionLabelStyle = {
+  fontSize: 10,
+  letterSpacing: 1.2,
+  fontWeight: '500' as const,
+  fontFamily: 'Menlo',
+  color: 'rgba(31,27,22,0.45)',
+  marginBottom: 10,
+  marginTop: 20,
+  paddingHorizontal: 0,
+  paddingTop: 0,
+  paddingBottom: 0,
+};
 
 const RELIGIOUS_PREFS: { value: Religion | null; label: string }[] = [
   { value: null, label: 'No preference' },
@@ -30,50 +45,86 @@ const RELIGIOUS_PREFS: { value: Religion | null; label: string }[] = [
   { value: 'Sikh', label: 'Must be Sikh' },
 ];
 
-const schema = z
-  .object({
-    interestedGender: z.array(z.enum(GENDERS)),
-    ageFrom: z
-      .string()
-      .regex(/^\d+$/, 'Enter a valid age')
-      .refine((v) => parseInt(v, 10) >= 18, 'Must be 18 or above'),
-    ageTo: z.union([z.literal(''), z.string().regex(/^\d+$/, 'Enter a valid age')]),
-    religion: z.enum(RELIGIONS),
-    religiousPref: z.enum(RELIGIONS).nullable(),
-  })
-  .superRefine((data, ctx) => {
-    if (data.ageTo) {
-      const from = parseInt(data.ageFrom, 10);
-      const to = parseInt(data.ageTo, 10);
-      if (!isNaN(from) && to <= from) {
-        ctx.addIssue({ code: 'custom', path: ['ageTo'], message: 'Must be greater than From' });
-      }
-    }
-  });
+type Values = {
+  interestedGender: Gender[];
+  ageFrom: string;
+  ageTo: string;
+  religion: Religion;
+  religiousPref: Religion | null;
+};
 
-type Values = z.infer<typeof schema>;
+const LookingForForm = createTypedForm<Values>();
 
-function SectionLabel({ children }: { children: string }) {
-  return (
-    <Text
-      style={{
-        fontSize: 10,
-        letterSpacing: 1.2,
-        textTransform: 'uppercase',
-        fontWeight: '500',
-        fontFamily: 'Menlo',
-        color: 'rgba(31,27,22,0.45)',
-        marginBottom: 10,
-        marginTop: 20,
-      }}
-    >
-      {children}
-    </Text>
-  );
-}
+const ageFromRule = (v: string) => {
+  if (!/^\d+$/.test(v)) return 'Enter a valid age';
+  if (parseInt(v, 10) < 18) return 'Must be 18 or above';
+  return true;
+};
+const ageToRule = (v: string, all: Values) => {
+  if (!v) return true;
+  if (!/^\d+$/.test(v)) return 'Enter a valid age';
+  const from = parseInt(all.ageFrom, 10);
+  if (!isNaN(from) && parseInt(v, 10) <= from) return 'Must be greater than From';
+  return true;
+};
 
 const inputClass =
   'bg-white rounded-xl border-[1.5px] border-separator px-4 py-[14px] text-base text-fg';
+
+// Age range lives in its own component so it can read getValues()/formState via the
+// form context — saveAges only patches when both age fields are currently valid.
+function AgeRange({ onSave }: { onSave: (u: UpdateDatingProfileData) => void }) {
+  const { getValues, formState } = useFormContext<Values>();
+  const saveAges = () => {
+    const vals = getValues();
+    if (formState.errors.ageFrom || formState.errors.ageTo) return;
+    const from = parseInt(vals.ageFrom, 10);
+    const to = vals.ageTo ? parseInt(vals.ageTo, 10) : null;
+    if (!isNaN(from)) onSave({ ageFrom: from, ageTo: to });
+  };
+  return (
+    <View className="flex-row items-start" style={{ gap: 12 }}>
+      <View style={{ flex: 1 }}>
+        <Text className="text-xs text-fg-muted mb-1.5">From</Text>
+        <LookingForForm.CustomField
+          name="ageFrom"
+          bare
+          rules={{ validate: ageFromRule }}
+          render={({ value, onChange, invalid }) => (
+            <TextInput
+              className={cn(inputClass, invalid && 'border-error')}
+              value={value ?? ''}
+              onChangeText={onChange}
+              onBlur={saveAges}
+              keyboardType="number-pad"
+              maxLength={2}
+            />
+          )}
+        />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text className="text-xs text-fg-muted mb-1.5">To (optional)</Text>
+        <LookingForForm.CustomField
+          name="ageTo"
+          optional
+          bare
+          rules={{ validate: ageToRule }}
+          render={({ value, onChange, invalid }) => (
+            <TextInput
+              className={cn(inputClass, invalid && 'border-error')}
+              value={value ?? ''}
+              onChangeText={onChange}
+              onBlur={saveAges}
+              keyboardType="number-pad"
+              maxLength={2}
+              placeholder="—"
+            />
+          )}
+        />
+      </View>
+    </View>
+  );
+}
 
 function LookingForScreenInner() {
   const router = useRouter();
@@ -81,36 +132,13 @@ function LookingForScreenInner() {
   const { data: datingProfile } = useGetApiDatingProfilesMeSuspense();
   const [religionSheetOpen, setReligionSheetOpen] = useState(false);
 
-  const { control, getValues, formState } = useForm<Values>({
-    resolver: zodResolver(schema),
-    mode: 'onChange',
-    defaultValues: {
-      interestedGender: datingProfile?.interestedGender ?? [],
-      ageFrom: String(datingProfile?.ageFrom ?? 18),
-      ageTo: datingProfile?.ageTo ? String(datingProfile.ageTo) : '',
-      religion: datingProfile?.religion ?? RELIGIONS[0],
-      religiousPref: datingProfile?.religiousPreference ?? null,
-    },
-  });
-
   const patch = async (updates: UpdateDatingProfileData) => {
     if (!datingProfile) return;
     try {
       await updateDatingProfile(datingProfile.id, updates);
       queryClient.invalidateQueries({ queryKey: getGetApiDatingProfilesMeQueryKey() });
-    } catch {
-      toast.error('Could not save. Try again.');
-    }
-  };
-
-  const saveAges = () => {
-    const vals = getValues();
-    if (!formState.errors.ageFrom && !formState.errors.ageTo) {
-      const from = parseInt(vals.ageFrom, 10);
-      const to = vals.ageTo ? parseInt(vals.ageTo, 10) : null;
-      if (!isNaN(from)) {
-        patch({ ageFrom: from, ageTo: to });
-      }
+    } catch (err) {
+      toastError(err, 'Could not save. Try again.');
     }
   };
 
@@ -119,33 +147,46 @@ function LookingForScreenInner() {
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top', 'bottom']}>
       <NavHeader back title="Looking for" onBack={() => router.back()} />
-      <ScrollView
-        contentContainerStyle={{ padding: 16, paddingBottom: 48 }}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
+      <LookingForForm.Form
+        mode="onChange"
+        onSubmit={() => {}}
+        defaultValues={{
+          interestedGender: datingProfile.interestedGender ?? [],
+          ageFrom: String(datingProfile.ageFrom ?? 18),
+          ageTo: datingProfile.ageTo ? String(datingProfile.ageTo) : '',
+          religion: datingProfile.religion ?? RELIGIONS[0],
+          religiousPref: datingProfile.religiousPreference ?? null,
+        }}
       >
-        <SectionLabel>Interested in</SectionLabel>
-        <Controller
-          control={control}
-          name="interestedGender"
-          render={({ field }) => (
-            <View className="flex-row flex-wrap" style={{ gap: 8 }}>
-              {GENDERS.map((g) => {
-                const active = field.value.includes(g);
-                return (
-                  <Pressable
-                    key={g}
-                    onPress={() => {
-                      const next = active
-                        ? field.value.filter((v) => v !== g)
-                        : [...field.value, g];
-                      field.onChange(next);
-                      patch({ interestedGender: next });
-                    }}
-                    className={cn(
-                      'px-4 rounded-[24px] border-[1.5px] border-separator bg-white',
-                      active && 'border-accent bg-accent-muted'
-                    )}
+        <ScrollView
+          contentContainerStyle={{ padding: 16, paddingBottom: 48 }}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <SectionLabel style={sectionLabelStyle}>Interested in</SectionLabel>
+          <LookingForForm.CustomField
+            name="interestedGender"
+            bare
+            render={({ value, onChange }) => {
+              const selected: Gender[] = value ?? [];
+              return (
+                <View className="flex-row flex-wrap" style={{ gap: 8 }}>
+                  {GENDERS.map((g) => {
+                    const active = selected.includes(g);
+                    return (
+                      <Pressable
+                        key={g}
+                        onPress={() => {
+                          const next = active
+                            ? selected.filter((v) => v !== g)
+                            : [...selected, g];
+                          onChange(next);
+                          patch({ interestedGender: next });
+                        }}
+                        className={cn(
+                          'px-4 rounded-[24px] border-[1.5px] border-separator bg-white',
+                          active && 'border-accent bg-accent-muted'
+                        )}
                     style={{ paddingVertical: 10 }}
                   >
                     <Text
@@ -155,165 +196,117 @@ function LookingForScreenInner() {
                     </Text>
                   </Pressable>
                 );
-              })}
-            </View>
-          )}
-        />
+                  })}
+                </View>
+              );
+            }}
+          />
 
-        <SectionLabel>Age range</SectionLabel>
-        <View className="flex-row items-start" style={{ gap: 12 }}>
-          <View style={{ flex: 1 }}>
-            <Text className="text-xs text-fg-muted mb-1.5">From</Text>
-            <Controller
-              control={control}
-              name="ageFrom"
-              render={({ field, fieldState }) => (
-                <TextInput
-                  className={cn(inputClass, fieldState.error && 'border-error')}
-                  value={field.value}
-                  onChangeText={field.onChange}
-                  onBlur={saveAges}
-                  keyboardType="number-pad"
-                  maxLength={2}
-                />
-              )}
-            />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text className="text-xs text-fg-muted mb-1.5">To (optional)</Text>
-            <Controller
-              control={control}
-              name="ageTo"
-              render={({ field, fieldState }) => (
-                <TextInput
-                  className={cn(inputClass, fieldState.error && 'border-error')}
-                  value={field.value}
-                  onChangeText={field.onChange}
-                  onBlur={saveAges}
-                  keyboardType="number-pad"
-                  maxLength={2}
-                  placeholder="—"
-                />
-              )}
-            />
-          </View>
-        </View>
+          <SectionLabel style={sectionLabelStyle}>Age range</SectionLabel>
+          <AgeRange onSave={patch} />
 
-        <SectionLabel>My religion</SectionLabel>
-        <Controller
-          control={control}
-          name="religion"
-          render={({ field }) => (
-            <View className="flex-row flex-wrap" style={{ gap: 8 }}>
-              {RELIGIONS.map((r) => {
-                const active = field.value === r;
-                return (
-                  <Pressable
-                    key={r}
-                    onPress={() => {
-                      field.onChange(r);
-                      patch({ religion: r });
-                    }}
-                    className={cn(
-                      'px-4 rounded-[24px] border-[1.5px] border-separator bg-white',
-                      active && 'border-accent bg-accent-muted'
-                    )}
-                    style={{ paddingVertical: 10 }}
-                  >
-                    <Text
-                      className={cn('text-sm text-fg-muted font-medium', active && 'text-accent')}
+          <SectionLabel style={sectionLabelStyle}>My religion</SectionLabel>
+          <LookingForForm.CustomField
+            name="religion"
+            bare
+            render={({ value, onChange }) => (
+              <View className="flex-row flex-wrap" style={{ gap: 8 }}>
+                {RELIGIONS.map((r) => {
+                  const active = value === r;
+                  return (
+                    <Pressable
+                      key={r}
+                      onPress={() => {
+                        onChange(r);
+                        patch({ religion: r });
+                      }}
+                      className={cn(
+                        'px-4 rounded-[24px] border-[1.5px] border-separator bg-white',
+                        active && 'border-accent bg-accent-muted'
+                      )}
+                      style={{ paddingVertical: 10 }}
                     >
-                      {r}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          )}
-        />
-
-        <SectionLabel>{"Partner's religion (optional)"}</SectionLabel>
-        <Controller
-          control={control}
-          name="religiousPref"
-          render={({ field }) => {
-            const selected = RELIGIOUS_PREFS.find((o) => o.value === field.value);
-            return (
-              <>
-                <Pressable
-                  onPress={() => setReligionSheetOpen(true)}
-                  className="bg-white rounded-xl border-[1.5px] border-separator flex-row items-center justify-between px-4"
-                  style={{ paddingVertical: 14 }}
-                >
-                  <Text className={selected ? 'text-base text-fg' : 'text-base text-fg-ghost'}>
-                    {selected ? selected.label : 'No preference'}
-                  </Text>
-                  <Text className="text-fg-ghost">▾</Text>
-                </Pressable>
-                <Modal
-                  visible={religionSheetOpen}
-                  transparent
-                  animationType="slide"
-                  onRequestClose={() => setReligionSheetOpen(false)}
-                >
-                  <View
-                    style={{
-                      flex: 1,
-                      justifyContent: 'flex-end',
-                      backgroundColor: 'rgba(0,0,0,0.3)',
-                    }}
-                  >
-                    <View
-                      style={{ maxHeight: '70%', backgroundColor: 'white' }}
-                      className="rounded-t-[20px] pb-8"
-                    >
-                      <View
-                        className="flex-row justify-end p-4"
-                        style={{
-                          borderBottomWidth: StyleSheet.hairlineWidth,
-                          borderBottomColor: colors.divider,
-                        }}
+                      <Text
+                        className={cn(
+                          'text-sm text-fg-muted font-medium',
+                          active && 'text-accent'
+                        )}
                       >
-                        <Pressable onPress={() => setReligionSheetOpen(false)}>
-                          <Text className="text-accent text-base font-semibold">Done</Text>
+                        {r}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )}
+          />
+
+          <SectionLabel style={sectionLabelStyle}>
+            {"Partner's religion (optional)"}
+          </SectionLabel>
+          <LookingForForm.CustomField
+            name="religiousPref"
+            optional
+            bare
+            render={({ value, onChange }) => {
+              const selected = RELIGIOUS_PREFS.find((o) => o.value === value);
+              return (
+                <>
+                  <Pressable
+                    onPress={() => setReligionSheetOpen(true)}
+                    className="bg-white rounded-xl border-[1.5px] border-separator flex-row items-center justify-between px-4"
+                    style={{ paddingVertical: 14 }}
+                  >
+                    <Text className={selected ? 'text-base text-fg' : 'text-base text-fg-ghost'}>
+                      {selected ? selected.label : 'No preference'}
+                    </Text>
+                    <Text className="text-fg-ghost">▾</Text>
+                  </Pressable>
+                  <Sheet
+                    visible={religionSheetOpen}
+                    onClose={() => setReligionSheetOpen(false)}
+                    title="Partner's religion"
+                    maxHeight="70%"
+                  >
+                    {RELIGIOUS_PREFS.map((opt) => {
+                      const active = opt.value === value;
+                      return (
+                        <Pressable
+                          key={String(opt.value)}
+                          onPress={() => {
+                            onChange(opt.value);
+                            patch({ religiousPreference: opt.value });
+                            setReligionSheetOpen(false);
+                          }}
+                          style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            paddingVertical: 14,
+                          }}
+                        >
+                          <Text
+                            style={{
+                              fontSize: 16,
+                              color: active ? colors.primary : colors.ink,
+                              fontWeight: active ? '600' : '400',
+                            }}
+                          >
+                            {opt.label}
+                          </Text>
+                          {active ? (
+                            <Ionicons name="checkmark" size={18} color={colors.primary} />
+                          ) : null}
                         </Pressable>
-                      </View>
-                      <ScrollView>
-                        {RELIGIOUS_PREFS.map((opt) => {
-                          const active = opt.value === field.value;
-                          return (
-                            <Pressable
-                              key={String(opt.value)}
-                              onPress={() => {
-                                field.onChange(opt.value);
-                                patch({ religiousPreference: opt.value });
-                                setReligionSheetOpen(false);
-                              }}
-                              className={cn(
-                                'px-5 py-4 flex-row items-center',
-                                active && 'bg-accent-muted'
-                              )}
-                            >
-                              <Text
-                                className={cn(
-                                  'text-base text-fg',
-                                  active && 'text-accent font-semibold'
-                                )}
-                              >
-                                {opt.label}
-                              </Text>
-                            </Pressable>
-                          );
-                        })}
-                      </ScrollView>
-                    </View>
-                  </View>
-                </Modal>
-              </>
-            );
-          }}
-        />
-      </ScrollView>
+                      );
+                    })}
+                  </Sheet>
+                </>
+              );
+            }}
+          />
+        </ScrollView>
+      </LookingForForm.Form>
     </SafeAreaView>
   );
 }

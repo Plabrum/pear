@@ -1,25 +1,18 @@
 // Registered form for `dating_profile_swipe_actions__report` — the two-step
 // confirm → reason flow a dater uses to report a profile from the swipe deck.
-// Conforms to the action-registry render contract; collects only the reason text
-// (the executor records the report). Ported verbatim from the former inline modal
-// in discover.tsx so the look is unchanged.
+// Step 1 is a destructive `Dialog`; step 2 is `createTypedForm<ReportActionData>`.
+// The registry mounts this fresh per open (keyed on isOpen), so `step` resets.
 import { useState } from 'react';
 
-import { Modal, ModalView, View, Text, Pressable, TextInput } from '@/lib/tw';
+import type { ReportActionData } from '@/lib/api/generated/model';
+import { createTypedForm } from '@/lib/forms/typed-form';
+import { Dialog } from '@/components/ui/Dialog';
 
-type ReportStep = 'confirm' | 'reason';
-
-const INK = '#1F1B16';
-const INK_MUTED = '#4A4338';
-const INK_SUBTLE = '#8B8170';
-const PAPER = '#FBF8F1';
-const LINE = 'rgba(31,27,22,0.10)';
-const PASS_RED = '#C44';
+const ReasonForm = createTypedForm<ReportActionData>();
 
 export function ReportReasonForm({
   onSubmit,
   onClose,
-  isSubmitting,
   isOpen,
 }: {
   objectData?: unknown;
@@ -28,134 +21,37 @@ export function ReportReasonForm({
   isSubmitting: boolean;
   isOpen: boolean;
 }) {
-  const [step, setStep] = useState<ReportStep>('confirm');
-  const [reason, setReason] = useState('');
-
-  const submit = () => {
-    if (!reason.trim() || isSubmitting) return;
-    onSubmit({ reason: reason.trim() });
-  };
-
+  const [step, setStep] = useState<'confirm' | 'reason'>('confirm');
   return (
-    <Modal visible={isOpen} transparent animationType="fade" onRequestClose={onClose}>
-      <ModalView
-        backgroundColor="rgba(0,0,0,0.5)"
-        style={{ justifyContent: 'center', alignItems: 'center', padding: 24 }}
+    <>
+      <Dialog
+        visible={isOpen && step === 'confirm'}
+        onClose={onClose}
+        tone="danger"
+        title="Report profile?"
+        body="Something feel off? Let us know and we'll look into it."
+        actions={[
+          { label: 'Yes, report', onClick: () => setStep('reason') },
+          { label: 'No, cancel', onClick: onClose },
+        ]}
+      />
+      <ReasonForm.FormSheet
+        visible={isOpen && step === 'reason'}
+        onClose={onClose}
+        title="What's the issue?"
+        subtitle="Describe the problem so we can review it."
+        submitLabel="Send report"
+        defaultValues={{ reason: '' }}
+        onSubmit={(v) => onSubmit({ reason: v.reason.trim() })}
       >
-        <View
-          style={{
-            backgroundColor: PAPER,
-            borderRadius: 22,
-            padding: 24,
-            width: '100%',
-            maxWidth: 360,
-            gap: 16,
-          }}
-        >
-          {step === 'confirm' ? (
-            <>
-              <View style={{ gap: 6 }}>
-                <Text style={{ fontFamily: 'DMSerifDisplay', fontSize: 22, color: INK }}>
-                  Report profile?
-                </Text>
-                <Text style={{ fontSize: 14, color: INK_MUTED, lineHeight: 20 }}>
-                  Something feel off? Let us know and we&apos;ll look into it.
-                </Text>
-              </View>
-              <View style={{ flexDirection: 'row', gap: 10 }}>
-                <Pressable
-                  onPress={onClose}
-                  style={{
-                    flex: 1,
-                    paddingVertical: 13,
-                    borderRadius: 14,
-                    borderWidth: 1,
-                    borderColor: LINE,
-                    alignItems: 'center',
-                  }}
-                >
-                  <Text style={{ fontSize: 15, fontWeight: '600', color: INK_MUTED }}>
-                    No, cancel
-                  </Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => setStep('reason')}
-                  style={{
-                    flex: 1,
-                    paddingVertical: 13,
-                    borderRadius: 14,
-                    backgroundColor: PASS_RED,
-                    alignItems: 'center',
-                  }}
-                >
-                  <Text style={{ fontSize: 15, fontWeight: '600', color: PAPER }}>Yes, report</Text>
-                </Pressable>
-              </View>
-            </>
-          ) : (
-            <>
-              <View style={{ gap: 6 }}>
-                <Text style={{ fontFamily: 'DMSerifDisplay', fontSize: 22, color: INK }}>
-                  What&apos;s the issue?
-                </Text>
-                <Text style={{ fontSize: 14, color: INK_MUTED, lineHeight: 20 }}>
-                  Describe the problem so we can review it.
-                </Text>
-              </View>
-              <TextInput
-                value={reason}
-                onChangeText={setReason}
-                placeholder="Describe the issue…"
-                placeholderTextColor={INK_SUBTLE}
-                multiline
-                maxLength={500}
-                style={{
-                  backgroundColor: 'white',
-                  borderWidth: 1,
-                  borderColor: LINE,
-                  borderRadius: 14,
-                  padding: 14,
-                  fontSize: 14,
-                  color: INK,
-                  minHeight: 100,
-                  textAlignVertical: 'top',
-                }}
-              />
-              <View style={{ flexDirection: 'row', gap: 10 }}>
-                <Pressable
-                  onPress={onClose}
-                  style={{
-                    flex: 1,
-                    paddingVertical: 13,
-                    borderRadius: 14,
-                    borderWidth: 1,
-                    borderColor: LINE,
-                    alignItems: 'center',
-                  }}
-                >
-                  <Text style={{ fontSize: 15, fontWeight: '600', color: INK_MUTED }}>Cancel</Text>
-                </Pressable>
-                <Pressable
-                  onPress={submit}
-                  disabled={!reason.trim() || isSubmitting}
-                  style={{
-                    flex: 1,
-                    paddingVertical: 13,
-                    borderRadius: 14,
-                    backgroundColor: PASS_RED,
-                    alignItems: 'center',
-                    opacity: !reason.trim() || isSubmitting ? 0.4 : 1,
-                  }}
-                >
-                  <Text style={{ fontSize: 15, fontWeight: '600', color: PAPER }}>
-                    {isSubmitting ? 'Sending…' : 'Send'}
-                  </Text>
-                </Pressable>
-              </View>
-            </>
-          )}
-        </View>
-      </ModalView>
-    </Modal>
+        <ReasonForm.TextareaField
+          name="reason"
+          label="What's the issue?"
+          placeholder="Describe the problem so we can review it…"
+          maxLength={500}
+          autoFocus
+        />
+      </ReasonForm.FormSheet>
+    </>
   );
 }

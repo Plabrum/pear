@@ -15,6 +15,7 @@ import {
   useApiActionsActionGroupExecuteAction,
   useApiActionsActionGroupObjectIdExecuteObjectAction,
 } from '@/lib/api/generated/actions/actions';
+import { toastError } from '@/lib/api/error-toast';
 import { executeActionApi } from './action-executor/execute-action-api';
 import { handleActionResult } from './action-executor/handle-action-result';
 import { handleQueryInvalidation } from './action-executor/handle-query-invalidation';
@@ -138,7 +139,7 @@ export function useActionExecutor({
       if (!silent) {
         setState((prev) => ({ ...prev, isExecuting: false, error: errorMessage }));
       }
-      toast.error(errorMessage);
+      toastError(err, errorMessage);
       onError?.(action, err as Error);
       throw err;
     }

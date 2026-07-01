@@ -2,10 +2,21 @@ import sqlalchemy as sa
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.platform.base.models import BaseDBModel
+from app.platform.base.rls import Owner, RLSScopedMixin, ViaMatch
 from app.utils.sqids import Sqid, SqidType
 
 
-class Message(BaseDBModel):
+# Read only within a match you participate in. INSERT is sender-owned (match
+# participation on send is enforced by the SendMessage action's is_available).
+# UPDATE is match-participant-scoped, not sender-owned: marking a message read is
+# done by its *recipient*, not its sender.
+class Message(
+    BaseDBModel,
+    RLSScopedMixin(
+        read=ViaMatch("match_id"),
+        edit={"INSERT": Owner("sender_id"), "UPDATE": ViaMatch("match_id")},
+    ),
+):
     __tablename__ = "messages"
 
     # SQL: not null references matches(id) on delete cascade

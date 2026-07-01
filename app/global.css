@@ -20,6 +20,13 @@
   --color-primary-foreground: #fbf8f1;
   --color-primary-soft: oklch(0.92 0.04 145);
 
+  /* Leaf — brighter swipe/affirmative green (distinct from primary CTA leaf) */
+  --color-leaf: #5a8c3a;
+  --color-leaf-soft: #e5efd8;
+
+  /* Pass — swipe-decline red */
+  --color-pass-red: #cc4444;
+
   /* Accent — pear skin */
   --color-accent: oklch(0.8 0.12 95);
   --color-accent-foreground: #1f1b16;
@@ -47,7 +54,6 @@
   --color-ink: var(--color-foreground);
   --color-ink-mid: var(--color-foreground-muted);
   --color-ink-dim: var(--color-foreground-subtle);
-  --color-ink-ghost: rgba(31, 27, 22, 0.3);
 
   /* Background / surface aliases */
   --color-page: var(--color-background);
@@ -56,13 +62,10 @@
 
   /* Brand-color aliases */
   --color-accent-muted: var(--color-primary-soft);
-  --color-accent-soft: var(--color-primary-soft);
   --color-accent-press: oklch(0.4 0.1 145);
-  --color-lavender: var(--color-primary-soft);
 
   /* Border aliases */
   --color-separator: var(--color-border);
-  --color-divider: var(--color-border);
 
   /* Status aliases */
   --color-error: var(--color-destructive);

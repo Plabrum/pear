@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { toast } from 'sonner-native';
 
 import { addPhoto } from '@/lib/api/actions';
 import { uploadMedia } from '@/lib/photos';
+import { toastError } from '@/lib/api/error-toast';
 
 const CONTENT_TYPE = 'image/jpeg';
 
@@ -26,8 +26,8 @@ export function useUploadProfilePhoto() {
       const mediaId = await uploadMedia(uri, filename, CONTENT_TYPE);
       await addPhoto({ datingProfileId, mediaId, displayOrder });
       return true;
-    } catch {
-      toast.error('Failed to upload photo. Please try again.');
+    } catch (err) {
+      toastError(err, 'Failed to upload photo. Please try again.');
       return false;
     } finally {
       setIsPending(false);

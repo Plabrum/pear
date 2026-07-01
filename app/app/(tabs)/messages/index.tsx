@@ -1,4 +1,3 @@
-import React, { useMemo } from 'react';
 import { FlatList, ScrollView as RNScrollView, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 
@@ -6,52 +5,20 @@ import { useAuth } from '@/context/auth';
 import { useGetApiConversationsSuspense } from '@/lib/api/generated/messages/messages';
 import type { Conversation } from '@/lib/api/generated/model';
 import { FaceAvatar } from '@/components/ui/FaceAvatar';
+import { SectionLabel } from '@/components/ui/SectionLabel';
 import ScreenSuspense from '@/components/ui/ScreenSuspense';
 import { useMessagesListPresence } from '@/hooks/use-messages-list-presence';
+import { relativeTime } from '@/lib/time';
 import { View, Text, Pressable, SafeAreaView } from '@/lib/tw';
 
-const PAPER = '#FBF8F1';
-const INK = '#1F1B16';
-const INK_SUBTLE = '#8B8170';
-const LINE2 = 'rgba(31,27,22,0.06)';
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function relativeTime(isoString: string): string {
-  const diff = Date.now() - new Date(isoString.replace(' ', 'T')).getTime();
-  const mins = Math.floor(diff / 60_000);
-  if (mins < 1) return 'now';
-  if (mins < 60) return `${mins}m`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h`;
-  const days = Math.floor(hours / 24);
-  if (days < 7) return `${days}d`;
-  return new Date(isoString.replace(' ', 'T')).toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-  });
-}
-
-// ── SectionLabel ──────────────────────────────────────────────────────────────
-
-function SectionLabel({ children }: { children: string }) {
-  return (
-    <Text
-      className="text-ink-dim"
-      style={{
-        fontSize: 10.5,
-        letterSpacing: 1.5,
-        textTransform: 'uppercase',
-        fontWeight: '700',
-        paddingHorizontal: 16,
-        paddingTop: 14,
-        paddingBottom: 6,
-      }}
-    >
-      {children}
-    </Text>
-  );
-}
+const SECTION_LABEL_STYLE = {
+  fontSize: 10.5,
+  letterSpacing: 1.5,
+  fontWeight: '700',
+  paddingHorizontal: 16,
+  paddingTop: 14,
+  paddingBottom: 6,
+} as const;
 
 // ── SayHelloItem ──────────────────────────────────────────────────────────────
 
@@ -67,7 +34,7 @@ function SayHelloItem({ convo, onPress }: SayHelloItemProps) {
       <View style={{ position: 'relative' }}>
         <FaceAvatar name={name} size={62} />
         <View
-          className="bg-primary"
+          className="bg-primary border-surface"
           style={{
             position: 'absolute',
             top: -2,
@@ -76,7 +43,6 @@ function SayHelloItem({ convo, onPress }: SayHelloItemProps) {
             height: 14,
             borderRadius: 7,
             borderWidth: 2,
-            borderColor: PAPER,
           }}
         />
       </View>
@@ -104,20 +70,19 @@ function ConvoRow({ convo, userId, isOnline, onPress }: ConvoRowProps) {
   return (
     <Pressable
       onPress={onPress}
-      className="flex-row items-center"
+      className="flex-row items-center border-border-subtle"
       style={{
         paddingHorizontal: 16,
         paddingVertical: 12,
         gap: 12,
         borderBottomWidth: StyleSheet.hairlineWidth,
-        borderBottomColor: LINE2,
       }}
     >
       <View style={{ position: 'relative' }}>
         <FaceAvatar name={name} size={50} />
         {isOnline && (
           <View
-            className="bg-green"
+            className="bg-green border-surface"
             style={{
               position: 'absolute',
               bottom: 1,
@@ -126,7 +91,6 @@ function ConvoRow({ convo, userId, isOnline, onPress }: ConvoRowProps) {
               height: 12,
               borderRadius: 6,
               borderWidth: 2,
-              borderColor: PAPER,
             }}
           />
         )}
@@ -148,10 +112,10 @@ function ConvoRow({ convo, userId, isOnline, onPress }: ConvoRowProps) {
         </View>
         <View className="flex-row items-center" style={{ gap: 6, marginTop: 2 }}>
           <Text
+            className={isUnread ? 'text-ink' : 'text-ink-dim'}
             style={{
               flex: 1,
               fontSize: 13.5,
-              color: isUnread ? INK : INK_SUBTLE,
               fontWeight: isUnread ? '600' : '400',
             }}
             numberOfLines={1}
@@ -177,10 +141,10 @@ function SkeletonRow() {
       className="flex-row items-center"
       style={{ paddingHorizontal: 16, paddingVertical: 12, gap: 12 }}
     >
-      <View style={{ width: 50, height: 50, borderRadius: 25, backgroundColor: LINE2 }} />
+      <View className="bg-border-subtle" style={{ width: 50, height: 50, borderRadius: 25 }} />
       <View style={{ flex: 1, gap: 6 }}>
-        <View style={{ height: 12, borderRadius: 6, backgroundColor: LINE2, width: '60%' }} />
-        <View style={{ height: 12, borderRadius: 6, backgroundColor: LINE2, width: '40%' }} />
+        <View className="bg-border-subtle" style={{ height: 12, borderRadius: 6, width: '60%' }} />
+        <View className="bg-border-subtle" style={{ height: 12, borderRadius: 6, width: '40%' }} />
       </View>
     </View>
   );
@@ -211,12 +175,8 @@ type ContentProps = {
 function MessagesContent({ userId, onlineIds }: ContentProps) {
   const { data: convos, refetch, isRefetching } = useGetApiConversationsSuspense();
 
-  const { sayHello, conversations } = useMemo(() => {
-    return {
-      sayHello: convos.filter((c) => c.lastMessage == null),
-      conversations: convos.filter((c) => c.lastMessage != null),
-    };
-  }, [convos]);
+  const sayHello = convos.filter((c) => c.lastMessage == null);
+  const conversations = convos.filter((c) => c.lastMessage != null);
 
   function openChat(convo: Conversation) {
     router.push({
@@ -234,7 +194,7 @@ function MessagesContent({ userId, onlineIds }: ContentProps) {
       <Header />
       {sayHello.length > 0 && (
         <>
-          <SectionLabel>Say hello</SectionLabel>
+          <SectionLabel style={SECTION_LABEL_STYLE}>Say hello</SectionLabel>
           <RNScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -251,7 +211,9 @@ function MessagesContent({ userId, onlineIds }: ContentProps) {
           </RNScrollView>
         </>
       )}
-      {conversations.length > 0 && <SectionLabel>Conversations</SectionLabel>}
+      {conversations.length > 0 && (
+        <SectionLabel style={SECTION_LABEL_STYLE}>Conversations</SectionLabel>
+      )}
     </>
   );
 

@@ -19,15 +19,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 from sqlalchemy.sql.elements import ColumnElement
 
-from app.domain.contacts.enums import WingpersonStatus
-from app.domain.contacts.models import Contact
+from app.domain.contacts.queries import is_active_wingperson as contacts_is_active_wingperson
 from app.domain.dating_profiles.enums import DatingStatus
 from app.domain.dating_profiles.models import DatingProfile
 from app.domain.dating_profiles.transformers import SwipeRow
-from app.domain.decisions.enums import DecisionType
+from app.domain.decisions.enums import DecisionState
 from app.domain.decisions.models import Decision
 from app.domain.matches.models import Match
+from app.domain.photos.enums import PhotoApprovalState
 from app.domain.photos.models import ProfilePhoto
+from app.domain.profiles.enums import UserRole
 from app.domain.profiles.models import Profile
 from app.platform.media.queries import servable_key_expr
 from app.utils.sqids import Sqid
@@ -53,7 +54,7 @@ def first_photo_expr() -> ColumnElement[Any]:
         select(servable_key_expr(ProfilePhoto.media_id))
         .where(
             ProfilePhoto.dating_profile_id == DatingProfile.id,
-            ProfilePhoto.approved_at.is_not(None),
+            ProfilePhoto.state == PhotoApprovalState.APPROVED,
         )
         .order_by(asc(ProfilePhoto.display_order))
         .limit(1)
@@ -71,7 +72,7 @@ def photos_array_expr() -> ColumnElement[Any]:
         select(func.coalesce(func.array_agg(ordered_keys), literal_column("'{}'")))
         .where(
             ProfilePhoto.dating_profile_id == DatingProfile.id,
-            ProfilePhoto.approved_at.is_not(None),
+            ProfilePhoto.state == PhotoApprovalState.APPROVED,
         )
         .correlate(DatingProfile)
         .scalar_subquery()
@@ -79,6 +80,23 @@ def photos_array_expr() -> ColumnElement[Any]:
 
 
 # ── Shared preference filter ──────────────────────────────────────────────────
+
+
+def candidate_wants_viewer_gender(viewer_user_id: Sqid) -> ColumnElement[bool]:
+    """Reciprocal gender filter: the candidate's own `interested_gender` must include
+    the viewer's gender (empty array = "any").
+
+    Pairs with the forward "viewer wants candidate's gender" check so matching is
+    **bidirectional** — a candidate only surfaces when each side is open to the other's
+    gender. `DatingProfile` is the candidate row (the main query entity); the viewer's
+    gender is read via a non-correlated scalar subquery on an aliased `profiles`.
+    """
+    vp = aliased(Profile)
+    viewer_gender = select(vp.gender).where(vp.id == viewer_user_id).scalar_subquery()
+    return or_(
+        func.cardinality(DatingProfile.interested_gender) == 0,
+        viewer_gender == func.any(DatingProfile.interested_gender),
+    )
 
 
 def build_preference_filters(
@@ -95,19 +113,27 @@ def build_preference_filters(
     `decided_actor_id` is the actor whose prior non-null decisions exclude a
     candidate (the viewer in the dater context, the dater in the winger context).
 
-    Filters: active + `open` candidate, same city, the interested-gender match
-    (empty array = "any"), age within `[ageFrom, ageTo]`, religion preference, and
-    "candidate not already decided on".
+    Filters: active + `open` candidate, same city, the **bidirectional** interested-
+    gender match (each side open to the other's gender; empty array = "any"), age
+    within `[ageFrom, ageTo]`, religion preference, and "candidate not already
+    decided on". `decided_actor_id` doubles as the viewer's user id — it owns
+    `viewer_dp` in both the dater and winger contexts.
     """
     age = age_expr()
     filters: list[ColumnElement[bool]] = [
         DatingProfile.is_active.is_(True),
-        DatingProfile.dating_status == DatingStatus.OPEN,
+        DatingProfile.state == DatingStatus.OPEN,
+        # A candidate who is currently winging (role == WINGER) is out of the pool —
+        # "winging" now lives on the profile role, not a `dating_status` value.
+        Profile.state != UserRole.WINGER,
         DatingProfile.city == viewer_dp.city,
+        # Forward: viewer is open to the candidate's gender.
         or_(
             func.cardinality(viewer_dp.interested_gender) == 0,
             Profile.gender == func.any(viewer_dp.interested_gender),
         ),
+        # Reverse: candidate is open to the viewer's gender.
+        candidate_wants_viewer_gender(decided_actor_id),
         age >= viewer_dp.age_from,
         or_(viewer_dp.age_to.is_(None), age <= viewer_dp.age_to),
         or_(
@@ -120,7 +146,7 @@ def build_preference_filters(
             .where(
                 Decision.actor_id == decided_actor_id,
                 Decision.recipient_id == DatingProfile.user_id,
-                Decision.decision.is_not(None),
+                Decision.state != DecisionState.PENDING,
             )
         ),
     ]
@@ -210,7 +236,7 @@ async def _fetch_dater_context(
         .where(
             Decision.actor_id == viewer_id,
             Decision.recipient_id == DatingProfile.user_id,
-            Decision.decision.is_(None),
+            Decision.state == DecisionState.PENDING,
             Decision.suggested_by.is_not(None),
         )
         .limit(1)
@@ -230,7 +256,7 @@ async def _fetch_dater_context(
                     Decision.actor_id == viewer_id,
                     Decision.recipient_id == DatingProfile.user_id,
                     Decision.suggested_by == filter_winger_id,
-                    Decision.decision.is_(None),
+                    Decision.state == DecisionState.PENDING,
                 )
             )
         )
@@ -243,7 +269,7 @@ async def _fetch_dater_context(
                 .where(
                     Decision.actor_id == viewer_id,
                     Decision.recipient_id == DatingProfile.user_id,
-                    Decision.decision.is_(None),
+                    Decision.state == DecisionState.PENDING,
                     Decision.suggested_by.is_not(None),
                 )
             )
@@ -257,7 +283,7 @@ async def _fetch_dater_context(
                 .where(
                     Decision.actor_id == DatingProfile.user_id,
                     Decision.recipient_id == viewer_id,
-                    Decision.decision == DecisionType.APPROVED,
+                    Decision.state == DecisionState.APPROVED,
                 )
             )
         )
@@ -283,7 +309,7 @@ async def _fetch_dater_context(
             age.label("age"),
             DatingProfile.city.label("city"),
             DatingProfile.bio.label("bio"),
-            DatingProfile.dating_status.label("dating_status"),
+            DatingProfile.state.label("dating_status"),
             DatingProfile.interests.label("interests"),
             photos.label("photos"),
             pending.c.wing_note.label("wing_note"),
@@ -335,7 +361,7 @@ async def _fetch_winger_context(
             age.label("age"),
             DatingProfile.city.label("city"),
             DatingProfile.bio.label("bio"),
-            DatingProfile.dating_status.label("dating_status"),
+            DatingProfile.state.label("dating_status"),
             DatingProfile.interests.label("interests"),
             photos.label("photos"),
         )
@@ -389,14 +415,19 @@ def _build_likes_you_filters(
     """
     filters: list[ColumnElement[bool]] = [
         lk.recipient_id == viewer_id,
-        lk.decision == DecisionType.APPROVED,
+        lk.state == DecisionState.APPROVED,
         DatingProfile.is_active.is_(True),
-        DatingProfile.dating_status == DatingStatus.OPEN,
+        DatingProfile.state == DatingStatus.OPEN,
+        # A winging candidate (role == WINGER) is excluded from the likes-you pool too.
+        Profile.state != UserRole.WINGER,
         DatingProfile.city == vdp.city,
+        # Forward: viewer is open to the liker's gender.
         or_(
             func.cardinality(vdp.interested_gender) == 0,
             Profile.gender == func.any(vdp.interested_gender),
         ),
+        # Reverse: liker is open to the viewer's gender.
+        candidate_wants_viewer_gender(viewer_id),
         age >= vdp.age_from,
         or_(vdp.age_to.is_(None), age <= vdp.age_to),
         or_(
@@ -409,7 +440,7 @@ def _build_likes_you_filters(
             .where(
                 Decision.actor_id == viewer_id,
                 Decision.recipient_id == lk.actor_id,
-                Decision.decision.is_not(None),
+                Decision.state != DecisionState.PENDING,
             )
         ),
         ~exists(
@@ -450,15 +481,10 @@ async def fetch_likes_you_count(db: AsyncSession, viewer_id: Sqid) -> int:
 
 
 async def is_active_wingperson(db: AsyncSession, winger_id: Sqid, dater_id: Sqid) -> bool:
-    """True when there is an ACTIVE contact (dater -> winger)."""
-    stmt = (
-        select(literal_column("1"))
-        .select_from(Contact)
-        .where(
-            Contact.user_id == dater_id,
-            Contact.winger_id == winger_id,
-            Contact.wingperson_status == WingpersonStatus.ACTIVE,
-        )
-        .limit(1)
-    )
-    return (await db.execute(stmt)).first() is not None
+    """True when there is an ACTIVE contact (dater -> winger).
+
+    The winger-context gate keeps its `(winger_id, dater_id)` argument order for its
+    callers; the active-contact predicate itself is the shared
+    `contacts.queries.is_active_wingperson` (one SQL definition).
+    """
+    return await contacts_is_active_wingperson(db, dater_id, winger_id)

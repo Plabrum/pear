@@ -1,19 +1,23 @@
 import sqlalchemy as sa
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.domain.prompts.enums import ApprovalState
 from app.platform.base.models import BaseDBModel
-from app.platform.base.rls_mixins import UserScopedMixin
+from app.platform.base.rls import Authenticated, Owner, RLSScopedMixin, System
+from app.platform.state_machine.models import StateMachineMixin
 from app.utils.sqids import Sqid, SqidType
 
 
-class PromptTemplate(BaseDBModel):
+class PromptTemplate(BaseDBModel, RLSScopedMixin(read=Authenticated, edit=System)):
     __tablename__ = "prompt_templates"
 
     # question text not null
     question: Mapped[str] = mapped_column(sa.Text, nullable=False)
 
 
-class ProfilePrompt(BaseDBModel, UserScopedMixin, user_id_column="owner_id"):
+# Read floor coarsened to "any authenticated actor" (discover/matches render other
+# daters' prompts); business visibility lives in the app query layer. Writes owner-only.
+class ProfilePrompt(BaseDBModel, RLSScopedMixin(read=Authenticated, edit=Owner("owner_id"))):
     __tablename__ = "profile_prompts"
 
     # dating_profile_id not null references dating_profiles(id) on delete cascade
@@ -47,7 +51,15 @@ class ProfilePrompt(BaseDBModel, UserScopedMixin, user_id_column="owner_id"):
     )
 
 
-class PromptResponse(BaseDBModel):
+class PromptResponse(
+    StateMachineMixin(state_enum=ApprovalState, initial_state=ApprovalState.PENDING),
+    # Party-scoped (NOT coarsened): visible to the author or the responded-to
+    # profile's owner; author inserts, only the profile owner updates (approval).
+    RLSScopedMixin(
+        read=Owner("user_id") | Owner("profile_owner_id"),
+        edit={"INSERT": Owner("user_id"), "UPDATE": Owner("profile_owner_id")},
+    ),
+):
     __tablename__ = "prompt_responses"
 
     # user_id not null references profiles(id) on delete cascade -- the author
@@ -73,20 +85,8 @@ class PromptResponse(BaseDBModel):
     )
     # message text not null
     message: Mapped[str] = mapped_column(sa.Text, nullable=False)
-    # is_approved bool not null default false
-    is_approved: Mapped[bool] = mapped_column(
-        sa.Boolean,
-        nullable=False,
-        default=False,
-        server_default=sa.false(),
-    )
-    # is_rejected boolean not null default false
-    is_rejected: Mapped[bool] = mapped_column(
-        sa.Boolean,
-        nullable=False,
-        default=False,
-        server_default=sa.false(),
-    )
+    # Approval lifecycle (PENDING|APPROVED|REJECTED) is the canonical `state` column
+    # added by StateMachineMixin — driven through ApprovePromptResponse's transition.
 
     profile_prompt: Mapped[ProfilePrompt] = relationship(
         back_populates="responses",

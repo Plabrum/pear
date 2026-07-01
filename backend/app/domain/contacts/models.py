@@ -1,13 +1,24 @@
 import sqlalchemy as sa
-from sqlalchemy.orm import Mapped, mapped_column, synonym
+from sqlalchemy.orm import Mapped, mapped_column
 
 from app.domain.contacts.enums import WingpersonStatus
-from app.platform.base.models import BaseDBModel
+from app.platform.base.rls import Owner, RLSScopedMixin
+from app.platform.state_machine.models import StateMachineMixin
 from app.utils.sqids import Sqid, SqidType
-from app.utils.textenum import TextEnum
 
 
-class Contact(BaseDBModel):
+class Contact(
+    StateMachineMixin(state_enum=WingpersonStatus, initial_state=WingpersonStatus.INVITED),
+    # Both parties (dater + winger) read and update; only the dater creates/removes.
+    RLSScopedMixin(
+        read=Owner("user_id") | Owner("winger_id"),
+        edit={
+            "INSERT": Owner("user_id"),
+            "UPDATE": Owner("user_id") | Owner("winger_id"),
+            "DELETE": Owner("user_id"),
+        },
+    ),
+):
     __tablename__ = "contacts"
 
     # the dater who owns this contact — SQL: not null references profiles(id) on delete cascade
@@ -25,18 +36,6 @@ class Contact(BaseDBModel):
         nullable=True,
         index=True,
     )
-    wingperson_status: Mapped[WingpersonStatus] = mapped_column(
-        TextEnum(WingpersonStatus),
-        nullable=False,
-        default=WingpersonStatus.INVITED,
-        server_default=WingpersonStatus.INVITED.name,
-    )
-
-    # `wingperson_status` IS this contact's state-machine column, but the platform
-    # `StateMachineService` reads/writes a uniformly-named `obj.state`. Expose a
-    # `state` synonym so contacts go through the same transition machinery as any
-    # `StateMachineMixin` model WITHOUT renaming the wire/SQL column. Additive only:
-    # the underlying TEXT column is still `wingperson_status`; `get_state_machine_meta`
-    # (which inspects `__table__.columns["state"]`) returns None here — intended, the
-    # contacts machine is invoked explicitly by its actions, not via column discovery.
-    state: Mapped[WingpersonStatus] = synonym("wingperson_status")
+    # `state` (the wing relationship lifecycle: invited|active|removed) is the
+    # canonical TextEnum column added by StateMachineMixin — driven exclusively
+    # through StateMachineService.transition by the contact actions.

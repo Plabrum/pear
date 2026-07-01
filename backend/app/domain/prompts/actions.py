@@ -22,7 +22,7 @@ from app.domain.prompts.schemas import (
     CreateProfilePromptData,
     CreatePromptResponseData,
 )
-from app.domain.prompts.state_machine import adapt, prompt_response_approval_machine
+from app.domain.prompts.state_machine import prompt_response_approval_machine
 from app.platform.actions.base import (
     BaseObjectAction,
     BaseTopLevelAction,
@@ -188,9 +188,7 @@ class ApprovePromptResponse(BaseObjectAction[PromptResponse, EmptyActionData]):
     def is_available(cls, obj: PromptResponse, user: User, deps: ActionDeps) -> bool:
         # Only the profile-owning dater may approve, and only while pending —
         # ownership is a flat column compare on profile_owner_id.
-        return (
-            user.role is Role.DATER and not obj.is_approved and not obj.is_rejected and obj.profile_owner_id == user.id
-        )
+        return user.role is Role.DATER and obj.state is ApprovalState.PENDING and obj.profile_owner_id == user.id
 
     @classmethod
     async def execute(
@@ -202,11 +200,10 @@ class ApprovePromptResponse(BaseObjectAction[PromptResponse, EmptyActionData]):
         deps: ActionDeps,
     ) -> ActionExecutionResponse:
         # Drive the approval through the state machine (logs + emits an event)
-        # rather than assigning is_approved directly. The adapter projects the
-        # booleans onto ApprovalState and writes them back on transition.
+        # rather than assigning the state column directly.
         await deps.state_machine_service.transition(
             prompt_response_approval_machine,
-            adapt(obj),
+            obj,
             ApprovalState.APPROVED,
             actor=user,
         )

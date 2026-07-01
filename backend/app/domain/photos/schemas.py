@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
+from app.domain.photos.enums import PhotoApprovalState
 from app.platform.actions.schemas import Actionable
 from app.platform.base.schemas import BaseSchema
 from app.utils.sqids import Sqid
@@ -19,7 +20,9 @@ class Photo(Actionable):
     datingProfileId: Sqid
     storageUrl: str
     displayOrder: int
-    approvedAt: str | None
+    # The approval lifecycle as an explicit literal (pending|approved|rejected) —
+    # the single uniform status the client reads, mirroring the backend `state`.
+    status: PhotoApprovalState
     suggesterId: Sqid | None
     suggester: PhotoSuggesterRef | None
 

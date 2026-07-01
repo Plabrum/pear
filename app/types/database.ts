@@ -577,8 +577,8 @@ export type Database = {
     };
     Enums: {
       city: 'Boston' | 'New York';
-      dating_status: 'open' | 'break' | 'winging';
-      decision_type: 'approved' | 'declined';
+      dating_status: 'open' | 'break';
+      decision_type: 'pending' | 'approved' | 'declined';
       gender: 'Male' | 'Female' | 'Non-Binary';
       interest:
         | 'Travel'
@@ -739,8 +739,8 @@ export const Constants = {
   public: {
     Enums: {
       city: ['Boston', 'New York'],
-      dating_status: ['open', 'break', 'winging'],
-      decision_type: ['approved', 'declined'],
+      dating_status: ['open', 'break'],
+      decision_type: ['pending', 'approved', 'declined'],
       gender: ['Male', 'Female', 'Non-Binary'],
       interest: [
         'Travel',

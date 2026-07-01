@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -43,6 +44,7 @@ from app.platform.actions.hydrate import actions_for, resolve_group
 from app.platform.auth.principal import User
 from app.platform.state_machine.machine import StateMachineService
 from app.platform.state_machine.roles import Role
+from app.utils.exceptions import UserFacingError
 from tests.fixtures.graph import DomainGraph
 from tests.fixtures.ids import fake_id
 from tests.fixtures.media import local_media
@@ -123,7 +125,7 @@ async def test_fetch_winging_for_tabs_only_active_edges(graph: DomainGraph, db_s
         user_id=graph.dater_c.id,
         phone_number="+15555550009",
         winger_id=graph.winger.id,
-        wingperson_status=WingpersonStatus.INVITED,
+        state=WingpersonStatus.INVITED,
     )
     db_session.add(invited)
     await db_session.flush()
@@ -153,7 +155,7 @@ async def test_sent_invitations_and_incoming_reflect_an_invite(graph: DomainGrap
         user_id=graph.dater_c.id,
         phone_number=graph.winger.phone_number or "+15555550000",
         winger_id=graph.winger.id,
-        wingperson_status=WingpersonStatus.INVITED,
+        state=WingpersonStatus.INVITED,
     )
     db_session.add(invited)
     await db_session.flush()
@@ -202,7 +204,7 @@ async def test_incoming_invitation_actions_for_winger(graph: DomainGraph, db_ses
         user_id=graph.dater_c.id,
         phone_number="+15555550010",
         winger_id=graph.winger.id,
-        wingperson_status=WingpersonStatus.INVITED,
+        state=WingpersonStatus.INVITED,
     )
     db_session.add(invited)
     await db_session.flush()
@@ -224,7 +226,7 @@ async def test_sent_invitation_actions_for_dater(graph: DomainGraph, db_session:
         user_id=graph.dater_c.id,
         phone_number="+15555550011",
         winger_id=graph.winger.id,
-        wingperson_status=WingpersonStatus.INVITED,
+        state=WingpersonStatus.INVITED,
     )
     db_session.add(invited)
     await db_session.flush()
@@ -252,7 +254,7 @@ async def test_action_fetchers_key_by_contact_id_and_scope(graph: DomainGraph, d
     # the incoming/sent buckets are empty for a dater with only an active edge.
     active = await fetch_active_wingperson_contacts(db_session, graph.dater_a.id)
     assert set(active) == {graph.contact.id}
-    assert active[graph.contact.id].wingperson_status == WingpersonStatus.ACTIVE
+    assert active[graph.contact.id].state == WingpersonStatus.ACTIVE
 
     assert await fetch_incoming_invitation_contacts(db_session, graph.dater_a.id) == {}
     assert await fetch_sent_invitation_contacts(db_session, graph.dater_a.id) == {}
@@ -280,7 +282,7 @@ async def test_invite_inserts_and_links_existing_profile_and_pushes(
     contact = (await db_session.execute(select(Contact).where(Contact.id == result.created_id))).scalar_one()
     assert contact.user_id == graph.dater_c.id
     assert contact.winger_id == graph.winger.id  # linked by phone
-    assert contact.wingperson_status == WingpersonStatus.INVITED
+    assert contact.state == WingpersonStatus.INVITED
     push_send.assert_awaited_once()
 
 
@@ -297,12 +299,43 @@ async def test_invite_unknown_phone_leaves_winger_unlinked_no_push(
     push_send.assert_not_awaited()
 
 
+async def test_invite_duplicate_raises_user_facing_error(graph: DomainGraph, db_session: AsyncSession) -> None:
+    # A second invite to the same phone while a non-removed contact exists is
+    # rejected with a user-facing message (shown verbatim on the client).
+    deps = _deps(db_session, user_id=graph.dater_c.id, role=Role.DATER)
+    data = InviteWingpersonData(phoneNumber="+19998887777")
+    await InviteWingperson.execute(data, db_session, deps.user, deps)
+
+    with pytest.raises(UserFacingError) as excinfo:
+        await InviteWingperson.execute(data, db_session, deps.user, deps)
+    assert excinfo.value.user_facing is True
+    assert excinfo.value.status_code == 409
+    assert "already invited" in excinfo.value.detail
+
+
+async def test_invite_after_removed_contact_is_allowed(graph: DomainGraph, db_session: AsyncSession) -> None:
+    # A `removed` contact does not block re-inviting the same phone number.
+    removed = Contact(
+        user_id=graph.dater_c.id,
+        phone_number="+19998887777",
+        winger_id=None,
+        state=WingpersonStatus.REMOVED,
+    )
+    db_session.add(removed)
+    await db_session.flush()
+
+    deps = _deps(db_session, user_id=graph.dater_c.id, role=Role.DATER)
+    data = InviteWingpersonData(phoneNumber="+19998887777")
+    result = await InviteWingperson.execute(data, db_session, deps.user, deps)
+    assert result.created_id is not None
+
+
 async def test_accept_invite_transitions_to_active(graph: DomainGraph, db_session: AsyncSession) -> None:
     invited = Contact(
         user_id=graph.dater_c.id,
         phone_number="+15555550001",
         winger_id=graph.winger.id,
-        wingperson_status=WingpersonStatus.INVITED,
+        state=WingpersonStatus.INVITED,
     )
     db_session.add(invited)
     await db_session.flush()
@@ -312,7 +345,7 @@ async def test_accept_invite_transitions_to_active(graph: DomainGraph, db_sessio
     result = await AcceptInvite.execute(invited, EmptyActionData(), db_session, deps.user, deps)
 
     assert result.message == "Invitation accepted"
-    assert invited.wingperson_status == WingpersonStatus.ACTIVE
+    assert invited.state == WingpersonStatus.ACTIVE
     # synonym keeps both views in sync.
     assert invited.state == WingpersonStatus.ACTIVE
 
@@ -322,7 +355,7 @@ async def test_decline_invite_transitions_to_removed(graph: DomainGraph, db_sess
         user_id=graph.dater_c.id,
         phone_number="+15555550002",
         winger_id=graph.winger.id,
-        wingperson_status=WingpersonStatus.INVITED,
+        state=WingpersonStatus.INVITED,
     )
     db_session.add(invited)
     await db_session.flush()
@@ -330,7 +363,7 @@ async def test_decline_invite_transitions_to_removed(graph: DomainGraph, db_sess
     deps = _deps(db_session, user_id=graph.winger.id, role=Role.WINGER)
     assert DeclineInvite.is_available(invited, deps.user, deps) is True
     await DeclineInvite.execute(invited, EmptyActionData(), db_session, deps.user, deps)
-    assert invited.wingperson_status == WingpersonStatus.REMOVED
+    assert invited.state == WingpersonStatus.REMOVED
 
 
 async def test_remove_active_wingperson_transitions_to_removed(graph: DomainGraph, db_session: AsyncSession) -> None:
@@ -338,7 +371,7 @@ async def test_remove_active_wingperson_transitions_to_removed(graph: DomainGrap
     deps = _deps(db_session, user_id=graph.dater_a.id, role=Role.DATER)
     assert RemoveWingperson.is_available(graph.contact, deps.user, deps) is True
     await RemoveWingperson.execute(graph.contact, EmptyActionData(), db_session, deps.user, deps)
-    assert graph.contact.wingperson_status == WingpersonStatus.REMOVED
+    assert graph.contact.state == WingpersonStatus.REMOVED
 
 
 # ── Actions: gate denials ───────────────────────────────────────────────────────
@@ -349,7 +382,7 @@ async def test_accept_denied_for_dater(graph: DomainGraph, db_session: AsyncSess
         user_id=graph.dater_c.id,
         phone_number="+15555550003",
         winger_id=graph.winger.id,
-        wingperson_status=WingpersonStatus.INVITED,
+        state=WingpersonStatus.INVITED,
     )
     db_session.add(invited)
     await db_session.flush()

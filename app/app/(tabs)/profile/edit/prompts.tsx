@@ -1,4 +1,3 @@
-import { useCallback } from 'react';
 import { useRouter } from 'expo-router';
 import { useForm } from 'react-hook-form';
 import { useQueryClient } from '@tanstack/react-query';
@@ -23,14 +22,14 @@ function PromptsScreenInner() {
     defaultValues: datingProfile ?? undefined,
   });
 
-  const handleRefresh = useCallback(async () => {
+  const handleRefresh = async () => {
     const fresh = await getApiDatingProfilesMe();
     if (fresh) {
       form.reset(fresh);
       queryClient.setQueryData(getGetApiDatingProfilesMeQueryKey(), fresh);
     }
     queryClient.invalidateQueries({ queryKey: getGetApiDatingProfilesMeQueryKey() });
-  }, [queryClient, form]);
+  };
 
   if (!datingProfile) return null;
 

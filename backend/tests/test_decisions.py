@@ -10,13 +10,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import config
 from app.domain.dating_profiles.actions import Like
 from app.domain.dating_profiles.enums import City, Interest
-from app.domain.decisions.enums import DecisionType
+from app.domain.decisions.enums import DecisionState
 from app.domain.decisions.models import Decision
 from app.domain.decisions.queries import (
     fetch_my_suggestions,
     find_mutual_match,
+    form_match_if_mutual,
 )
-from app.domain.decisions.tasks import form_match
+from app.domain.decisions.tasks import notify_match
 from app.domain.decisions.transformers import (
     SuggestionRow,
     transform_my_suggestion,
@@ -44,6 +45,7 @@ from app.domain.messages.actions import message_actions
 from app.platform.actions.base import EmptyActionData
 from app.platform.actions.deps import ActionDeps
 from app.platform.auth.principal import User
+from app.platform.queue.types import AppContext
 from app.platform.state_machine.machine import StateMachineService
 from app.platform.state_machine.roles import Role
 from tests.fixtures.graph import DomainGraph
@@ -100,7 +102,7 @@ async def test_fetch_my_suggestions_empty_for_non_suggester(graph: DomainGraph, 
 def test_transform_my_suggestion_matched() -> None:
     row = SuggestionRow(
         id=fake_id(),
-        decision=DecisionType.APPROVED,
+        state=DecisionState.APPROVED,
         has_match=True,
         dater_id=fake_id(),
         dater_name="Alex",
@@ -113,7 +115,7 @@ def test_transform_my_suggestion_matched() -> None:
 def test_transform_my_suggestion_not_accepted() -> None:
     row = SuggestionRow(
         id=fake_id(),
-        decision=DecisionType.DECLINED,
+        state=DecisionState.DECLINED,
         has_match=False,
         dater_id=fake_id(),
         dater_name="Alex",
@@ -147,7 +149,7 @@ async def test_merged_like_flips_winger_pending_row(graph: DomainGraph, db_sessi
         .all()
     )
     assert len(rows) == 1
-    assert rows[0].decision == DecisionType.APPROVED
+    assert rows[0].state == DecisionState.APPROVED
     assert rows[0].suggested_by == graph.winger.id
 
     # The winger's people-activity for this card now reports "matched".
@@ -157,7 +159,7 @@ async def test_merged_like_flips_winger_pending_row(graph: DomainGraph, db_sessi
     assert await find_mutual_match(db_session, graph.dater_a.id, graph.dater_b.id) is not None
 
 
-# ── FORM_MATCH task (match formation moved off the request path) ──────────────
+# ── form_match_if_mutual (in-request, guarded INSERT ... SELECT) ──────────────
 
 
 def _ctx() -> dict[str, object]:
@@ -171,54 +173,66 @@ async def _count_matches(db_session: AsyncSession, a, b) -> int:
     return len(rows)
 
 
-async def test_form_match_creates_on_mutual(graph: DomainGraph, db_session: AsyncSession) -> None:
-    # dater_a and dater_c mutually approve, with no match yet — the task forms it.
+async def test_form_match_if_mutual_creates_on_mutual(graph: DomainGraph, db_session: AsyncSession) -> None:
+    # dater_a and dater_c mutually approve, with no match yet — the guarded insert
+    # forms it and returns the new match id.
     db_session.add_all(
         [
-            Decision(actor_id=graph.dater_a.id, recipient_id=graph.dater_c.id, decision=DecisionType.APPROVED),
-            Decision(actor_id=graph.dater_c.id, recipient_id=graph.dater_a.id, decision=DecisionType.APPROVED),
+            Decision(actor_id=graph.dater_a.id, recipient_id=graph.dater_c.id, state=DecisionState.APPROVED),
+            Decision(actor_id=graph.dater_c.id, recipient_id=graph.dater_a.id, state=DecisionState.APPROVED),
         ]
     )
     await db_session.flush()
     assert await _count_matches(db_session, graph.dater_a.id, graph.dater_c.id) == 0
 
-    await form_match(
-        _ctx(),
-        transaction=db_session,
-        actor_id=graph.dater_a.id,
-        recipient_id=graph.dater_c.id,
-    )
+    match_id = await form_match_if_mutual(db_session, graph.dater_a.id, graph.dater_c.id)
 
-    assert await find_mutual_match(db_session, graph.dater_a.id, graph.dater_c.id) is not None
+    assert match_id is not None
+    match = await find_mutual_match(db_session, graph.dater_a.id, graph.dater_c.id)
+    assert match is not None and match.id == match_id
     assert await _count_matches(db_session, graph.dater_a.id, graph.dater_c.id) == 1
 
 
-async def test_form_match_is_idempotent(graph: DomainGraph, db_session: AsyncSession) -> None:
-    # The graph already seeds the dater_a <-> dater_b match. Re-running the task must
-    # not insert a duplicate (it returns early on an existing match).
+async def test_form_match_if_mutual_idempotent_on_existing(graph: DomainGraph, db_session: AsyncSession) -> None:
+    # The graph already seeds the dater_a <-> dater_b match. A re-run hits the
+    # `unique_match` conflict -> no duplicate, and returns None (nothing newly formed).
     assert await _count_matches(db_session, graph.dater_a.id, graph.dater_b.id) == 1
-    await form_match(
-        _ctx(),
-        transaction=db_session,
-        actor_id=graph.dater_a.id,
-        recipient_id=graph.dater_b.id,
-    )
+    match_id = await form_match_if_mutual(db_session, graph.dater_a.id, graph.dater_b.id)
+    assert match_id is None
     assert await _count_matches(db_session, graph.dater_a.id, graph.dater_b.id) == 1
 
 
-async def test_form_match_noop_when_not_mutual(graph: DomainGraph, db_session: AsyncSession) -> None:
-    # Only one side approved -> no match is formed (the second like will re-enqueue).
-    db_session.add(Decision(actor_id=graph.dater_a.id, recipient_id=graph.dater_c.id, decision=DecisionType.APPROVED))
+async def test_form_match_if_mutual_noop_when_not_mutual(graph: DomainGraph, db_session: AsyncSession) -> None:
+    # Only one side approved -> the guarded SELECT yields no row, so nothing is formed.
+    db_session.add(Decision(actor_id=graph.dater_a.id, recipient_id=graph.dater_c.id, state=DecisionState.APPROVED))
     await db_session.flush()
 
-    await form_match(
-        _ctx(),
-        transaction=db_session,
-        actor_id=graph.dater_a.id,
-        recipient_id=graph.dater_c.id,
-    )
+    match_id = await form_match_if_mutual(db_session, graph.dater_a.id, graph.dater_c.id)
+    assert match_id is None
     assert await find_mutual_match(db_session, graph.dater_a.id, graph.dater_c.id) is None
     assert await _count_matches(db_session, graph.dater_a.id, graph.dater_c.id) == 0
+
+
+async def test_notify_match_pushes_both_sides(graph: DomainGraph, db_session: AsyncSession) -> None:
+    # Side-effect task: pushes each tokened participant once. The match row is NOT
+    # this task's concern (the Like action forms it in-request).
+    graph.dater_a.push_token = "TOKEN_A"
+    graph.dater_c.push_token = "TOKEN_C"
+    await db_session.flush()
+
+    client = MagicMock()
+    client.send = AsyncMock(return_value=None)
+    ctx = cast("AppContext", {**_ctx(), "push_client": client})
+    await notify_match(
+        ctx,
+        transaction=db_session,
+        user_a_id=graph.dater_a.id,
+        user_b_id=graph.dater_c.id,
+    )
+
+    send = cast(AsyncMock, client.send)
+    assert send.await_count == 2
+    assert {call.args[0] for call in send.await_args_list} == {"TOKEN_A", "TOKEN_C"}
 
 
 # ── matches: reads ───────────────────────────────────────────────────────────

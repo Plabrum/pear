@@ -1,13 +1,22 @@
 import sqlalchemy as sa
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.domain.decisions.enums import DecisionType
-from app.platform.base.models import BaseDBModel
+from app.domain.decisions.enums import DecisionState
+from app.platform.base.rls import Owner, OwnerOrWinger, RLSScopedMixin
+from app.platform.state_machine.models import StateMachineMixin
 from app.utils.sqids import Sqid, SqidType
-from app.utils.textenum import TextEnum
 
 
-class Decision(BaseDBModel):
+class Decision(
+    StateMachineMixin(state_enum=DecisionState, initial_state=DecisionState.PENDING),
+    # Visible to actor / recipient / suggester. Insert as the actor or as an active
+    # wingperson of the actor (the dater); only the actor updates. The suggested_by /
+    # self-decision distinction is enforced in the decisions actions, not the floor.
+    RLSScopedMixin(
+        read=Owner("actor_id") | Owner("recipient_id") | Owner("suggested_by"),
+        edit={"INSERT": OwnerOrWinger("actor_id"), "UPDATE": Owner("actor_id")},
+    ),
+):
     __tablename__ = "decisions"
 
     # SQL: not null references profiles(id) on delete cascade
@@ -23,8 +32,9 @@ class Decision(BaseDBModel):
         nullable=False,
         index=True,
     )
-    # NULL = wingperson suggestion not yet acted on
-    decision: Mapped[DecisionType | None] = mapped_column(TextEnum(DecisionType), nullable=True)
+    # `state` (PENDING|APPROVED|DECLINED) is the canonical lifecycle column added by
+    # StateMachineMixin. A winger suggestion lands in PENDING until the dater acts; a
+    # direct like is created APPROVED; a pass / winger-decline-for-dater is DECLINED.
     # the winger who suggested this card — SQL: references profiles(id) on delete set null
     suggested_by: Mapped[Sqid | None] = mapped_column(
         SqidType,

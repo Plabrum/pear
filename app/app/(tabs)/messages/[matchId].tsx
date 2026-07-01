@@ -2,61 +2,19 @@ import React, { useRef, useState } from 'react';
 import { FlatList, Platform, StyleSheet } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Controller, useForm } from 'react-hook-form';
-import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
+import { useBottomTabBarHeight } from 'expo-router/js-tabs';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
-import Svg, { Path } from 'react-native-svg';
 
 import { useAuth } from '@/context/auth';
 import { useMessages } from '@/hooks/use-messages';
 import { usePresence } from '@/hooks/use-presence';
 import { useTyping } from '@/hooks/use-typing';
 import { FaceAvatar } from '@/components/ui/FaceAvatar';
+import { BackIcon, SendIcon } from '@/components/ui/icons';
 import ScreenSuspense from '@/components/ui/ScreenSuspense';
+import { formatTimestamp } from '@/lib/time';
+import { colors } from '@/constants/theme';
 import { View, Text, TextInput, Pressable, SafeAreaView } from '@/lib/tw';
-
-const LEAF = '#5A8C3A';
-const PAPER = '#FBF8F1';
-const CREAM2 = '#EDE6D6';
-const INK = '#1F1B16';
-const INK_SUBTLE = '#8B8170';
-const LINE = 'rgba(31,27,22,0.10)';
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function formatTimestamp(isoString: string): string {
-  const date = new Date(isoString.replace(' ', 'T'));
-  return date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-}
-
-// ── Icons ─────────────────────────────────────────────────────────────────────
-
-function BackIcon({ color = INK }: { color?: string }) {
-  return (
-    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
-      <Path
-        d="M15 18l-6-6 6-6"
-        stroke={color}
-        strokeWidth={2}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </Svg>
-  );
-}
-
-function SendIcon({ color }: { color: string }) {
-  return (
-    <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
-      <Path
-        d="M5 12h14M13 6l6 6-6 6"
-        stroke={color}
-        strokeWidth={2}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </Svg>
-  );
-}
 
 // ── ChatHeader ────────────────────────────────────────────────────────────────
 
@@ -68,17 +26,16 @@ type ChatHeaderProps = {
 function ChatHeader({ name, isOnline }: ChatHeaderProps) {
   return (
     <View
-      className="flex-row items-center bg-surface"
+      className="flex-row items-center bg-surface border-border"
       style={{
         paddingHorizontal: 16,
         paddingVertical: 8,
         gap: 10,
         borderBottomWidth: StyleSheet.hairlineWidth,
-        borderBottomColor: LINE,
       }}
     >
       <Pressable
-        onPress={() => router.dismiss()}
+        onPress={() => router.back()}
         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         style={{ padding: 4, marginLeft: -4 }}
       >
@@ -88,7 +45,7 @@ function ChatHeader({ name, isOnline }: ChatHeaderProps) {
         <FaceAvatar name={name} size={36} />
         {isOnline && (
           <View
-            className="bg-green"
+            className="bg-green border-surface"
             style={{
               position: 'absolute',
               bottom: -1,
@@ -97,7 +54,6 @@ function ChatHeader({ name, isOnline }: ChatHeaderProps) {
               height: 10,
               borderRadius: 5,
               borderWidth: 2,
-              borderColor: PAPER,
             }}
           />
         )}
@@ -142,9 +98,9 @@ function MessageBubble({ body, isMine, createdAt, isOptimistic }: MessageBubbleP
           borderRadius: 18,
           borderBottomRightRadius: isMine ? 5 : 18,
           borderBottomLeftRadius: isMine ? 18 : 5,
-          backgroundColor: isMine ? LEAF : PAPER,
+          backgroundColor: isMine ? colors.leaf : colors.white,
           borderWidth: isMine ? 0 : StyleSheet.hairlineWidth,
-          borderColor: LINE,
+          borderColor: colors.divider,
           opacity: isOptimistic ? 0.65 : 1,
         }}
       >
@@ -152,7 +108,7 @@ function MessageBubble({ body, isMine, createdAt, isOptimistic }: MessageBubbleP
           style={{
             fontSize: 14.5,
             lineHeight: 20,
-            color: isMine ? PAPER : INK,
+            color: isMine ? colors.white : colors.ink,
           }}
         >
           {body}
@@ -255,14 +211,13 @@ function ChatBody({ matchId, userId, otherUserId, otherName }: ChatBodyProps) {
       )}
 
       <View
-        className="flex-row items-center bg-surface"
+        className="flex-row items-center bg-surface border-border"
         style={{
           paddingHorizontal: 12,
           paddingTop: 10,
           paddingBottom: 12,
           gap: 8,
           borderTopWidth: StyleSheet.hairlineWidth,
-          borderTopColor: LINE,
         }}
       >
         <View
@@ -292,7 +247,7 @@ function ChatBody({ matchId, userId, otherUserId, otherName }: ChatBodyProps) {
                   if (text.length > 0) notifyTyping();
                 }}
                 placeholder={otherName ? `Message ${otherName}…` : 'Message…'}
-                placeholderTextColor={INK_SUBTLE}
+                placeholderTextColor={colors.inkDim}
                 multiline
                 maxLength={1000}
                 returnKeyType="send"
@@ -312,10 +267,10 @@ function ChatBody({ matchId, userId, otherUserId, otherName }: ChatBodyProps) {
             width: 40,
             height: 40,
             borderRadius: 20,
-            backgroundColor: canSend ? LEAF : CREAM2,
+            backgroundColor: canSend ? colors.leaf : colors.muted,
           }}
         >
-          <SendIcon color={canSend ? PAPER : INK_SUBTLE} />
+          <SendIcon color={canSend ? colors.white : colors.inkDim} />
         </Pressable>
       </View>
     </KeyboardAvoidingView>

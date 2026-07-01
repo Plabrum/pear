@@ -1,5 +1,7 @@
 import os
+import tempfile
 from dataclasses import dataclass
+from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -49,6 +51,10 @@ class Config:
     # Local-only: where `LocalS3Client` roots its fake URLs (and, optionally, where a
     # local upload sink could persist bytes). Never used in prod.
     LOCAL_MEDIA_BASE_URL: str = os.getenv("LOCAL_MEDIA_BASE_URL", "http://localhost:8000/_local-media")
+    # Filesystem root the dev/test `LocalMediaClient` persists bytes to, so the
+    # presigned PUT/GET actually round-trips over HTTP (api + worker share this dir
+    # since both run on the host in local dev). Never used in prod.
+    LOCAL_MEDIA_DIR: str = os.getenv("LOCAL_MEDIA_DIR", str(Path(tempfile.gettempdir()) / "pear-local-media"))
     # Target container format the image worker normalizes every upload to. WebP keeps
     # transparency + compresses well; configurable so the normalize step can change.
     MEDIA_IMAGE_FORMAT: str = os.getenv("MEDIA_IMAGE_FORMAT", "webp")

@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { toast } from 'sonner-native';
 import { useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -7,6 +6,7 @@ import { View, Pressable } from '@/lib/tw';
 import { FaceAvatar } from '@/components/ui/FaceAvatar';
 import { getGetApiProfilesMeQueryKey } from '@/lib/api/generated/profiles/profiles';
 import { pickAndResizePhoto, uploadAvatar } from '@/lib/photos';
+import { toastError } from '@/lib/api/error-toast';
 import { colors } from '@/constants/theme';
 
 type AvatarPickerProps = {
@@ -28,8 +28,8 @@ export function AvatarPicker({ name, avatarUrl, size, userId }: AvatarPickerProp
     try {
       await uploadAvatar(userId, uri);
       queryClient.invalidateQueries({ queryKey: getGetApiProfilesMeQueryKey() });
-    } catch {
-      toast.error("Couldn't upload photo. Try again.");
+    } catch (err) {
+      toastError(err, "Couldn't upload photo. Try again.");
     } finally {
       setUploading(false);
     }

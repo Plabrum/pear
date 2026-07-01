@@ -4,12 +4,19 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.domain.dating_profiles.enums import City, DatingStatus, Interest, Religion
 from app.domain.profiles.enums import Gender
-from app.platform.base.models import BaseDBModel
+from app.platform.base.rls import Authenticated, Owner, RLSScopedMixin
+from app.platform.state_machine.models import StateMachineMixin
 from app.utils.sqids import Sqid, SqidType
 from app.utils.textenum import TextEnum
 
 
-class DatingProfile(BaseDBModel):
+class DatingProfile(
+    StateMachineMixin(state_enum=DatingStatus, initial_state=DatingStatus.OPEN),
+    # Read floor coarsened to "any authenticated actor"; business visibility
+    # (is_active) is enforced in the app query layer (profiles.queries). Writes stay
+    # owner-only.
+    RLSScopedMixin(read=Authenticated, edit=Owner("user_id")),
+):
     __tablename__ = "dating_profiles"
 
     # one dating profile per user — SQL: not null unique references profiles(id)
@@ -41,9 +48,6 @@ class DatingProfile(BaseDBModel):
     )
     city: Mapped[City] = mapped_column(TextEnum(City), nullable=False)
     is_active: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=True, server_default=sa.true())
-    dating_status: Mapped[DatingStatus] = mapped_column(
-        TextEnum(DatingStatus),
-        nullable=False,
-        default=DatingStatus.OPEN,
-        server_default=DatingStatus.OPEN.name,
-    )
+    # `state` (OPEN|BREAK — the dater's availability) is the canonical lifecycle
+    # column added by StateMachineMixin, flipped only via the dating-status actions.
+    # "Winging" is no longer a dating_status — it lives on profiles.state (role).

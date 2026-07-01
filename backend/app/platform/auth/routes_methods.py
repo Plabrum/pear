@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import logging
 from typing import Any
 
 from email_validator import EmailNotValidError, validate_email
@@ -23,6 +25,8 @@ from app.platform.auth.schemas import (
 from app.platform.auth.service import AuthService
 from app.platform.comms.service.emails import EmailService
 
+logger = logging.getLogger(__name__)
+
 
 def _start_session(request: Request, profile: Profile) -> UserOut:
     """Set the cookie session for `profile` and return its serialized user.
@@ -42,9 +46,17 @@ _magic_link_rate_limit = RateLimitConfig(rate_limit=("minute", 3))
 
 
 def _normalize_email(raw: str) -> str:
-    """Normalize an email for use as a stable identity subject. Raises on invalid."""
+    """Normalize an email for use as a stable identity subject. Raises on invalid.
+
+    Outside production we allow special-use/reserved domains (``example.com``,
+    ``*.test``, ``localhost``, …) so local dev can log in with throwaway addresses.
+    """
     try:
-        return validate_email(raw, check_deliverability=False).normalized.lower()
+        return validate_email(
+            raw,
+            check_deliverability=False,
+            test_environment=config.ENV != "production",
+        ).normalized.lower()
     except EmailNotValidError as e:
         raise HTTPException(status_code=400, detail="Invalid email address") from e
 
@@ -111,6 +123,34 @@ async def magic_link_request(
         magic_link_url=verify_url,
         expires_minutes=max(1, config.MAGIC_LINK_TTL_SECONDS // 60),
     )
+
+    if config.IS_DEV:
+        await _dev_open_magic_link(token)  # best-effort simctl openurl
+
+
+async def _dev_open_magic_link(token: str) -> None:
+    """Dev only: point the booted iOS Simulator at the magic-link deep link so
+    login completes without manually copying the link from the logs.
+
+    Best-effort: any failure (no booted sim, no `xcrun`, non-mac CI) is logged at
+    WARNING and swallowed — it must never break the 204 or the real email path.
+    """
+    deep_link = f"{config.APP_DEEP_LINK_SCHEME}://magic-link?token={token}"
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "xcrun",
+            "simctl",
+            "openurl",
+            "booted",
+            deep_link,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        _, stderr = await proc.communicate()
+        if proc.returncode != 0:
+            logger.warning("dev auto-login openurl failed: %s", stderr.decode().strip())
+    except FileNotFoundError:
+        logger.warning("dev auto-login: xcrun not found (skipping)")
 
 
 @get("/magic-link/verify", exclude_from_auth=True)

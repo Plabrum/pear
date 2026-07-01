@@ -43,6 +43,11 @@ db-migrate +msg:
     cd backend && uv run ruff check --fix alembic/versions/ && uv run ruff format alembic/versions/
 db-downgrade:
     cd backend && uv run alembic downgrade -1
+fixtures:
+    # Flush Redis first: reseeding mints new profile ids, so any session left in
+    # Redis points at a deleted profile and breaks the next login.
+    cd backend && docker compose -f docker-compose.dev.yml exec -T redis redis-cli flushall
+    cd backend && uv run python -m app.platform.queue.run_fixtures
 db-psql:
     psql postgresql://postgres:postgres@localhost:5432/pear
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 
-from app.domain.decisions.enums import DecisionType
+from app.domain.decisions.enums import DecisionState
 from app.domain.decisions.schemas import (
     MySuggestion,
     MySuggestionStatus,
@@ -14,7 +14,7 @@ from app.utils.sqids import Sqid
 @dataclass
 class SuggestionRow:
     id: Sqid
-    decision: DecisionType | None
+    state: DecisionState
     has_match: bool
     dater_id: Sqid
     dater_name: str | None
@@ -28,9 +28,9 @@ def _iso(value: datetime | None) -> str:
 
 def transform_my_suggestion(row: SuggestionRow) -> MySuggestion:
     status: MySuggestionStatus
-    if row.decision is DecisionType.DECLINED:
+    if row.state is DecisionState.DECLINED:
         status = "not_accepted"
-    elif row.decision is DecisionType.APPROVED and row.has_match:
+    elif row.state is DecisionState.APPROVED and row.has_match:
         status = "matched"
     else:
         status = "pending"

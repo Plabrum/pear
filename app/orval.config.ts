@@ -23,6 +23,18 @@ export default defineConfig({
           useSuspenseQuery: true,
           signal: true,
         },
+        operations: {
+          // The swipe feed is the one cursor-paginated surface — emit infinite
+          // hooks for it so the deck pages via fetchNextPage instead of a
+          // hand-rolled offset/loadMore loop. `pageOffset` is the cursor param.
+          getApiDatingProfilesSwipe: {
+            query: {
+              useInfinite: true,
+              useSuspenseInfiniteQuery: true,
+              useInfiniteQueryParam: 'pageOffset',
+            },
+          },
+        },
       },
       clean: true,
     },

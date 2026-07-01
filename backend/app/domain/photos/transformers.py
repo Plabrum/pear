@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
-
+from app.domain.photos.enums import PhotoApprovalState
 from app.domain.photos.models import ProfilePhoto
 from app.domain.photos.queries import PhotoRow, SuggestedPhotoRow
 from app.domain.photos.schemas import (
@@ -17,10 +16,6 @@ from app.platform.media.client import BaseMediaClient
 from app.utils.sqids import Sqid
 
 
-def _iso(value: datetime | None) -> str | None:
-    return value.isoformat() if value is not None else None
-
-
 def photo_to_dto(photo: ProfilePhoto, suggester_name: str | None, url: str | None) -> Photo:
     """Map an ORM photo (+ joined suggester name) to the wire `Photo`.
 
@@ -32,7 +27,7 @@ def photo_to_dto(photo: ProfilePhoto, suggester_name: str | None, url: str | Non
         datingProfileId=photo.dating_profile_id,
         storageUrl=url or "",
         displayOrder=photo.display_order,
-        approvedAt=_iso(photo.approved_at),
+        status=photo.state,
         suggesterId=photo.suggester_id,
         suggester=(
             PhotoSuggesterRef(id=photo.suggester_id, chosenName=suggester_name)
@@ -59,9 +54,9 @@ def photos_to_dtos(
 
 
 def _suggested_status(row: SuggestedPhotoRow) -> SuggestedPhotoStatus:
-    if row.rejected_at is not None:
+    if row.state is PhotoApprovalState.REJECTED:
         return "not_accepted"
-    if row.approved_at is not None:
+    if row.state is PhotoApprovalState.APPROVED:
         return "approved"
     return "pending"
 

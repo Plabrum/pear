@@ -125,17 +125,27 @@ just prod-ssh -- 'cd /opt/pear && docker compose ps'
 
 The entire Postgres database lives in one Docker named volume (`pgdata`) on one EBS
 volume on one instance. This is the durability cost of the single-box model — the
-ECS/Aurora path gets backups for free, but on EC2 they are our responsibility. Two
-independent layers: logical (`pg_dump` → S3) and physical (EBS snapshots via DLM).
+ECS/Aurora path gets backups for free, but on EC2 they are our responsibility.
+
+> **Status: intentionally none — deferred to a managed-DB migration.** Neither layer
+> below is provisioned, and **this is a deliberate decision, not an oversight**: while
+> the app is pre-launch with no real users there is nothing to lose, so we accept full
+> single-box durability risk. We are **not** building self-hosted backup machinery on
+> EC2. **When real users arrive, the plan is to move Postgres to managed RDS/Aurora**
+> (the `deploy_target = "ecs"` escape hatch already defined in Terraform), which gives
+> automated backups + PITR for free — rather than hand-rolling `pg_dump`/DLM here. The
+> two layers below are retained only as the break-glass option if a stopgap is ever
+> needed before that migration; they are not planned work.
 
 ### Layer 1 — nightly `pg_dump` to S3
 
 A logical dump is portable across Postgres versions and lets you restore a single
 table. Two equivalent options:
 
-**Option A — cron on the box** (simplest; lives in `user_data.sh`). Writes a
+**Option A — cron on the box** (simplest; would live in `user_data.sh`). Writes a
 gzipped dump and copies it to the media/backups bucket, keeping the box's IAM role
-(`s3:PutObject` on the bucket) as the only credential:
+(`s3:PutObject` on the bucket) as the only credential. Not currently installed — run
+`backup-db.sh` by hand, or add the cron line below when you automate it:
 
 ```bash
 # /etc/cron.d/pear-pg-backup  — runs 03:17 UTC nightly
@@ -178,9 +188,9 @@ so AWS takes and prunes them automatically — no cron, no box involvement:
 - **Schedule:** daily, e.g. 04:00 UTC.
 - **Retention:** keep 7 (one week). Bump for production once real data lands.
 
-This is defined in Terraform alongside `ec2_stack` (DLM lifecycle policy + an IAM
-role for the DLM service). Snapshots are crash-consistent; for a clean dump prefer
-Layer 1, but DLM is the fast path back from instance loss.
+This would be a DLM lifecycle policy + an IAM role for the DLM service in `ec2_stack`
+— **not yet defined**. Snapshots are crash-consistent; for a clean dump prefer Layer 1,
+but DLM is the fast path back from instance loss.
 
 ### Restore procedure
 

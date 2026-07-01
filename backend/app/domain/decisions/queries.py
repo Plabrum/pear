@@ -1,46 +1,55 @@
 from __future__ import annotations
 
-from sqlalchemy import and_, desc, exists, or_, select
+from typing import Any
+
+from sqlalchemy import and_, desc, exists, literal, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from app.domain.contacts.enums import WingpersonStatus
-from app.domain.contacts.models import Contact
-from app.domain.decisions.enums import DecisionType
+from app.domain.contacts.queries import is_active_wingperson  # noqa: F401  (re-exported)
+from app.domain.decisions.enums import DecisionState
 from app.domain.decisions.models import Decision
+from app.domain.decisions.state_machine import decision_machine
 from app.domain.decisions.transformers import SuggestionRow
 from app.domain.matches.models import Match
 from app.domain.profiles.models import Profile
-from app.utils.sqids import Sqid
+from app.platform.state_machine.machine import StateMachineService
+from app.platform.state_machine.roles import Actor
+from app.utils.sqids import Sqid, SqidType
 
 # ── Decision writes ───────────────────────────────────────────────────────────
 
 
-async def upsert_direct_decision(
+async def apply_dater_decision(
     db: AsyncSession,
-    actor_id: Sqid,
+    sm_service: StateMachineService,
+    actor: Actor,
     recipient_id: Sqid,
-    decision: DecisionType,
+    target_state: DecisionState,
 ) -> None:
-    """Direct like/pass: upsert the actor's decision on the recipient.
+    """The dater's own decision on a recipient: create it, or transition the existing row.
 
-    Upserts on (actor_id, recipient_id). Match formation is the action's
-    on-approve side-effect (see `actions.py`).
+    A brand-new pair has no prior decision, so the row is created directly in its
+    target state (`APPROVED` for a like, `DECLINED` for a pass/block). When a row
+    already exists — a pending winger suggestion, or a prior decision being
+    overwritten by a block — the lifecycle moves through `StateMachineService`
+    rather than assigning the `state` column directly.
     """
-    stmt = (
-        pg_insert(Decision)
-        .values(actor_id=actor_id, recipient_id=recipient_id, decision=decision)
-        .on_conflict_do_update(
-            constraint="unique_actor_recipient",
-            set_={"decision": pg_insert(Decision).excluded.decision},
+    existing = (
+        await db.execute(
+            select(Decision).where(and_(Decision.actor_id == actor.id, Decision.recipient_id == recipient_id))
         )
-        .returning(Decision)
-    )
-    # populate_existing syncs the identity map so a same-transaction entity re-read
-    # sees the upserted decision (RETURNING refreshes the row we just wrote).
-    await db.execute(stmt, execution_options={"populate_existing": True})
-    await db.flush()
+    ).scalar_one_or_none()
+
+    if existing is None:
+        db.add(Decision(actor_id=actor.id, recipient_id=recipient_id, state=target_state))
+        await db.flush()
+        return
+
+    if existing.state != target_state:
+        await sm_service.transition(decision_machine, existing, target_state, actor=actor)
+        await db.flush()
 
 
 async def insert_wing_suggestion(
@@ -49,17 +58,17 @@ async def insert_wing_suggestion(
     recipient_id: Sqid,
     winger_id: Sqid,
     note: str | None,
-    decision: DecisionType | None,
+    state: DecisionState,
 ) -> bool:
-    """Winger creates a suggestion row on the dater's behalf.
+    """Winger creates a decision row on the dater's behalf, in its initial state.
 
-    `decision`:
-      * None       -> normal suggestion the dater can act on (with optional note).
-      * 'declined' -> winger declines the recipient on the dater's behalf.
+    `state`:
+      * PENDING  -> normal suggestion the dater can act on (with optional note).
+      * DECLINED -> winger declines the recipient on the dater's behalf.
 
-    On conflict, does nothing: if the (actor, recipient) pair already exists (the
-    dater already decided on / was already suggested this recipient), no row is
-    written. Returns True only on a genuinely new insert.
+    Always a fresh row — on conflict it does nothing (the pair was already decided on
+    / already suggested), so the winger never transitions an existing decision.
+    Returns True only on a genuinely new insert.
     """
     stmt = (
         pg_insert(Decision)
@@ -67,7 +76,7 @@ async def insert_wing_suggestion(
             actor_id=dater_id,
             recipient_id=recipient_id,
             suggested_by=winger_id,
-            decision=decision,
+            state=state,
             note=note,
         )
         .on_conflict_do_nothing(constraint="unique_actor_recipient")
@@ -101,7 +110,7 @@ async def both_sides_approved(db: AsyncSession, user_a: Sqid, user_b: Sqid) -> b
         await db.execute(
             select(Decision.actor_id, Decision.recipient_id).where(
                 and_(
-                    Decision.decision == DecisionType.APPROVED,
+                    Decision.state == DecisionState.APPROVED,
                     Decision.actor_id.in_([user_a, user_b]),
                     Decision.recipient_id.in_([user_a, user_b]),
                 )
@@ -112,25 +121,50 @@ async def both_sides_approved(db: AsyncSession, user_a: Sqid, user_b: Sqid) -> b
     return (user_a, user_b) in pairs and (user_b, user_a) in pairs
 
 
-# ── Authorization + push lookups ──────────────────────────────────────────────
+async def form_match_if_mutual(db: AsyncSession, user_a: Sqid, user_b: Sqid) -> Sqid | None:
+    """Atomically form the pair's match iff both directions are 'approved'.
 
+    A single guarded `INSERT ... SELECT`: the mutual-approved check and the row
+    creation are one statement, so whichever like commits second sees both
+    approvals and forms the row — closing the check-then-insert race. A genuine
+    duplicate (both likes racing, or a re-like of an existing match) loses on the
+    `unique_match` constraint and is swallowed by `ON CONFLICT DO NOTHING`.
 
-async def is_active_wingperson(db: AsyncSession, dater_id: Sqid, winger_id: Sqid) -> bool:
-    """True when `winger_id` is an ACTIVE wingperson for `dater_id`."""
-    row = (
-        await db.execute(
-            select(Contact.id)
-            .where(
-                and_(
-                    Contact.user_id == dater_id,
-                    Contact.winger_id == winger_id,
-                    Contact.wingperson_status == WingpersonStatus.ACTIVE,
-                )
+    Returns the new match id only when THIS call formed it; `None` when the pair
+    isn't (yet) mutual or a match already existed. The `matches_insert` RLS floor
+    (`MutualMatchInsert`) independently re-checks the same condition, so even this
+    guarded insert can't forge a non-mutual pairing.
+    """
+    lo, hi = (user_a, user_b) if user_a < user_b else (user_b, user_a)
+
+    def _approved(actor: Sqid, recipient: Sqid) -> Any:
+        return exists(
+            select(Decision.id).where(
+                Decision.actor_id == actor,
+                Decision.recipient_id == recipient,
+                Decision.state == DecisionState.APPROVED,
             )
-            .limit(1)
         )
-    ).scalar_one_or_none()
-    return row is not None
+
+    # `SELECT :lo, :hi WHERE EXISTS(lo->hi approved) AND EXISTS(hi->lo approved)`
+    # yields the one ordered pair row only when mutual, else zero rows.
+    mutual_pair = select(
+        literal(int(lo), type_=SqidType()),
+        literal(int(hi), type_=SqidType()),
+    ).where(_approved(lo, hi), _approved(hi, lo))
+
+    stmt = (
+        pg_insert(Match)
+        .from_select(["user_a_id", "user_b_id"], mutual_pair)
+        .on_conflict_do_nothing(constraint="unique_match")
+        .returning(Match.id)
+    )
+    inserted = (await db.execute(stmt)).scalar_one_or_none()
+    await db.flush()
+    return inserted
+
+
+# ── Authorization + push lookups ──────────────────────────────────────────────
 
 
 async def push_tokens_for(db: AsyncSession, user_ids: list[Sqid]) -> list[str]:
@@ -193,7 +227,7 @@ async def fetch_my_suggestions(db: AsyncSession, winger_id: Sqid, limit: int) ->
         await db.execute(
             select(
                 Decision.id,
-                Decision.decision,
+                Decision.state,
                 match_exists_expr,
                 Decision.actor_id,
                 dater.chosen_name,
@@ -216,7 +250,7 @@ async def fetch_my_suggestions(db: AsyncSession, winger_id: Sqid, limit: int) ->
     return [
         SuggestionRow(
             id=decision_id,
-            decision=decision,
+            state=state,
             has_match=bool(has_match),
             dater_id=dater_id,
             dater_name=dater_name,
@@ -225,7 +259,7 @@ async def fetch_my_suggestions(db: AsyncSession, winger_id: Sqid, limit: int) ->
         )
         for (
             decision_id,
-            decision,
+            state,
             has_match,
             dater_id,
             dater_name,

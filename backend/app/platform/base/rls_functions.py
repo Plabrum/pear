@@ -4,7 +4,7 @@ from alembic_utils.pg_function import PGFunction
 
 from app.domain.contacts.enums import WingpersonStatus
 
-# The DB literal the `wingperson_status` TEXT column actually holds for "active".
+# The DB literal the contacts `state` TEXT column actually holds for "active".
 # (TextEnum stores `.name`, so this is "ACTIVE".)
 _ACTIVE_WINGPERSON_STATUS: str = WingpersonStatus.ACTIVE.name
 
@@ -57,7 +57,7 @@ AS $$
     SELECT 1 FROM public.contacts
     WHERE user_id = _dater
       AND winger_id = public.current_user_id()
-      AND wingperson_status = '{_ACTIVE_WINGPERSON_STATUS}'
+      AND state = '{_ACTIVE_WINGPERSON_STATUS}'
   );
 $$;
 """.strip()
@@ -106,7 +106,7 @@ IS_ACTIVE_WINGPERSON_FN = PGFunction(
             select 1 from public.contacts
             where user_id = _dater
               and winger_id = public.current_user_id()
-              and wingperson_status = '{_ACTIVE_WINGPERSON_STATUS}'
+              and state = '{_ACTIVE_WINGPERSON_STATUS}'
           );
         $$
     """,

@@ -10,20 +10,17 @@ from sqlalchemy.types import TypeDecorator
 
 # Import RLS operations so custom ops are registered with Alembic
 import app.platform.base.rls_operations  # noqa: F401
-
-# Import the concrete Pear RLS policy set for its registration side effect:
-# `register_pear_rls()` runs on import, appending all 31 PGPolicy entities to the
-# shared `RLS_POLICY_REGISTRY` and recording the 11 RLS tables in
-# `BaseDBModel.metadata.info["rls"]` (consumed by `compare_rls` to emit enable_rls).
-import app.platform.base.rls_policies  # noqa: F401
 from alembic import context
 from app.config import config as app_config
 from app.platform.base.models import BaseDBModel
+from app.platform.base.rls import RLS_POLICY_REGISTRY
 from app.platform.base.rls_comparator import compare_rls
 from app.platform.base.rls_functions import RLS_FUNCTION_REGISTRY
-from app.platform.base.rls_mixins import RLS_POLICY_REGISTRY
 from app.utils.discovery import discover_and_import
 
+# Every model declares its RLS via `RLSScopedMixin` on the model class, so importing
+# the models (the scan below) fills `RLS_POLICY_REGISTRY` and records the RLS tables
+# in `BaseDBModel.metadata.info["rls"]` (consumed by `compare_rls` to emit enable_rls).
 discover_and_import(["models.py", "models/**/*.py"])
 
 config = context.config
