@@ -47,13 +47,17 @@ module.exports = {
     },
     extra: {
       router: {},
-      eas: {
-        projectId: 'ce961544-87fc-4eb0-8168-3c7cd646d58e',
-      },
     },
-    owner: 'plab99',
     updates: {
-      url: 'https://u.expo.dev/ce961544-87fc-4eb0-8168-3c7cd646d58e',
+      url: `${process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000'}/updates/manifest`,
+      // TODO(updates-key-provisioning): certs/updates-signing.pem does not exist yet — see
+      // app/certs/README.md. Generate the keypair, commit only the public cert here, and keep
+      // the private half in backend secrets (UPDATES_SIGNING_PRIVATE_KEY) only.
+      codeSigningCertificate: './certs/updates-signing.pem',
+      codeSigningMetadata: {
+        keyid: 'main',
+        alg: 'rsa-v1_5-sha256',
+      },
     },
     runtimeVersion: {
       policy: 'fingerprint',

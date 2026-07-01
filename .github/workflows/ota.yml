@@ -1,0 +1,140 @@
+name: OTA Publish
+
+# Publishes a JS-only Expo Updates bundle to our self-hosted manifest server
+# (docs/migration/09-off-eas.md, 9b "Publish side"). This is the FAST path: no
+# native compile, ubuntu-latest only. `expo export -p ios` runs Metro + Hermes
+# over JS/assets — the native archive (Xcode Cloud, gated on `v*` tags) is a
+# separate, slower pipeline.
+#
+# SCOPE: app/** only. Pure backend/infra changes must not fire this (mirrors the
+# monorepo path-filter convention in build-test-deploy.yml, inverted: that
+# pipeline ignores app/**, this one ignores everything else).
+#
+# AUTH: assumes the GitHub OIDC role `secrets.OIDC_ROLE_ARN` (same convention as
+# build-test-deploy.yml) — no long-lived AWS keys. That role must additionally
+# allow s3:PutObject/s3:List on the updates/ prefix of the media bucket and
+# cloudfront:CreateInvalidation on the CDN distribution in front of it.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "app/**"
+  workflow_dispatch: {}
+
+env:
+  AWS_REGION: us-east-1
+  # Reuses the Phase 06 media bucket (infra/modules/app_stack/main.tf `module
+  # "media"`, same bucket the backend reads as S3_MEDIA_BUCKET) under a distinct
+  # `updates/` prefix — not a new bucket. The bucket name is generated with a
+  # random suffix in Terraform, so it can't be hardcoded here; it must be set as
+  # a repo/environment variable (Settings → Actions → Variables) mirroring the
+  # backend's S3_MEDIA_BUCKET value.
+  S3_MEDIA_BUCKET: ${{ vars.S3_MEDIA_BUCKET }}
+
+jobs:
+  export-and-publish:
+    name: Export & Publish OTA Update
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Fingerprint guardrail
+        # The load-bearing invariant of 9b: an OTA update only applies to an
+        # installed build whose runtimeVersion fingerprint matches. Compute the
+        # fingerprint the same way the client/runtimeVersion policy does and
+        # compare it against the fingerprint of the latest Xcode Cloud native
+        # build, so we never publish an update that can't apply to anything.
+        #
+        # TODO(xcode-cloud): NATIVE_BUILD_FINGERPRINT must be written by an Xcode
+        # Cloud post-build script (ci_post_xcodebuild.sh) after every successful
+        # native archive — e.g. `gh variable set NATIVE_BUILD_FINGERPRINT` (or an
+        # SSM param, per the doc's alternative) using the same `@expo/fingerprint`
+        # computation. Until that write-back exists, this variable is stale/unset
+        # and this step should be treated as non-authoritative.
+        run: |
+          FINGERPRINT=$(npx expo-updates fingerprint:generate --platform ios | node -e '
+            let data = "";
+            process.stdin.on("data", (chunk) => (data += chunk));
+            process.stdin.on("end", () => {
+              const parsed = JSON.parse(data);
+              process.stdout.write(parsed.hash ?? parsed.fingerprintHash ?? "");
+            });
+          ')
+
+          echo "Computed fingerprint: ${FINGERPRINT}"
+
+          EXPECTED="${{ vars.NATIVE_BUILD_FINGERPRINT }}"
+          if [ -z "$EXPECTED" ]; then
+            echo "::error::vars.NATIVE_BUILD_FINGERPRINT is unset — no native-build fingerprint to compare against. Refusing to publish an OTA update that may never apply to any installed build. See the TODO above this step."
+            exit 1
+          fi
+
+          if [ "$FINGERPRINT" != "$EXPECTED" ]; then
+            echo "::error::Fingerprint mismatch: exported bundle fingerprint (${FINGERPRINT}) != latest Xcode Cloud native build fingerprint (${EXPECTED}). A native change landed without a matching Xcode Cloud build, or vice versa — this OTA would silently no-op on every installed client. Not publishing."
+            exit 1
+          fi
+
+          echo "UPDATE_ID=$(node -e 'process.stdout.write(require("crypto").randomUUID())')" >> "$GITHUB_ENV"
+
+      - name: Export JS bundle + assets
+        run: npm run export:ota
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.OIDC_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Upload bundle to S3
+        run: |
+          aws s3 sync dist/ "s3://${S3_MEDIA_BUCKET}/updates/${UPDATE_ID}/"
+
+      # TODO(backend): no authenticated "register update" endpoint / one-shot task
+      # exists yet to insert the app_updates row (backend/app/domain/updates/ only
+      # has routes.py/models.py/schemas.py — no actions.py and no task under
+      # app/platform/queue/**). Per CLAUDE.md, system-mode writes only happen from
+      # the worker/task layer, so the right shape here is almost certainly an SAQ
+      # task (enqueued via an authenticated POST from this job, or a dedicated
+      # CI-only registration route gated by a shared secret) that inserts the row
+      # under `is_system_mode()` — NOT a new request-path system-mode escape. Until
+      # that lands, this step is a placeholder and the manifest route has nothing
+      # new to serve after this workflow runs.
+      - name: Register update (TODO — backend endpoint/task not implemented yet)
+        run: |
+          echo "::warning::No backend endpoint/task exists yet to register app_updates rows for update ${UPDATE_ID}. Uploaded assets to s3://${S3_MEDIA_BUCKET}/updates/${UPDATE_ID}/ but the manifest route (GET /updates/manifest) will NOT serve this update until backend/app/domain/updates/actions.py (or an SAQ task) is added to insert the app_updates row. See the TODO comment in .github/workflows/ota.yml."
+
+      - name: Invalidate CloudFront cache
+        # TODO(infra): no aws_cloudfront_distribution resource exists yet in
+        # infra/ for the media bucket (grepped infra/modules — only s3_bucket +
+        # app_stack's module "media", no CDN in front of it). vars.
+        # CLOUDFRONT_DISTRIBUTION_ID must be set once that distribution is
+        # provisioned; until then this step is a no-op guard rather than a hard
+        # failure, since publishing can still proceed without a CDN fronting the
+        # bucket (assets just serve from S3 directly).
+        run: |
+          if [ -z "${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}" ]; then
+            echo "::warning::vars.CLOUDFRONT_DISTRIBUTION_ID is unset — no CloudFront distribution configured in front of the media bucket yet. Skipping invalidation."
+            exit 0
+          fi
+
+          aws cloudfront create-invalidation \
+            --distribution-id "${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}" \
+            --paths "/updates/${UPDATE_ID}/*"

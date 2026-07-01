@@ -69,6 +69,9 @@ select = [
 # Media request/response structs use camelCase field names to match the wire
 # contract the mobile app's generated hooks consume byte-for-byte (N815).
 "app/platform/media/schemas.py" = ["N815"]
+# Expo Updates protocol v1 manifest fields are camelCase per the spec, consumed
+# byte-for-byte by the expo-updates native client (N815).
+"app/platform/updates/schemas.py" = ["N815"]
 # Read handlers take camelCase path params ({matchId}/{userId}) so the exported
 # OpenAPI path + parameter names match the old Hono spec the Orval client was
 # generated from byte-for-byte (N803: argument name should be lowercase).

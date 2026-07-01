@@ -5,9 +5,7 @@
   "scripts": {
     "start": "bash scripts/dev.sh",
     "dev:sim": "bash scripts/dev-sim.sh",
-    "deploy": "bash scripts/deploy.sh",
-    "deploy:ota": "eas update --channel production --platform ios --environment production",
-    "deploy:build": "eas build --platform ios --profile production --non-interactive",
+    "export:ota": "expo export -p ios",
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo run:android",
     "ios": "expo run:ios",
@@ -29,9 +27,7 @@
     "api:gen": "orval --config orval.config.ts",
     "codegen": "npm run api:spec && npm run api:gen",
     "prebuild:local": "bash scripts/check-local-build-deps.sh",
-    "build:local": "EAS_BUILD_NO_EXPO_GO_WARNING=true eas build --platform ios --profile production --local --output builds/app.ipa --non-interactive",
     "build:device": "expo run:ios --device",
-    "submit:local": "eas submit --platform ios --profile production --path builds/app.ipa",
     "seed:prod": "npx tsx --env-file .env.local scripts/seed-prod.ts",
     "prepare": "husky"
   },

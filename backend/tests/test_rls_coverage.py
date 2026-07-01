@@ -26,6 +26,10 @@ _INTENTIONAL_NO_RLS = {
     "email_messages",
     "events",  # Append-only lifecycle log: system-written, read only via scoped feeds.
     "state_transition_logs",  # Append-only state-machine audit log: system-written.
+    "app_updates",  # OTA manifest rows: written by the unauthenticated (bearer-token
+    # guarded) `POST /updates/publish` CI endpoint, read by the unauthenticated
+    # `GET /updates/manifest` route — no per-request actor either way, same shape as
+    # `profiles`.
 }
 
 

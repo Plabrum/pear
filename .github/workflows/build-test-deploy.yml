@@ -5,9 +5,10 @@ name: Build · Test · Deploy
 # To switch to the ECS path: change the default to "ecs" and open a PR.
 #
 # SCOPE: this pipeline deploys the BACKEND only (backend/** → image+deploy,
-# infra/** → terraform). The mobile app (app/**) ships separately via EAS Build /
-# EAS Update — it is NOT built or deployed here, and app/** changes do not trigger
-# this workflow (see the detect-changes path filters below).
+# infra/** → terraform). The mobile app (app/**) ships separately via Xcode Cloud
+# (native build/sign/submit) + the self-hosted OTA pipeline (ota.yml) — it is NOT
+# built or deployed here, and app/** changes do not trigger this workflow (see the
+# detect-changes path filters below).
 #
 # AUTH: every AWS-touching job assumes the GitHub OIDC role `secrets.OIDC_ROLE_ARN`
 # (no long-lived keys). That role's policy must allow: ECR push (build job),

@@ -23,7 +23,7 @@ Core flows: Auth → Onboarding → Discover → Matches → Messaging → Wingp
 | Forms          | react-hook-form v7                                                                                                                         |
 | Toasts         | sonner-native (`toast.error()` for all user-facing errors)                                                                                 |
 | Animations     | react-native-reanimated v4                                                                                                                 |
-| Build/deploy   | App: EAS Build + EAS Update (OTA). Backend: GitHub Actions → ECR image → SSM deploy to the box (`.github/workflows/build-test-deploy.yml`). |
+| Build/deploy   | App: Xcode Cloud (build/sign/submit) + self-hosted OTA via GitHub Actions. Backend: GitHub Actions → ECR image → SSM deploy to the box (`.github/workflows/build-test-deploy.yml`). |
 | API layer      | `backend/app/domain/<feature>` (Litestar) emits OpenAPI natively; Orval generates read hooks into `app/lib/api/generated/`; writes go through the typed **actions client** (`app/lib/api/actions.ts`). |
 
 ---
@@ -395,10 +395,11 @@ cd app && npm run web            # Expo web
 cd app && npm run api:gen        # Orval ← app/openapi.json (after a backend contract change)
 cd app && npx tsc --noEmit && npm run lint
 
-# Build & deploy the app (EAS — separate from the backend pipeline)
-cd app && npm run build:local / build:device
-cd app && npm run deploy:ota     # EAS OTA update
-cd app && npm run deploy:build   # EAS production build
+# Build & deploy the app (Xcode Cloud + self-hosted OTA — separate from the backend pipeline)
+cd app && npm run export:ota     # expo export -p ios — JS bundle for the OTA publish job (ota.yml)
+cd app && npm run build:device   # native build straight to a connected device
+# Native archive/sign/submit (TestFlight/App Store) runs in Xcode Cloud, triggered on `v*` tags —
+# no local EAS build/submit step.
 ```
 
 **Env.** `backend/.env.local` (or repo-root `.env.local`) carries the backend secrets

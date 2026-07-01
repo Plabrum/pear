@@ -43,6 +43,7 @@ from app.platform.media.routes import media_router
 from app.platform.plugins import SqidSchemaPlugin
 from app.platform.queue.config import queue_config
 from app.platform.realtime.routes import realtime_ws
+from app.platform.updates.routes import get_manifest, publish_update
 from app.utils.deps import get_dependencies
 from app.utils.discovery import discover_and_import
 from app.utils.exceptions import ApplicationError, exception_to_http_response
@@ -229,6 +230,17 @@ def create_app(
             # auth exclude list, so SessionAuth runs on the upgrade and authenticates
             # the handshake via the session cookie (see realtime/routes.py).
             realtime_ws,
+            # Self-hosted OTA manifest endpoint (Expo Updates protocol v1). Stays at
+            # the root (`/updates/manifest`), not under `/api` — `expo-updates` speaks
+            # this protocol unauthenticated with its own `expo-*` header set, not a
+            # session cookie. `exclude_from_auth=True` on the handler itself opts it
+            # out of SessionAuth (see platform/updates/routes.py).
+            get_manifest,
+            # CI-only publish endpoint: `ota.yml` calls this after uploading a bundle
+            # to S3 to register the new `app_updates` row. Bearer-token guarded
+            # (`requires_updates_publish_token`), not session-auth'd, so it also stays
+            # at the root, `exclude_from_auth=True`.
+            publish_update,
             # Dev/test only: backs the `LocalMediaClient` presigned `/_local-media/*`
             # URLs with an on-disk sink so uploads round-trip with no S3. The handlers'
             # `requires_local` guard rejects the route in prod.

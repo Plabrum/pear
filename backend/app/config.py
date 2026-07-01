@@ -61,6 +61,24 @@ class Config:
     # WebP encode quality (0–100). ~80 is a good size/quality balance for photos.
     MEDIA_WEBP_QUALITY: int = int(os.getenv("MEDIA_WEBP_QUALITY", "80"))
 
+    # ─── Self-hosted OTA (expo-updates protocol v1) ────────────────────────────
+    # RSA private key (PEM) the `/updates/manifest` route signs manifest bodies
+    # with — the `expo-signature` response header. Pairs with the public
+    # `codeSigningCertificate` embedded in the client (app.config.js). Signing
+    # happens at SERVE time (not at GH Actions publish time) so the private key
+    # lives only on this box, never in CI secrets. Empty in local/testing unless a
+    # test injects one.
+    UPDATES_SIGNING_PRIVATE_KEY: str = os.getenv("UPDATES_SIGNING_PRIVATE_KEY", "")
+    # `keyid` in the `expo-signature` header — matches `codeSigningMetadata.keyid`
+    # in the client's `app.config.js` (Expo's convention default is "main").
+    UPDATES_SIGNING_KEY_ID: str = os.getenv("UPDATES_SIGNING_KEY_ID", "main")
+    # Shared secret the `ota.yml` GitHub Actions publish step presents (as a bearer
+    # token) to `POST /updates/publish` after it uploads a bundle to S3, so the
+    # backend enqueues the `app_updates` insert. Empty in local/testing unless a
+    # test injects one — an empty token means the endpoint rejects every request
+    # (fail closed, never fail open).
+    UPDATES_PUBLISH_TOKEN: str = os.getenv("UPDATES_PUBLISH_TOKEN", "")
+
     # ─── Email templates ──────────────────────────────────────────────────────
     EMAIL_TEMPLATES_DIR: str = os.getenv("EMAIL_TEMPLATES_DIR", "email_templates")
 
