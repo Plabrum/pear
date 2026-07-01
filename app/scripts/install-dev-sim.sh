@@ -1,9 +1,9 @@
 #!/bin/bash
-# install-dev-sim.sh — Extract, install, and fingerprint the dev-sim build.
-# Called by dev-sim.sh after a build, and by build:dev-sim via package.json.
+# install-dev-sim.sh — Install and fingerprint the dev-sim build.
+# Called by dev-sim.sh after a build.
 set -e
 
-SIM_BUILD="builds/dev-sim.app"
+APP_PATH="ios/build/Build/Products/Debug-iphonesimulator/Pear.app"
 FP_FILE=".dev-sim-fingerprint"
 
 get_fingerprint() {
@@ -11,12 +11,10 @@ get_fingerprint() {
     | node -e "let s=''; process.stdin.on('data',d=>s+=d); process.stdin.on('end',()=>console.log(JSON.parse(s).hash))"
 }
 
-echo "Extracting build archive..."
-EXTRACT_DIR="builds/dev-sim-extracted"
-rm -rf "$EXTRACT_DIR"
-mkdir -p "$EXTRACT_DIR"
-tar -xzf "$SIM_BUILD" -C "$EXTRACT_DIR"
-APP_PATH=$(find "$EXTRACT_DIR" -name "*.app" -maxdepth 1 | head -1)
+if [ ! -e "$APP_PATH" ]; then
+  echo "Error: no build found at $APP_PATH"
+  exit 1
+fi
 
 echo "Installing on booted simulator..."
 BOOTED=$(xcrun simctl list devices booted 2>/dev/null | grep -c "(Booted)" || true)

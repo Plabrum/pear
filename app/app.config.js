@@ -50,14 +50,19 @@ module.exports = {
     },
     updates: {
       url: `${process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000'}/updates/manifest`,
-      // TODO(updates-key-provisioning): certs/updates-signing.pem does not exist yet — see
-      // app/certs/README.md. Generate the keypair, commit only the public cert here, and keep
-      // the private half in backend secrets (UPDATES_SIGNING_PRIVATE_KEY) only.
-      codeSigningCertificate: './certs/updates-signing.pem',
-      codeSigningMetadata: {
-        keyid: 'main',
-        alg: 'rsa-v1_5-sha256',
-      },
+      // Local dev-client builds (scripts/dev-sim.sh, PEAR_LOCAL_DEV=1) omit code signing: the
+      // private key backing certs/updates-signing.pem lives only in AWS Secrets Manager (see
+      // certs/README.md), so Metro can't sign dev manifests for it and expo-updates would refuse
+      // to serve the client. Xcode Cloud / production builds always sign.
+      ...(process.env.PEAR_LOCAL_DEV === '1'
+        ? {}
+        : {
+            codeSigningCertificate: './certs/updates-signing.pem',
+            codeSigningMetadata: {
+              keyid: 'main',
+              alg: 'rsa-v1_5-sha256',
+            },
+          }),
     },
     runtimeVersion: {
       policy: 'fingerprint',

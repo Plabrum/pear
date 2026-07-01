@@ -1,8 +1,22 @@
 #!/bin/bash
-# dev-sim.sh — Rebuild dev client for simulator if native changed, then start Metro
+# dev-sim.sh — Rebuild dev client for simulator if native changed, then start Metro.
+# Builds against ios/ (source of truth for Xcode Cloud, see
+# .github/workflows/ios-drift-check.yml) — no EAS involved.
+#
+# PEAR_LOCAL_DEV=1 strips OTA code signing from app.config.js (see the comment
+# there) and points updates.url at a local API, then incrementally re-prebuilds
+# ios/ with that config — the same "expo prebuild -p ios" the drift-check CI job
+# runs, just with dev values instead of prod ones. This intentionally leaves ios/
+# locally modified; do NOT commit it like this. Before a real native-config change,
+# restore it with:
+#   EXPO_PUBLIC_API_URL=https://api.usepear.app npx expo prebuild -p ios --clean
 set -e
+export PEAR_LOCAL_DEV=1
 
-SIM_BUILD="builds/dev-sim.app"
+WORKSPACE="ios/Pear.xcworkspace"
+SCHEME="Pear"
+DERIVED_DATA="ios/build"
+APP_PATH="$DERIVED_DATA/Build/Products/Debug-iphonesimulator/Pear.app"
 FP_FILE=".dev-sim-fingerprint"
 
 get_fingerprint() {
@@ -20,7 +34,7 @@ fi
 
 NEEDS_BUILD=false
 
-if [ ! -e "$SIM_BUILD" ]; then
+if [ ! -e "$APP_PATH" ]; then
   echo "No dev client build found."
   NEEDS_BUILD=true
 elif [ ! -f "$FP_FILE" ] || [ "$(cat "$FP_FILE")" != "$CURRENT" ]; then
@@ -31,12 +45,25 @@ else
 fi
 
 if [ "$NEEDS_BUILD" = true ]; then
+  echo "Re-prebuilding ios/ for local dev (signing stripped, local API URL)..."
+  echo "  ios/ is now locally modified — do not commit it like this."
+  npx expo prebuild -p ios
+
   echo "Building dev client for simulator (this takes a few minutes)..."
-  EAS_BUILD_NO_EXPO_GO_WARNING=true eas build \
-    --platform ios \
-    --profile development-simulator \
-    --local \
-    --output "$SIM_BUILD"
+
+  BUILD_CMD=(xcodebuild
+    -workspace "$WORKSPACE"
+    -scheme "$SCHEME"
+    -configuration Debug
+    -sdk iphonesimulator
+    -derivedDataPath "$DERIVED_DATA"
+    build)
+
+  if command -v xcbeautify >/dev/null 2>&1; then
+    "${BUILD_CMD[@]}" | xcbeautify
+  else
+    "${BUILD_CMD[@]}"
+  fi
 
   bash scripts/install-dev-sim.sh
 fi
@@ -60,12 +87,6 @@ if [ "$BOOTED" -eq 0 ]; then
 fi
 
 echo ""
-echo "Starting api edge function (background)..."
-npm run api:serve > /tmp/pear-api-serve.log 2>&1 &
-API_SERVE_PID=$!
-trap 'kill $API_SERVE_PID 2>/dev/null || true' EXIT INT TERM
-echo "  api:serve PID $API_SERVE_PID — logs: /tmp/pear-api-serve.log"
-
-echo ""
 echo "Starting Metro bundler..."
+echo "(backend must be running separately — see 'just dev-backend' / 'just dev')"
 npx expo start --dev-client --ios
