@@ -5,6 +5,10 @@ set -eo pipefail
 
 cd "$CI_PRIMARY_REPOSITORY_PATH/app"
 
+# Xcode Cloud images ship Homebrew but not Node/npm — install it before use.
+echo "ci_post_clone: brew install node"
+brew install node
+
 echo "ci_post_clone: npm ci"
 npm ci
 
