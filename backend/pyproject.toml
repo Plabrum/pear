@@ -57,6 +57,13 @@ select = [
 "alembic/env.py"         = ["E402"]
 "alembic/versions/*.py"  = ["E501", "W291", "UP035"]
 "app/config.py"          = ["N802"]
+# Domain response/request structs use camelCase field names to match the Hono/Zod
+# wire contract the mobile app's Orval hooks consume byte-for-byte (N815).
+"app/domain/*/schemas.py" = ["N815"]
+# Read handlers take camelCase path params ({matchId}/{userId}) so the exported
+# OpenAPI path + parameter names match the old Hono spec the Orval client was
+# generated from byte-for-byte (N803: argument name should be lowercase).
+"app/domain/*/routes.py" = ["N803"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["app"]

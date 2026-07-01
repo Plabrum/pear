@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { toast } from 'sonner-native';
 
-import { postApiPhotos, postApiPhotosUploadUrl } from '@/lib/api/generated/photos/photos';
+import { addPhoto, getPhotoUploadUrl } from '@/lib/api/actions';
 import { supabase } from '@/lib/supabase';
 
 // Unified profile-photo upload flow. Asks the API for a signed upload token
@@ -22,7 +22,7 @@ export function useUploadProfilePhoto() {
     setIsPending(true);
     let uploadedPath: string | null = null;
     try {
-      const { path, uploadToken } = await postApiPhotosUploadUrl({
+      const { path, uploadToken } = await getPhotoUploadUrl({
         datingProfileId,
         filename,
       });
@@ -32,7 +32,7 @@ export function useUploadProfilePhoto() {
         .uploadToSignedUrl(path, uploadToken, arrayBuffer, { contentType: 'image/jpeg' });
       if (upErr) throw upErr;
       uploadedPath = path;
-      await postApiPhotos({ datingProfileId, storageUrl: path, displayOrder });
+      await addPhoto({ datingProfileId, storageUrl: path, displayOrder });
       return true;
     } catch {
       if (uploadedPath) {

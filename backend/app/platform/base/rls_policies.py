@@ -581,7 +581,23 @@ _MESSAGES = [
 
 # ── profile_reports ──────────────────────────────────────────────────────────
 # 20260512000000_profile_reports.sql: insert your own report only.
+# Phase 5 (reports domain port) adds the matching SELECT policy: the Hono/Supabase
+# original needed only INSERT (PostgREST returned nothing), but the SQLAlchemy ORM
+# emits `INSERT ... RETURNING` for server-side defaults (created_at/updated_at), and
+# under FORCE RLS that RETURNING read requires a SELECT policy — without one Postgres
+# rejects the insert as "new row violates row-level security policy". A reporter may
+# read back their own reports (mirrors decisions_select's actor scoping).
 _PROFILE_REPORTS = [
+    _policy(
+        "profile_reports",
+        "profile_reports_select",
+        """
+        AS PERMISSIVE
+        FOR SELECT
+        TO pear_app
+        USING (public.is_system_mode() OR (reporter_id = public.current_user_id()))
+        """,
+    ),
     _policy(
         "profile_reports",
         "profile_reports_insert",

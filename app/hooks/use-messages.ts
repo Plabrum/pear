@@ -1,10 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
+import { useMutation } from '@tanstack/react-query';
 import { useAuth } from '@/context/auth';
-import {
-  useGetApiMatchesMatchIdMessagesSuspense,
-  usePostApiMatchesMatchIdMessages,
-  usePostApiMatchesMatchIdMessagesRead,
-} from '@/lib/api/generated/messages/messages';
+import { useGetApiMatchesMatchIdMessagesSuspense } from '@/lib/api/generated/messages/messages';
+import { sendMessage, markMessagesRead } from '@/lib/api/actions';
 import type { Message } from '@/lib/api/generated/model';
 import { dbRowToMessage, subscribeToMessages } from '@/lib/messages-realtime';
 
@@ -17,14 +15,18 @@ export function useMessages(matchId: string) {
 
   const optimisticIds = useRef<Set<string>>(new Set());
 
-  const sendMutation = usePostApiMatchesMatchIdMessages();
-  const markReadMutation = usePostApiMatchesMatchIdMessagesRead();
+  const sendMutation = useMutation({
+    mutationFn: (body: string) => sendMessage(matchId, { body }),
+  });
+  const markReadMutation = useMutation({
+    mutationFn: (mid: string) => markMessagesRead(mid),
+  });
 
   // Acceptable exception: mount-only side-effect kicking off a fire-and-forget
   // mark-read mutation when the chat opens. The matchId is stable for the
   // component lifetime.
   useEffect(() => {
-    markReadMutation.mutate({ matchId });
+    markReadMutation.mutate(matchId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [matchId]);
 
@@ -47,7 +49,7 @@ export function useMessages(matchId: string) {
       });
 
       if (incoming.senderId !== userId) {
-        markReadMutation.mutate({ matchId });
+        markReadMutation.mutate(matchId);
       }
     });
 
@@ -76,9 +78,7 @@ export function useMessages(matchId: string) {
 
     setMessages((prev) => [...prev, optimistic]);
 
-    const result = await sendMutation
-      .mutateAsync({ matchId, data: { body: trimmed } })
-      .catch(() => null);
+    const result = await sendMutation.mutateAsync(trimmed).catch(() => null);
 
     if (result == null) {
       optimisticIds.current.delete(tempId);

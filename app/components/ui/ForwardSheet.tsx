@@ -3,7 +3,7 @@ import { Modal, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { toast } from 'sonner-native';
-import { postApiDecisionsSuggestions } from '@/lib/api/generated/decisions/decisions';
+import { suggestDecision } from '@/lib/api/actions';
 import type { WingingForRow } from '@/lib/api/generated/model';
 import { View, Text, Pressable } from '@/lib/tw';
 import { FaceAvatar } from '@/components/ui/FaceAvatar';
@@ -40,7 +40,7 @@ export function ForwardSheet({
 
   async function handleNoteSend(note: string | null) {
     if (!pendingDater) return;
-    const result = await postApiDecisionsSuggestions({
+    const result = await suggestDecision({
       daterId: pendingDater.id,
       recipientId,
       note,

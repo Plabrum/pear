@@ -3,7 +3,7 @@ import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { toast } from 'sonner-native';
 
 import { supabase } from '@/lib/supabase';
-import { patchApiProfilesMe } from '@/lib/api/generated/profiles/profiles';
+import { updateMyProfile } from '@/lib/api/actions';
 
 export async function pickAndResizePhoto(opts?: {
   width?: number;
@@ -42,7 +42,7 @@ export async function uploadAvatar(userId: string, uri: string): Promise<void> {
   if (uploadError) throw uploadError;
 
   const { data } = supabase.storage.from('avatars').getPublicUrl(path);
-  await patchApiProfilesMe({ avatarUrl: `${data.publicUrl}?t=${Date.now()}` });
+  await updateMyProfile(userId, { avatarUrl: `${data.publicUrl}?t=${Date.now()}` });
 }
 
 export function getPhotoUrl(storagePath: string | null): string | null {

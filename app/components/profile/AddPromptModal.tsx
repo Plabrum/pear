@@ -3,7 +3,8 @@ import { FlatList, KeyboardAvoidingView, Modal, Platform, StyleSheet } from 'rea
 import { z } from 'zod';
 
 import { colors } from '@/constants/theme';
-import { getApiPromptTemplates, postApiProfilePrompts } from '@/lib/api/generated/prompts/prompts';
+import { getApiPromptTemplates } from '@/lib/api/generated/prompts/prompts';
+import { addProfilePrompt } from '@/lib/api/actions';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { cn } from '@/lib/cn';
 import { View, Text, ScrollView, Pressable, SafeAreaView } from '@/lib/tw';
@@ -117,7 +118,7 @@ export function AddPromptModal({ visible, onClose, usedTemplateIds, onAdded }: P
               <answerForm.Form
                 defaultValues={{ answer: '' }}
                 onSubmit={async ({ answer }) => {
-                  await postApiProfilePrompts({
+                  await addProfilePrompt({
                     promptTemplateId: selected.id,
                     answer: answer.trim(),
                   });

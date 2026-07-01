@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import type { WingProfile } from '@/lib/api/generated/model';
 import { getApiWingPool } from '@/lib/api/generated/wing-pool/wing-pool';
-import { postApiDecisionsSuggestions } from '@/lib/api/generated/decisions/decisions';
+import { suggestDecision } from '@/lib/api/actions';
 
 const PAGE_SIZE = 20;
 
@@ -37,7 +37,7 @@ export function useWingSwipe(daterId: string, initialPool: WingProfile[]) {
     if (newIndex >= pool.length - 3) loadMore();
 
     try {
-      await postApiDecisionsSuggestions({
+      await suggestDecision({
         daterId,
         recipientId: card.userId,
         note,
@@ -59,7 +59,7 @@ export function useWingSwipe(daterId: string, initialPool: WingProfile[]) {
     if (newIndex >= pool.length - 3) loadMore();
 
     try {
-      await postApiDecisionsSuggestions({
+      await suggestDecision({
         daterId,
         recipientId: card.userId,
         decision: 'declined',

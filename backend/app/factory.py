@@ -10,8 +10,8 @@ Adapted from sloopquest's `create_app`, stripped to Pear's Phase-2 surface:
     unauthenticated /auth/* routes (per the auth contract)
   * DI from `get_dependencies()`; registries booted via `discover_and_import`
   * Exception handler mapping `ApplicationError` -> JSON response
-  * Routes: /health + the auth router + the actions router. NO domain routers
-    yet (Phase 5).
+  * Routes: /health + the auth router + the actions router + domain routers
+    (Phase 5 — `profiles` is the first; the Integrate stage mounts the rest).
 
 Removed vs sloopquest: organizations, Sqid type codecs + SqidSchemaPlugin,
 SessionAuth/Redis session store, billing/comms-webhook/domain routers, the
@@ -25,7 +25,7 @@ from advanced_alchemy.extensions.litestar import (
     SQLAlchemyAsyncConfig,
     SQLAlchemyPlugin,
 )
-from litestar import Litestar, get
+from litestar import Litestar, Router, get
 from litestar.channels import ChannelsPlugin
 from litestar.channels.backends.memory import MemoryChannelsBackend
 from litestar.config.cors import CORSConfig
@@ -38,6 +38,19 @@ from litestar_saq import SAQConfig, SAQPlugin
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.config import Config, config
+from app.domain.contacts.routes import contacts_router
+from app.domain.decisions.routes import decisions_router
+from app.domain.discover.routes import discover_router
+from app.domain.likes_you.routes import likes_you_router
+from app.domain.matches.routes import matches_router
+from app.domain.messages.routes import messages_router
+from app.domain.photos.routes import photos_router
+from app.domain.profiles.routes import profiles_router
+from app.domain.prompts.routes import prompts_router
+from app.domain.reports.routes import reports_router
+from app.domain.wing_pool.routes import wing_pool_router
+from app.domain.winger_activity.routes import winger_activity_router
+from app.domain.winger_tabs.routes import winger_tabs_router
 from app.platform.actions.routes import action_router
 from app.platform.auth.middleware import JWTAuthMiddleware
 from app.platform.auth.routes import auth_router
@@ -156,11 +169,39 @@ def create_app(
     if plugins_overrides is None:
         on_startup.append(_setup_task_queues)
 
+    # The mobile app's committed contract (the old Hono spec the Orval client was
+    # generated from) serves every data + action endpoint under a `/api` prefix
+    # (e.g. GET /api/profiles/me, POST /api/actions/...). Mounting the data and
+    # action routers under a single parent `Router(path="/api", ...)` reproduces
+    # those paths exactly so the regenerated read hooks match byte-for-byte.
+    #
+    # `/health` stays at the root (the platform probe), and `/auth/*` stays at the
+    # root (the Phase-4 auth client calls bare `/auth/*`), so neither is remounted.
+    api_router = Router(
+        path="/api",
+        route_handlers=[
+            action_router,
+            profiles_router,
+            contacts_router,
+            photos_router,
+            prompts_router,
+            discover_router,
+            wing_pool_router,
+            likes_you_router,
+            decisions_router,
+            matches_router,
+            messages_router,
+            winger_activity_router,
+            winger_tabs_router,
+            reports_router,
+        ],
+    )
+
     return Litestar(
         route_handlers=[
             health,
             auth_router,
-            action_router,
+            api_router,
         ],
         # The active config is shared via app state so the auth middleware / deps
         # verify with the SAME keypair that signed tokens. In prod every config is

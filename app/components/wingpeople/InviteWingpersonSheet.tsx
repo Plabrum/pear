@@ -5,14 +5,12 @@ import { Controller, useForm } from 'react-hook-form';
 import { toast } from 'sonner-native';
 import * as SMS from 'expo-sms';
 import * as Contacts from 'expo-contacts';
-import { useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { View, Text, TextInput, Pressable } from '@/lib/tw';
 import { Sprout } from '@/components/ui/Sprout';
-import {
-  getGetApiWingpeopleQueryKey,
-  usePostApiWingpeopleInvite,
-} from '@/lib/api/generated/contacts/contacts';
+import { getGetApiWingpeopleQueryKey } from '@/lib/api/generated/contacts/contacts';
+import { inviteWingperson } from '@/lib/api/actions';
 import { useGetApiProfilesMeSuspense } from '@/lib/api/generated/profiles/profiles';
 import { formatPhoneInput, toE164 } from '@/lib/phoneUtils';
 import { ContactsPicker, type ContactEntry } from '@/components/wingpeople/ContactsPicker';
@@ -36,7 +34,9 @@ export function InviteWingpersonSheet({ visible, onClose, variant = 'dater' }: P
   const [contactsVisible, setContactsVisible] = useState(false);
   const [allContacts, setAllContacts] = useState<ContactEntry[]>([]);
 
-  const inviteMutation = usePostApiWingpeopleInvite();
+  const inviteMutation = useMutation({
+    mutationFn: (phoneNumber: string) => inviteWingperson({ phoneNumber }),
+  });
 
   const {
     control,
@@ -54,25 +54,23 @@ export function InviteWingpersonSheet({ visible, onClose, variant = 'dater' }: P
   };
 
   const sendInviteToPhone = async (e164: string): Promise<boolean> => {
-    const result = await inviteMutation
-      .mutateAsync({ data: { phoneNumber: e164 } })
-      .catch(() => null);
+    const result = await inviteMutation.mutateAsync(e164).catch(() => null);
     if (result == null) {
       toast.error("Couldn't send invite. Try again.");
       return false;
     }
-    if (result.wingerId == null) {
-      const isAvailable = await SMS.isAvailableAsync();
-      if (isAvailable) {
-        const daterName = profile?.chosenName ?? 'Someone';
-        const appUrl = 'https://apps.apple.com/app/pear/id6744145981';
-        await SMS.sendSMSAsync(
-          [e164],
-          `${daterName} invited you to be their wingperson on Pear! Download the app: ${appUrl}`
-        );
-      } else {
-        toast.error('SMS is not available on this device.');
-      }
+    // The action records the contact (and, when the invitee is already a Pear
+    // user, fires a server-side push). The response no longer distinguishes
+    // existing vs. new users, so we also offer the SMS invite as the delivery
+    // channel for invitees who aren't on Pear yet.
+    const isAvailable = await SMS.isAvailableAsync();
+    if (isAvailable) {
+      const daterName = profile?.chosenName ?? 'Someone';
+      const appUrl = 'https://apps.apple.com/app/pear/id6744145981';
+      await SMS.sendSMSAsync(
+        [e164],
+        `${daterName} invited you to be their wingperson on Pear! Download the app: ${appUrl}`
+      );
     }
     queryClient.invalidateQueries({ queryKey: getGetApiWingpeopleQueryKey() });
     return true;

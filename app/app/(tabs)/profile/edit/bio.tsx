@@ -7,9 +7,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 
 import {
   useGetApiDatingProfilesMeSuspense,
-  patchApiDatingProfilesMe,
   getGetApiDatingProfilesMeQueryKey,
 } from '@/lib/api/generated/profiles/profiles';
+import { updateDatingProfile } from '@/lib/api/actions';
 import { View, Text, ScrollView, SafeAreaView, TextInput } from '@/lib/tw';
 import { colors } from '@/constants/theme';
 import { NavHeader } from '@/components/ui/NavHeader';
@@ -32,9 +32,10 @@ function BioScreenInner() {
   });
 
   const saveBio = async () => {
+    if (!datingProfile) return;
     const bio = getValues('bio').trim();
     try {
-      await patchApiDatingProfilesMe({ bio: bio || null });
+      await updateDatingProfile(datingProfile.id, { bio: bio || null });
       queryClient.invalidateQueries({ queryKey: getGetApiDatingProfilesMeQueryKey() });
     } catch {
       toast.error('Could not save bio. Try again.');

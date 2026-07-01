@@ -1,9 +1,6 @@
 import { useRef, useState } from 'react';
-import type { DirectDecisionRequestDecision, DiscoverProfile } from '@/lib/api/generated/model';
-import {
-  postApiDecisions,
-  postApiDecisionsSuggestionsAct,
-} from '@/lib/api/generated/decisions/decisions';
+import type { DecisionType, DiscoverProfile } from '@/lib/api/generated/model';
+import { decide as recordDecision, actOnSuggestion as actOnSuggestionApi } from '@/lib/api/actions';
 
 const PAGE_SIZE = 20;
 
@@ -40,18 +37,16 @@ export function useDiscover(
 
   async function decide(
     card: DiscoverProfile,
-    decision: DirectDecisionRequestDecision
+    decision: DecisionType
   ): Promise<{ matched: boolean } | { error: true }> {
     try {
       if (card.suggestedBy) {
-        const res = await postApiDecisionsSuggestionsAct({
-          recipientId: card.userId,
-          decision,
-        });
-        return { matched: res.match != null };
+        // A mutual match comes back as the new match id in `created_id`.
+        const res = await actOnSuggestionApi({ recipientId: card.userId, decision });
+        return { matched: res.created_id != null };
       }
-      const res = await postApiDecisions({ recipientId: card.userId, decision });
-      return { matched: res.match != null };
+      const res = await recordDecision({ recipientId: card.userId, decision });
+      return { matched: res.created_id != null };
     } catch {
       return { error: true };
     }
@@ -94,7 +89,7 @@ export function useDiscover(
     swipingRef.current = false;
   }
 
-  async function actOnSuggestion(decision: DirectDecisionRequestDecision) {
+  async function actOnSuggestion(decision: DecisionType) {
     if (decision === 'approved') return like();
     return pass();
   }

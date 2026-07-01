@@ -13,7 +13,7 @@ import {
   getGetApiProfilesUserIdQueryKey,
 } from '@/lib/api/generated/profiles/profiles';
 import { getPhotoUrl, pickAndResizePhoto } from '@/lib/photos';
-import { postApiPromptResponses } from '@/lib/api/generated/prompts/prompts';
+import { addPromptResponse } from '@/lib/api/actions';
 import { useUploadProfilePhoto } from '@/hooks/use-upload-profile-photo';
 
 import { View, Text, Pressable, ScrollView, SafeAreaView, TextInput } from '@/lib/tw';
@@ -195,7 +195,7 @@ function ContributeContent() {
     if (!respondingToPrompt) return;
     const promptId = respondingToPrompt.id;
     setRespondingToPrompt(null);
-    const result = await postApiPromptResponses({ profilePromptId: promptId, message }).catch(
+    const result = await addPromptResponse({ profilePromptId: promptId, message }).catch(
       () => null
     );
     if (result == null) {

@@ -15,7 +15,7 @@ import {
   useGetApiMatchesSuspense,
 } from '@/lib/api/generated/matches/matches';
 import type { MatchSummary } from '@/lib/api/generated/model';
-import { postApiPromptResponses } from '@/lib/api/generated/prompts/prompts';
+import { addPromptResponse } from '@/lib/api/actions';
 import { LargeHeader } from '@/components/ui/LargeHeader';
 import { GradientBlock } from '@/components/ui/GradientBlock';
 import { FaceAvatar } from '@/components/ui/FaceAvatar';
@@ -305,7 +305,7 @@ function SheetBody({ match }: { match: MatchSummary }) {
 
     setPromptField(promptId, { sending: true, error: null });
     try {
-      await postApiPromptResponses({
+      await addPromptResponse({
         profilePromptId: promptId,
         message: state.text.trim(),
       });

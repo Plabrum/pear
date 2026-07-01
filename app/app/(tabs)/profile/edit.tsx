@@ -5,7 +5,7 @@ import {
   useGetApiDatingProfilesMeSuspense,
   useGetApiProfilesMeSuspense,
 } from '@/lib/api/generated/profiles/profiles';
-import type { OwnDatingProfileResponse } from '@/lib/api/generated/model';
+import type { OwnDatingProfile } from '@/lib/api/generated/model';
 import { View, Text, ScrollView, SafeAreaView, Pressable } from '@/lib/tw';
 import { FaceAvatar } from '@/components/ui/FaceAvatar';
 import ScreenSuspense from '@/components/ui/ScreenSuspense';
@@ -24,7 +24,7 @@ function ripenessLabel(score: number): string {
   return 'Just sprouting';
 }
 
-function ripenessHint(data: NonNullable<OwnDatingProfileResponse>): string | null {
+function ripenessHint(data: OwnDatingProfile): string | null {
   const approvedPhotos = data.photos.filter((p) => p.approvedAt !== null);
   if (data.prompts.length < 3) return 'Add one more prompt to ripen';
   if (approvedPhotos.length < 6) return 'Add more photos';
@@ -111,7 +111,7 @@ function MenuRow({
   );
 }
 
-function RipenessBar({ data }: { data: NonNullable<OwnDatingProfileResponse> }) {
+function RipenessBar({ data }: { data: OwnDatingProfile }) {
   const score = data.ripeness;
   const label = ripenessLabel(score);
   const hint = ripenessHint(data);

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { toast } from 'sonner-native';
-import { useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 
 import { colors } from '@/constants/theme';
@@ -14,9 +14,8 @@ import { InviteWingpersonSheet } from '@/components/wingpeople/InviteWingpersonS
 import {
   getGetApiWingpeopleQueryKey,
   useGetApiWingpeopleSuspense,
-  usePostApiWingpeopleIdAccept,
-  usePostApiWingpeopleIdDecline,
 } from '@/lib/api/generated/contacts/contacts';
+import { acceptWingperson, declineWingperson } from '@/lib/api/actions';
 
 function SectionHeader({ title }: { title: string }) {
   return (
@@ -32,14 +31,14 @@ function FriendsContent({ onOpenInvite }: { onOpenInvite: () => void }) {
   const { data } = useGetApiWingpeopleSuspense();
   const { wingingFor, invitations, weeklyCounts } = data;
 
-  const acceptMutation = usePostApiWingpeopleIdAccept();
-  const declineMutation = usePostApiWingpeopleIdDecline();
+  const acceptMutation = useMutation({ mutationFn: acceptWingperson });
+  const declineMutation = useMutation({ mutationFn: declineWingperson });
 
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: getGetApiWingpeopleQueryKey() });
 
   const handleAccept = async (contactId: string) => {
-    const result = await acceptMutation.mutateAsync({ id: contactId }).catch(() => null);
+    const result = await acceptMutation.mutateAsync(contactId).catch(() => null);
     if (result == null) {
       toast.error("Couldn't accept invitation. Try again.");
       return;
@@ -48,7 +47,7 @@ function FriendsContent({ onOpenInvite }: { onOpenInvite: () => void }) {
   };
 
   const handleDecline = async (contactId: string) => {
-    const result = await declineMutation.mutateAsync({ id: contactId }).catch(() => null);
+    const result = await declineMutation.mutateAsync(contactId).catch(() => null);
     if (result == null) {
       toast.error("Couldn't decline invitation. Try again.");
       return;

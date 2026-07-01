@@ -5,12 +5,12 @@ import { toast } from 'sonner-native';
 import { useQueryClient } from '@tanstack/react-query';
 import type { UseFormReturn } from 'react-hook-form';
 
-import type { OwnDatingProfileResponse } from '@/lib/api/generated/model';
+import type { OwnDatingProfile } from '@/lib/api/generated/model';
 import {
-  patchApiDatingProfilesMe,
   getGetApiProfilesMeQueryKey,
   getGetApiDatingProfilesMeQueryKey,
 } from '@/lib/api/generated/profiles/profiles';
+import { updateDatingProfile } from '@/lib/api/actions';
 
 import { Pill } from '@/components/ui/Pill';
 import { Sprout } from '@/components/ui/Sprout';
@@ -28,8 +28,8 @@ const STATUS_OPTIONS: { key: DatingStatus; label: string; sub: string }[] = [
 ];
 
 interface Props {
-  form: UseFormReturn<NonNullable<OwnDatingProfileResponse>>;
-  data: NonNullable<OwnDatingProfileResponse>;
+  form: UseFormReturn<OwnDatingProfile>;
+  data: OwnDatingProfile;
 }
 
 function FieldLabel({ children }: { children: string }) {
@@ -75,7 +75,7 @@ export function AboutMeTab({ form, data }: Props) {
     const prev = form.getValues('datingStatus');
     form.setValue('datingStatus', status);
     try {
-      await patchApiDatingProfilesMe({ datingStatus: status });
+      await updateDatingProfile(data.id, { datingStatus: status });
       queryClient.invalidateQueries({ queryKey: getGetApiProfilesMeQueryKey() });
       queryClient.invalidateQueries({ queryKey: getGetApiDatingProfilesMeQueryKey() });
     } catch {

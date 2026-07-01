@@ -4,14 +4,10 @@ import { toast } from 'sonner-native';
 import type { UseFormReturn } from 'react-hook-form';
 import Svg, { Path } from 'react-native-svg';
 
-import type { OwnDatingProfileResponse } from '@/lib/api/generated/model';
+import type { OwnDatingProfile } from '@/lib/api/generated/model';
 import { useUploadProfilePhoto } from '@/hooks/use-upload-profile-photo';
 import { getPhotoUrl, pickAndResizePhoto } from '@/lib/photos';
-import {
-  patchApiPhotosIdReorder,
-  postApiPhotosIdApprove,
-  postApiPhotosIdReject,
-} from '@/lib/api/generated/photos/photos';
+import { approvePhoto, rejectPhoto, reorderPhoto } from '@/lib/api/actions';
 
 import { ScrollView, Text, Pressable, View } from '@/lib/tw';
 import { PhotoRect } from '@/components/ui/PhotoRect';
@@ -72,8 +68,8 @@ function XIcon({ size = 12, color = '#fff' }: { size?: number; color?: string })
 }
 
 interface Props {
-  form: UseFormReturn<NonNullable<OwnDatingProfileResponse>>;
-  data: NonNullable<OwnDatingProfileResponse>;
+  form: UseFormReturn<OwnDatingProfile>;
+  data: OwnDatingProfile;
   onRefresh: () => Promise<void>;
 }
 
@@ -92,7 +88,7 @@ export function PhotosTab({ form, data, onRefresh }: Props) {
       photos.map((p) => (p.id === photoId ? { ...p, approvedAt: now } : p))
     );
     try {
-      await postApiPhotosIdApprove(photoId);
+      await approvePhoto(photoId);
     } catch {
       form.setValue('photos', prev);
       toast.error('Could not approve photo.');
@@ -106,7 +102,7 @@ export function PhotosTab({ form, data, onRefresh }: Props) {
       photos.filter((p) => p.id !== photoId)
     );
     try {
-      await postApiPhotosIdReject(photoId);
+      await rejectPhoto(photoId);
     } catch {
       form.setValue('photos', prev);
       toast.error('Could not reject photo.');
@@ -122,7 +118,7 @@ export function PhotosTab({ form, data, onRefresh }: Props) {
     form.setValue('photos', [...updated.map((p, i) => ({ ...p, displayOrder: i })), ...pending]);
     try {
       await Promise.all(
-        payload.map(({ id, displayOrder }) => patchApiPhotosIdReorder(id, { displayOrder }))
+        payload.map(({ id, displayOrder }) => reorderPhoto(id, { displayOrder }))
       );
       onRefresh();
     } catch {
@@ -145,7 +141,7 @@ export function PhotosTab({ form, data, onRefresh }: Props) {
             photos.filter((p) => p.id !== photo.id)
           );
           try {
-            await postApiPhotosIdReject(photo.id);
+            await rejectPhoto(photo.id);
           } catch {
             form.setValue('photos', prev);
             toast.error('Could not delete photo.');

@@ -8,7 +8,7 @@ import {
   getApiDatingProfilesMe,
   getGetApiDatingProfilesMeQueryKey,
 } from '@/lib/api/generated/profiles/profiles';
-import type { OwnDatingProfileResponse } from '@/lib/api/generated/model';
+import type { OwnDatingProfile } from '@/lib/api/generated/model';
 import { SafeAreaView } from '@/lib/tw';
 import { NavHeader } from '@/components/ui/NavHeader';
 import { PhotosTab } from '@/components/profile/PhotosTab';
@@ -19,7 +19,7 @@ function PhotosScreenInner() {
   const queryClient = useQueryClient();
   const { data: datingProfile } = useGetApiDatingProfilesMeSuspense();
 
-  const form = useForm<NonNullable<OwnDatingProfileResponse>>({
+  const form = useForm<OwnDatingProfile>({
     defaultValues: datingProfile ?? undefined,
   });
 

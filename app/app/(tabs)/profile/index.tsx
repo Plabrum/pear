@@ -9,13 +9,12 @@ import { useAuth } from '@/context/auth';
 import {
   useGetApiProfilesMeSuspense,
   useGetApiDatingProfilesMeSuspense,
-  patchApiProfilesMe,
-  patchApiDatingProfilesMe,
   getGetApiProfilesMeQueryKey,
   getGetApiDatingProfilesMeQueryKey,
   getApiDatingProfilesMe,
 } from '@/lib/api/generated/profiles/profiles';
-import type { OwnDatingProfileResponse } from '@/lib/api/generated/model';
+import { updateMyProfile, updateDatingProfile } from '@/lib/api/actions';
+import type { OwnDatingProfile } from '@/lib/api/generated/model';
 import { useGetApiWingpeopleSuspense } from '@/lib/api/generated/contacts/contacts';
 import { View, Text, Pressable, SafeAreaView } from '@/lib/tw';
 import { TextTabBar } from '@/components/ui/TextTabBar';
@@ -172,7 +171,7 @@ function ProfileScreenInner() {
 
   const [activeTab, setActiveTab] = useState(0);
 
-  const form = useForm<NonNullable<OwnDatingProfileResponse>>({
+  const form = useForm<OwnDatingProfile>({
     defaultValues: datingProfile ?? undefined,
   });
 
@@ -190,7 +189,7 @@ function ProfileScreenInner() {
   if (profile?.role === 'winger') {
     const handleSwitchToDater = async () => {
       try {
-        await patchApiProfilesMe({ role: 'dater' });
+        await updateMyProfile(userId, { role: 'dater' });
         queryClient.invalidateQueries({ queryKey: getGetApiProfilesMeQueryKey() });
         queryClient.invalidateQueries({ queryKey: getGetApiDatingProfilesMeQueryKey() });
       } catch {
@@ -223,7 +222,7 @@ function ProfileScreenInner() {
     const handleResumeDating = async () => {
       form.setValue('datingStatus', 'open');
       try {
-        await patchApiDatingProfilesMe({ datingStatus: 'open' });
+        await updateDatingProfile(datingProfile.id, { datingStatus: 'open' });
         queryClient.invalidateQueries({ queryKey: getGetApiProfilesMeQueryKey() });
         queryClient.invalidateQueries({ queryKey: getGetApiDatingProfilesMeQueryKey() });
       } catch {

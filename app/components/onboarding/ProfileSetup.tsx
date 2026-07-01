@@ -13,16 +13,15 @@ import DateInput from '@/components/ui/DateInput';
 import { createForm, RootError, useFormSubmit } from '@/lib/forms';
 import { GENDERS } from '@/constants/enums';
 import { colors } from '@/constants/theme';
+import { getApiDatingProfilesMe } from '@/lib/api/generated/profiles/profiles';
+import { useGetApiPromptTemplatesOnboardingSuspense } from '@/lib/api/generated/prompts/prompts';
 import {
-  patchApiProfilesMe,
-  postApiDatingProfiles,
-  getApiDatingProfilesMe,
-} from '@/lib/api/generated/profiles/profiles';
-import {
-  postApiProfilePrompts,
-  useGetApiPromptTemplatesOnboardingSuspense,
-} from '@/lib/api/generated/prompts/prompts';
-import { postApiPhotosIdReject } from '@/lib/api/generated/photos/photos';
+  updateMyProfile,
+  createDatingProfile,
+  addProfilePrompt,
+  rejectPhoto,
+} from '@/lib/api/actions';
+import { useAuth } from '@/context/auth';
 import { useUploadProfilePhoto } from '@/hooks/use-upload-profile-photo';
 import { getPhotoUrl, pickAndResizePhoto } from '@/lib/photos';
 import type { Database } from '@/types/database';
@@ -242,12 +241,15 @@ function BasicsStep({
   onComplete: (newDpId: string | null) => void;
 }) {
   const [pronouns, setPronouns] = useState<string | null>(null);
+  const { userId } = useAuth();
 
   return (
     <basicsForm.Form
       defaultValues={{ chosenName: '', dateOfBirth: undefined, gender: undefined }}
       onSubmit={async (v) => {
-        await patchApiProfilesMe({
+        // The profile already exists (created at auth); update it by its id,
+        // which is the caller's userId.
+        await updateMyProfile(userId, {
           chosenName: v.chosenName.trim(),
           dateOfBirth: v.dateOfBirth.toISOString().split('T')[0],
           phoneNumber: defaultPhoneNumber.trim() || null,
@@ -258,7 +260,7 @@ function BasicsStep({
           onComplete(null);
           return;
         }
-        const dp = await postApiDatingProfiles({
+        const dp = await createDatingProfile({
           city: 'Boston',
           ageFrom: 18,
           interestedGender: [],
@@ -266,7 +268,7 @@ function BasicsStep({
           interests: [],
           datingStatus: 'open',
         });
-        onComplete(dp.id);
+        onComplete(dp.created_id ?? null);
       }}
     >
       <ScrollView
@@ -373,7 +375,7 @@ function PhotosStep({ dpId, onContinue }: { dpId: string | null; onContinue: () 
     const previous = photos;
     setPhotos((p) => p.filter((x) => x.id !== photoId));
     try {
-      await postApiPhotosIdReject(photoId);
+      await rejectPhoto(photoId);
     } catch {
       setPhotos(previous);
       toast.error('Failed to remove photo. Please try again.');
@@ -512,7 +514,7 @@ function PromptsStep({ onContinue }: { onContinue: () => void }) {
     if (!activeTemplate || !trimmed) return;
     setSubmitting(true);
     try {
-      await postApiProfilePrompts({ promptTemplateId: activeTemplate.id, answer: trimmed });
+      await addProfilePrompt({ promptTemplateId: activeTemplate.id, answer: trimmed });
       setAdded((prev) => [
         ...prev,
         { id: activeTemplate.id, question: activeTemplate.question, answer: trimmed },

@@ -10,12 +10,12 @@ import { toast } from 'sonner-native';
 import type { UseFormReturn } from 'react-hook-form';
 import { Ionicons } from '@expo/vector-icons';
 
-import type { OwnDatingProfileResponse, OwnPromptResponse } from '@/lib/api/generated/model';
+import type { OwnDatingProfile, OwnPromptResponse } from '@/lib/api/generated/model';
 import {
-  deleteApiProfilePromptsId,
-  deleteApiPromptResponsesId,
-  postApiPromptResponsesIdApprove,
-} from '@/lib/api/generated/prompts/prompts';
+  deleteProfilePrompt,
+  deletePromptResponse,
+  approvePromptResponse,
+} from '@/lib/api/actions';
 
 import { FaceAvatar } from '@/components/ui/FaceAvatar';
 import { ScrollView, Text, View, Pressable } from '@/lib/tw';
@@ -129,7 +129,7 @@ function ApprovedResponsesCarousel({ responses }: { responses: ApprovedResponse[
 }
 
 interface Props {
-  form: UseFormReturn<NonNullable<OwnDatingProfileResponse>>;
+  form: UseFormReturn<OwnDatingProfile>;
   onRefresh: () => void;
 }
 
@@ -164,7 +164,7 @@ export function PromptsTab({ form, onRefresh }: Props) {
       )
     );
     try {
-      await postApiPromptResponsesIdApprove(responseId);
+      await approvePromptResponse(responseId);
     } catch {
       form.setValue('prompts', prev);
       toast.error('Could not approve comment.');
@@ -180,7 +180,7 @@ export function PromptsTab({ form, onRefresh }: Props) {
       )
     );
     try {
-      await deleteApiPromptResponsesId(responseId);
+      await deletePromptResponse(responseId);
     } catch {
       form.setValue('prompts', prev);
       toast.error('Could not reject comment.');
@@ -194,7 +194,7 @@ export function PromptsTab({ form, onRefresh }: Props) {
       prompts.filter((p) => p.id !== promptId)
     );
     try {
-      await deleteApiProfilePromptsId(promptId);
+      await deleteProfilePrompt(promptId);
     } catch {
       form.setValue('prompts', prev);
       toast.error('Could not remove prompt.');

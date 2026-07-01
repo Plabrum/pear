@@ -18,7 +18,7 @@ Deviations from the SQL (per the migration plan):
 from uuid import UUID
 
 import sqlalchemy as sa
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, synonym
 
 from app.domain.contacts.enums import WingpersonStatus
 from app.platform.base.models import BaseDBModel
@@ -47,3 +47,12 @@ class Contact(BaseDBModel):
         default=WingpersonStatus.INVITED,
         server_default=WingpersonStatus.INVITED.name,
     )
+
+    # `wingperson_status` IS this contact's state-machine column, but the platform
+    # `StateMachineService` reads/writes a uniformly-named `obj.state`. Expose a
+    # `state` synonym so contacts go through the same transition machinery as any
+    # `StateMachineMixin` model WITHOUT renaming the wire/SQL column. Additive only:
+    # the underlying TEXT column is still `wingperson_status`; `get_state_machine_meta`
+    # (which inspects `__table__.columns["state"]`) returns None here — intended, the
+    # contacts machine is invoked explicitly by its actions, not via column discovery.
+    state: Mapped[WingpersonStatus] = synonym("wingperson_status")

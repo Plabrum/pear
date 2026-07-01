@@ -7,9 +7,10 @@ import { zodResolver } from '@hookform/resolvers/zod';
 
 import {
   useGetApiDatingProfilesMeSuspense,
-  patchApiDatingProfilesMe,
   getGetApiDatingProfilesMeQueryKey,
 } from '@/lib/api/generated/profiles/profiles';
+import { updateDatingProfile } from '@/lib/api/actions';
+import type { Interest } from '@/lib/api/generated/model';
 import { INTERESTS } from '@/constants/enums';
 import { View, Text, ScrollView, SafeAreaView, Pressable } from '@/lib/tw';
 import { cn } from '@/lib/cn';
@@ -33,8 +34,9 @@ function InterestsScreenInner() {
   });
 
   const patch = async (interests: string[]) => {
+    if (!datingProfile) return;
     try {
-      await patchApiDatingProfilesMe({ interests: interests as Values['interests'] });
+      await updateDatingProfile(datingProfile.id, { interests: interests as Interest[] });
       queryClient.invalidateQueries({ queryKey: getGetApiDatingProfilesMeQueryKey() });
     } catch {
       toast.error('Could not save interests. Try again.');

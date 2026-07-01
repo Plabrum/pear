@@ -1,7 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
-import { patchApiProfilesMe } from '@/lib/api/generated/profiles/profiles';
+import { updateMyProfile } from '@/lib/api/actions';
 
 // iOS suppresses banners while the app is foregrounded unless a handler
 // opts in. Without this, recipients sitting in the app on a non-chat
@@ -16,11 +16,11 @@ Notifications.setNotificationHandler({
   }),
 });
 
-export async function registerPushToken(_userId: string) {
+export async function registerPushToken(userId: string) {
   if (Platform.OS === 'web') return;
   if (!Device.isDevice) return;
   const { status } = await Notifications.requestPermissionsAsync();
   if (status !== 'granted') return;
   const token = (await Notifications.getExpoPushTokenAsync()).data;
-  await patchApiProfilesMe({ pushToken: token });
+  await updateMyProfile(userId, { pushToken: token });
 }

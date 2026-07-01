@@ -9,9 +9,10 @@ import { zodResolver } from '@hookform/resolvers/zod';
 
 import {
   useGetApiDatingProfilesMeSuspense,
-  patchApiDatingProfilesMe,
   getGetApiDatingProfilesMeQueryKey,
 } from '@/lib/api/generated/profiles/profiles';
+import { updateDatingProfile } from '@/lib/api/actions';
+import type { UpdateDatingProfileData } from '@/lib/api/generated/model';
 import type { Database } from '@/types/database';
 import { GENDERS, RELIGIONS } from '@/constants/enums';
 import { View, Text, ScrollView, SafeAreaView, Pressable, TextInput, Modal } from '@/lib/tw';
@@ -95,9 +96,10 @@ function LookingForScreenInner() {
     },
   });
 
-  const patch = async (updates: Parameters<typeof patchApiDatingProfilesMe>[0]) => {
+  const patch = async (updates: UpdateDatingProfileData) => {
+    if (!datingProfile) return;
     try {
-      await patchApiDatingProfilesMe(updates);
+      await updateDatingProfile(datingProfile.id, updates);
       queryClient.invalidateQueries({ queryKey: getGetApiDatingProfilesMeQueryKey() });
     } catch {
       toast.error('Could not save. Try again.');

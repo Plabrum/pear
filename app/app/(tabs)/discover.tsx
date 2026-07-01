@@ -38,10 +38,9 @@ import { useGetApiLikesYouCountSuspense } from '@/lib/api/generated/likes-you/li
 import type { DiscoverProfile, WingingForRow } from '@/lib/api/generated/model';
 import {
   useGetApiDatingProfilesMeSuspense,
-  patchApiDatingProfilesMe,
   getGetApiDatingProfilesMeQueryKey,
 } from '@/lib/api/generated/profiles/profiles';
-import { postApiReports } from '@/lib/api/generated/reports/reports';
+import { reportProfile, updateDatingProfile } from '@/lib/api/actions';
 import { useGetApiWingpeopleSuspense } from '@/lib/api/generated/contacts/contacts';
 import { LargeHeader } from '@/components/ui/LargeHeader';
 import { Pill } from '@/components/ui/Pill';
@@ -71,9 +70,11 @@ type Filter = 'likes' | 'handpicked';
 
 function DiscoverPausedScreen({
   status,
+  datingProfileId,
   onResume,
 }: {
   status: Exclude<Enums<'dating_status'>, 'open'>;
+  datingProfileId: string;
   onResume: () => void;
 }) {
   const {
@@ -99,7 +100,7 @@ function DiscoverPausedScreen({
 
   async function resume() {
     try {
-      await patchApiDatingProfilesMe({ datingStatus: 'open' });
+      await updateDatingProfile(datingProfileId, { datingStatus: 'open' });
     } catch {
       toast.error('Something went wrong. Please try again.');
       return;
@@ -1124,7 +1125,7 @@ function PoolView({
     if (!card) return;
     const reportedCard = card;
     onDecrementLikes?.(reportedCard.userId);
-    await postApiReports({ recipientId: reportedCard.userId, reason });
+    await reportProfile({ recipientId: reportedCard.userId, reason });
     await pass();
     invalidatePools(reportedCard);
   }
@@ -1328,6 +1329,7 @@ export default function DiscoverScreen() {
     return (
       <DiscoverPausedScreen
         status={status}
+        datingProfileId={datingProfile?.id ?? ''}
         onResume={() =>
           queryClient.invalidateQueries({ queryKey: getGetApiDatingProfilesMeQueryKey() })
         }

@@ -5,17 +5,15 @@ import { useRouter } from 'expo-router';
 import { toast } from 'sonner-native';
 import { Ionicons } from '@expo/vector-icons';
 
-import { useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { FaceAvatar } from '@/components/ui/FaceAvatar';
 import { Sprout } from '@/components/ui/Sprout';
 import { View, Text, ScrollView, SafeAreaView, Pressable } from '@/lib/tw';
 import {
   getGetApiWingpeopleQueryKey,
-  useDeleteApiWingpeopleId,
   useGetApiWingpeopleSuspense,
-  usePostApiWingpeopleIdAccept,
-  usePostApiWingpeopleIdDecline,
 } from '@/lib/api/generated/contacts/contacts';
+import { acceptWingperson, declineWingperson, removeWingperson } from '@/lib/api/actions';
 import { InviteWingpersonSheet } from '@/components/wingpeople/InviteWingpersonSheet';
 
 const INK = '#1F1B16';
@@ -57,15 +55,15 @@ function WingpeopleContent({ onOpenInvite }: ContentProps) {
   const { data } = useGetApiWingpeopleSuspense();
   const { wingpeople, invitations, wingingFor, sentInvitations, weeklyCounts } = data;
 
-  const acceptMutation = usePostApiWingpeopleIdAccept();
-  const declineMutation = usePostApiWingpeopleIdDecline();
-  const removeMutation = useDeleteApiWingpeopleId();
+  const acceptMutation = useMutation({ mutationFn: acceptWingperson });
+  const declineMutation = useMutation({ mutationFn: declineWingperson });
+  const removeMutation = useMutation({ mutationFn: removeWingperson });
 
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: getGetApiWingpeopleQueryKey() });
 
   const handleAccept = async (contactId: string) => {
-    const result = await acceptMutation.mutateAsync({ id: contactId }).catch(() => null);
+    const result = await acceptMutation.mutateAsync(contactId).catch(() => null);
     if (result == null) {
       toast.error("Couldn't accept invitation. Try again.");
       return;
@@ -74,7 +72,7 @@ function WingpeopleContent({ onOpenInvite }: ContentProps) {
   };
 
   const handleDecline = async (contactId: string) => {
-    const result = await declineMutation.mutateAsync({ id: contactId }).catch(() => null);
+    const result = await declineMutation.mutateAsync(contactId).catch(() => null);
     if (result == null) {
       toast.error("Couldn't decline invitation. Try again.");
       return;
@@ -89,7 +87,7 @@ function WingpeopleContent({ onOpenInvite }: ContentProps) {
         text: 'Cancel Invite',
         style: 'destructive',
         onPress: async () => {
-          const result = await removeMutation.mutateAsync({ id: contactId }).catch(() => null);
+          const result = await removeMutation.mutateAsync(contactId).catch(() => null);
           if (result == null) {
             toast.error("Couldn't cancel invite. Try again.");
             return;
@@ -107,7 +105,7 @@ function WingpeopleContent({ onOpenInvite }: ContentProps) {
         text: 'Remove',
         style: 'destructive',
         onPress: async () => {
-          const result = await removeMutation.mutateAsync({ id: contactId }).catch(() => null);
+          const result = await removeMutation.mutateAsync(contactId).catch(() => null);
           if (result == null) {
             toast.error("Couldn't remove wingperson. Try again.");
             return;

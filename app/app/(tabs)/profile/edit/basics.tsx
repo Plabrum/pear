@@ -8,9 +8,10 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import {
   useGetApiDatingProfilesMeSuspense,
   useGetApiProfilesMeSuspense,
-  patchApiDatingProfilesMe,
   getGetApiDatingProfilesMeQueryKey,
 } from '@/lib/api/generated/profiles/profiles';
+import { updateDatingProfile } from '@/lib/api/actions';
+import type { City } from '@/lib/api/generated/model';
 import { CITIES } from '@/constants/enums';
 import { View, Text, ScrollView, SafeAreaView, Pressable } from '@/lib/tw';
 import { cn } from '@/lib/cn';
@@ -56,8 +57,9 @@ function BasicsScreenInner() {
   });
 
   const saveCity = async (city: string) => {
+    if (!datingProfile) return;
     try {
-      await patchApiDatingProfilesMe({ city: city as Values['city'] });
+      await updateDatingProfile(datingProfile.id, { city: city as City });
       queryClient.invalidateQueries({ queryKey: getGetApiDatingProfilesMeQueryKey() });
     } catch {
       toast.error('Could not save city. Try again.');

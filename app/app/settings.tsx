@@ -10,10 +10,10 @@ import { useAuth } from '@/context/auth';
 import {
   useGetApiProfilesMeSuspense,
   useGetApiDatingProfilesMeSuspense,
-  patchApiDatingProfilesMe,
   getGetApiDatingProfilesMeQueryKey,
   getGetApiProfilesMeQueryKey,
 } from '@/lib/api/generated/profiles/profiles';
+import { updateDatingProfile } from '@/lib/api/actions';
 import { useGetApiWingpeopleSuspense } from '@/lib/api/generated/contacts/contacts';
 import { View, Text, ScrollView, Pressable, SafeAreaView } from '@/lib/tw';
 import ScreenSuspense from '@/components/ui/ScreenSuspense';
@@ -133,8 +133,10 @@ function SettingsScreenInner() {
   const statusDetail = currentStatus ? STATUS_LABEL[currentStatus] : undefined;
 
   const updateStatus = useMutation({
-    mutationFn: (datingStatus: 'open' | 'break' | 'winging') =>
-      patchApiDatingProfilesMe({ datingStatus }),
+    mutationFn: (datingStatus: 'open' | 'break' | 'winging') => {
+      if (!datingProfile) throw new Error('No dating profile');
+      return updateDatingProfile(datingProfile.id, { datingStatus });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: getGetApiDatingProfilesMeQueryKey() });
       queryClient.invalidateQueries({ queryKey: getGetApiProfilesMeQueryKey() });

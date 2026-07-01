@@ -13,7 +13,7 @@ import {
   getGetApiProfilesUserIdQueryKey,
 } from '@/lib/api/generated/profiles/profiles';
 import { getPhotoUrl, pickAndResizePhoto } from '@/lib/photos';
-import { postApiPromptResponses } from '@/lib/api/generated/prompts/prompts';
+import { addPromptResponse } from '@/lib/api/actions';
 import { useUploadProfilePhoto } from '@/hooks/use-upload-profile-photo';
 
 import { View, Text, Pressable, ScrollView, SafeAreaView, TextInput } from '@/lib/tw';
@@ -125,7 +125,7 @@ function FriendDetailContent() {
     const promptId = respondingToPrompt.id;
     setRespondingToPrompt(null);
     try {
-      await postApiPromptResponses({ profilePromptId: promptId, message });
+      await addPromptResponse({ profilePromptId: promptId, message });
       toast.success(`Comment sent — ${firstName} will review it.`);
     } catch {
       toast.error("Couldn't send comment. Try again.");
