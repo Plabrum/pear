@@ -33,7 +33,16 @@ jobs:
       # check fail on every PR regardless of drift. The incremental prebuild below
       # merges into the already-checked-out ios/ and is idempotent — verified stable
       # across repeated runs with no source changes.
+      #
+      # EXPO_PUBLIC_API_URL must match production (https://api.usepear.app) — the
+      # native EXUpdatesURL is baked into the committed ios/ project at prebuild
+      # time (Xcode Cloud builds the committed project directly, it does not run
+      # prebuild), so both the commit and this check must use the same value or
+      # they'll never agree. Regenerate locally the same way before committing:
+      # `EXPO_PUBLIC_API_URL=https://api.usepear.app npx expo prebuild -p ios --clean`.
       - name: Regenerate native iOS project (incremental)
+        env:
+          EXPO_PUBLIC_API_URL: https://api.usepear.app
         run: npx expo prebuild -p ios
 
       - name: Fail on drift

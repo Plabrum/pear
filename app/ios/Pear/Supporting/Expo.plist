@@ -4,6 +4,33 @@
   <dict>
     <key>EXUpdatesCheckOnLaunch</key>
     <string>ALWAYS</string>
+    <key>EXUpdatesCodeSigningCertificate</key>
+    <string>-----BEGIN CERTIFICATE-----
+MIIC2zCCAcOgAwIBAgIJGqqbQ3Pw5FkVMA0GCSqGSIb3DQEBCwUAMBcxFTATBgNV
+BAMTDFBlYXIgVXBkYXRlczAeFw0yNjA3MDExNTU2MzhaFw0zNjA3MDExNTU2Mzha
+MBcxFTATBgNVBAMTDFBlYXIgVXBkYXRlczCCASIwDQYJKoZIhvcNAQEBBQADggEP
+ADCCAQoCggEBAM9MPgqPu0YaTFjk2WVw3HeQTPMuA/Kz9oFVghNCtdO+aC/GlEKR
+2CG3nFC0DrX/5cfKd6WxlQLy5NHZNwnGdOhIEtafaZWB2GIBb9xeDJt3vg2noxOR
+Wd25ya+P3V1kna7tIxeQXy7Ko5PkkghPuCarSJ5OC1OcA3UVuJuLok4Hvs5PCvu5
+Qgm0TK4us0cUI30ImMV43YWK05KDEL11rateaF8975ifUljdhazyt4OwjFWrl+kg
+L6XADpSjWirQLKBlJV3O0OQNK9fWbcIlfdsS0XWhJI44JAKJNYvwFoMOTd3vKu0m
+vZ8sA20yTv83u+e7r1lAp9AKPqZ60weB0kUCAwEAAaMqMCgwDgYDVR0PAQH/BAQD
+AgeAMBYGA1UdJQEB/wQMMAoGCCsGAQUFBwMDMA0GCSqGSIb3DQEBCwUAA4IBAQDM
+KhORu0eadUGajbdBOxc0ZbxgsxAPcz15nzN2Faow924O9x0UGYzh/vFmIr90ONkD
+n+NhkDixzOU2+YdpSFgANpS+gmaFiSkW9byLu+ChSVnP7QiwgX8yk9SvlQwigj8r
+7rJjEQ1xA6rnF1GORd1ytZQFSAkyQUQycRPZvoP6jGenUHE5be8LZUeKaCwzkA3J
+KcKBfm0nNQ1HT6RPNyY5OXWONhr6JVuOYlFmaRV3TMNBWaXsKDhulNEj8TCMYae7
+MK3GotWQjzTHybzdz87jTAUrXxl2AC8yZ2MvhkiXtLt/NAdaKiF3s4mNv+n1H1H1
+RlE+jra0M5piWoc+6o7x
+-----END CERTIFICATE-----
+</string>
+    <key>EXUpdatesCodeSigningMetadata</key>
+    <dict>
+      <key>keyid</key>
+      <string>main</string>
+      <key>alg</key>
+      <string>rsa-v1_5-sha256</string>
+    </dict>
     <key>EXUpdatesEnableBsdiffPatchSupport</key>
     <true/>
     <key>EXUpdatesEnabled</key>
@@ -13,6 +40,6 @@
     <key>EXUpdatesRuntimeVersion</key>
     <string>file:fingerprint</string>
     <key>EXUpdatesURL</key>
-    <string>https://u.expo.dev/ce961544-87fc-4eb0-8168-3c7cd646d58e</string>
+    <string>https://api.usepear.app/updates/manifest</string>
   </dict>
 </plist>
