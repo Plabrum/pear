@@ -115,6 +115,13 @@ jobs:
       - name: Terraform validate
         run: terraform validate
 
+      - name: Derive GitHub OIDC role name
+        # An IAM role ARN's last path segment is the role name - no new secret
+        # needed. Grants ota.yml's read-only SSM/Secrets Manager access (see
+        # modules/ec2_stack|app_stack/ssm_params.tf's github_oidc_ota_ci_read).
+        id: oidc
+        run: echo "role_name=$(basename '${{ secrets.OIDC_ROLE_ARN }}')" >> "$GITHUB_OUTPUT"
+
       - name: Terraform plan
         id: plan
         env:
@@ -123,6 +130,7 @@ jobs:
           TF_VAR_environment: ${{ steps.ws.outputs.env }}
 
           TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
+          TF_VAR_github_oidc_role_name: ${{ steps.oidc.outputs.role_name }}
         run: |
           terraform plan -no-color -out=tfplan
           terraform show -no-color tfplan > plan_output.txt
@@ -154,6 +162,7 @@ jobs:
           TF_VAR_environment: ${{ steps.ws.outputs.env }}
 
           TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
+          TF_VAR_github_oidc_role_name: ${{ steps.oidc.outputs.role_name }}
         run: terraform apply -auto-approve tfplan
 
       - name: Get Terraform outputs
