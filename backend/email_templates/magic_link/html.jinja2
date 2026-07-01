@@ -1,0 +1,68 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html dir="ltr" lang="en">
+  <head>
+    <meta content="text/html; charset=UTF-8" http-equiv="Content-Type" />
+    <meta name="x-apple-disable-message-reformatting" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sign in to Pear</title>
+  </head>
+  <body style="background-color:#F5F1E8;margin:0;padding:0;font-family:Georgia,'Times New Roman',serif">
+    <table border="0" width="100%" cellpadding="0" cellspacing="0" role="presentation" align="center"
+      style="background-color:#F5F1E8">
+      <tbody>
+        <tr>
+          <td align="center" style="padding:40px 20px">
+            <table border="0" width="480" cellpadding="0" cellspacing="0" role="presentation"
+              style="max-width:480px;background-color:#FBF8F1;border:1px solid #EDE6D6;border-radius:18px">
+              <tbody>
+                <tr>
+                  <td style="padding:40px 36px">
+                    <p style="font-size:11px;color:#3F6B3A;text-transform:uppercase;letter-spacing:2px;margin:0 0 12px">
+                      Sign in
+                    </p>
+                    <h1 style="font-size:26px;line-height:1.2;color:#2B2B2B;margin:0 0 20px">
+                      Sign in to Pear
+                    </h1>
+                    <p style="font-size:15px;line-height:1.6;color:#5C5C5C;margin:0 0 28px;font-family:Helvetica,Arial,sans-serif">
+                      Tap the button below to securely sign in. This link expires in
+                      {{ expiration_minutes }} minutes for your security.
+                    </p>
+                    <table border="0" cellpadding="0" cellspacing="0" role="presentation" style="margin:0 0 32px">
+                      <tbody>
+                        <tr>
+                          <td align="center" bgcolor="#3F6B3A" style="border-radius:13px">
+                            <a href="{{ magic_link_url }}"
+                              style="display:inline-block;padding:14px 28px;font-size:15px;color:#FFFFFF;text-decoration:none;font-family:Helvetica,Arial,sans-serif;font-weight:600">
+                              Continue to Pear
+                            </a>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                    <hr style="border:none;border-top:1px solid #EDE6D6;margin:0 0 24px" />
+                    <p style="font-size:10px;color:#3F6B3A;text-transform:uppercase;letter-spacing:1.5px;margin:0 0 8px;font-family:Helvetica,Arial,sans-serif">
+                      Or copy this link
+                    </p>
+                    <div style="background-color:#EDE6D6;border-radius:9px;padding:12px 14px;margin:0 0 24px">
+                      <p style="font-size:12px;word-break:break-all;margin:0;line-height:1.4;color:#5C5C5C;font-family:'Courier New',monospace">
+                        {{ magic_link_url }}
+                      </p>
+                    </div>
+                    <hr style="border:none;border-top:1px solid #EDE6D6;margin:0 0 24px" />
+                    <p style="font-size:14px;line-height:1.6;color:#5C5C5C;margin:0;font-family:Helvetica,Arial,sans-serif">
+                      <strong style="color:#2B2B2B">Didn&rsquo;t request this?</strong><br />
+                      You can safely ignore this email. This link can only be used once and expires automatically.
+                    </p>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <p style="font-size:11px;color:#8A8A8A;margin:24px 0 0;font-family:Helvetica,Arial,sans-serif">
+              &copy; 2026 Pear
+            </p>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </body>
+</html>
