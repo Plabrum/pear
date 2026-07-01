@@ -31,47 +31,55 @@ Core flows: Auth → Onboarding → Discover → Matches → Messaging → Wingp
 
 ## Directory Structure
 
+The repo is a monorepo with a root `Justfile`. Three workspaces:
+
+- **`app/`** — the Expo app (this is where the mobile project lives; cwd for all `npm`/`expo`/`eas` commands).
+- **`backend/`** — the Litestar (Python) API + worker. Populated during the migration (see `docs/migration/`).
+- **`infra/`** — Terraform for the single-EC2 deploy. Populated during the migration.
+- **`supabase/`** — **legacy / being migrated off.** Still the live backend until cutover, but **do not add new endpoints here** — new HTTP endpoints go in `backend/`. See `docs/migration/`.
+
 ```
 wingmate/
-├── app/
-│   ├── _layout.tsx             # Root layout — providers, auth gate, Toaster
-│   ├── invite.tsx              # Deep-link handler
-│   ├── (auth)/                 # login.tsx, sms.tsx, apple.tsx
-│   ├── (onboarding)/index.tsx  # Onboarding orchestrator
-│   ├── (tabs)/                 # Dater tab shell
-│   │   ├── discover.tsx
-│   │   ├── matches.tsx
-│   │   ├── messages/           # index.tsx + [matchId].tsx
-│   │   └── profile/            # index, edit, wingpeople/{index,contribute,wingswipe}
-│   └── (winger-tabs)/          # Winger tab shell (activity, friends/[id])
-├── components/
-│   ├── onboarding/             # RoleStep, ProfileStep, PhotosStep, PromptsStep
-│   ├── profile/                # AboutMeTab, PhotosTab, PromptsTab, etc.
-│   └── ui/                     # Shared primitives
-├── context/auth.tsx            # AuthProvider, useSession(), useAuth()
-├── lib/
-│   ├── tw.tsx                  # Styled primitives — ALWAYS import from here
-│   ├── cn.ts                   # clsx + tailwind-merge
-│   ├── supabase.ts             # Typed Supabase client
-│   ├── forms/index.tsx         # Button, TextInput, form primitives
-│   └── api/
-│       ├── http.ts             # Fetch mutator — attaches JWT, throws on !ok
-│       └── generated/          # Orval output (committed)
-├── types/database.ts           # Auto-generated Supabase types (never edit)
-├── constants/theme.ts          # Hex escape-hatch values only
-├── supabase/
+├── Justfile                    # Root task runner (just --list) — app-*, backend, db-*, tf-* recipes
+├── app/                        # Expo app (cwd for npm/expo/eas)
+│   ├── app/                    # expo-router routes (the routes dir)
+│   │   ├── _layout.tsx         # Root layout — providers, auth gate, Toaster
+│   │   ├── invite.tsx          # Deep-link handler
+│   │   ├── (auth)/             # login.tsx, sms.tsx, apple.tsx
+│   │   ├── (onboarding)/index.tsx  # Onboarding orchestrator
+│   │   ├── (tabs)/             # Dater tab shell (discover, matches, messages/, profile/)
+│   │   └── (winger-tabs)/      # Winger tab shell (activity, friends/[id])
+│   ├── components/             # onboarding/, profile/, ui/ (shared primitives)
+│   ├── context/auth.tsx        # AuthProvider, useSession(), useAuth()
+│   ├── lib/
+│   │   ├── tw.tsx              # Styled primitives — ALWAYS import from here
+│   │   ├── cn.ts              # clsx + tailwind-merge
+│   │   ├── supabase.ts         # Typed Supabase client
+│   │   ├── forms/index.tsx     # Button, TextInput, form primitives
+│   │   └── api/
+│   │       ├── http.ts         # Fetch mutator — attaches JWT, throws on !ok
+│   │       └── generated/      # Orval output (committed)
+│   ├── hooks/ assets/ constants/  # constants/theme.ts = hex escape-hatch values
+│   ├── types/database.ts       # Auto-generated Supabase types (never edit)
+│   ├── scripts/                # db-up/down/reset/fixtures, seed-*, dev/sim, etc.
+│   ├── package.json  app.config.js  eas.json  tsconfig.json  metro.config.js
+│   ├── openapi.json            # Committed OpenAPI spec (orval input)
+│   ├── orval.config.ts
+│   ├── drizzle.config.ts       # READ-ONLY introspect (schema at ../supabase/...) — never push/generate
+│   └── global.css              # Tailwind v4 @theme tokens (source of truth)
+├── backend/                    # Litestar API + worker (Python, uv) — populated in migration
+├── infra/                      # Terraform (single-EC2) — populated in migration
+├── supabase/                   # LEGACY — live until cutover; no new endpoints here
 │   ├── migrations/             # SQL migrations — the WRITE source of truth
-│   └── functions/api/          # Hono API (all new HTTP endpoints go here)
+│   └── functions/api/          # Hono API (legacy)
 │       ├── app.ts              # createApp() — routes, middleware, OpenAPI
 │       ├── db/{client,schema}  # Drizzle client + READ-ONLY schema mirror
 │       ├── middleware/         # auth, supabase, push, transaction, error
-│       ├── types.ts            # AppEnv = AuthVars & SupabaseVars & PushVars & DbVars
 │       ├── domains/<feature>/  # route, schemas, queries, transformers
 │       └── lib/                # config, deps, push, storage
-├── openapi.json                # Committed OpenAPI spec
-├── orval.config.ts
-├── drizzle.config.ts           # READ-ONLY introspect config — never push/generate
-└── global.css                  # Tailwind v4 @theme tokens (source of truth)
+├── docs/migration/             # Authoritative migration plan (read before backend work)
+├── .github/                    # CI (supabase paths unchanged — supabase stayed at root)
+└── CLAUDE.md
 ```
 
 ---
@@ -270,26 +278,37 @@ Key enums: `role`: `dater|winger` · `dating_status`: `open|break|winging` · `w
 
 ## Development Workflows
 
+The repo is a monorepo. All app commands run from `app/` — either via the root `Justfile`
+(`just --list` to see recipes) or directly with `cd app && npm run …`. Migration plan and the
+backend/infra rollout live in `docs/migration/` (read it before backend work).
+
 ```bash
-# App
-npm run dev:sim        # iOS Simulator
-npm run web            # Expo web (auto-signs in as dev@local.test)
+# App — via Justfile (from repo root)
+just app-dev          # iOS Simulator (cd app && npm run dev:sim)
+just app-web          # Expo web (auto-signs in as dev@local.test)
+just app-lint         # cd app && npm run lint
+just app-typecheck    # cd app && npx tsc --noEmit
+just app-codegen      # cd app && npm run codegen (regenerate all artifacts)
 
-# Supabase
-npm run supabase:start / supabase:stop
-npm run api:serve      # hot-reload api edge function (--no-verify-jwt locally)
-npm run codegen        # regenerate all artifacts
+# App — directly (cwd must be app/)
+cd app && npm run dev:sim
+cd app && npm run web
 
-# Verify (run before committing)
-npm run lint && npm run typecheck:functions && npm run lint:functions && npx tsc --noEmit
+# Supabase (legacy backend, still live — scripts cd to repo root internally)
+cd app && npm run db:up / db:down / db:reset / db:fixtures
+cd app && npm run api:serve   # hot-reload api edge function (--no-verify-jwt locally)
+cd app && npm run codegen     # regenerate all artifacts
 
-# Build & deploy
-npm run build:dev-sim / build:local / build:device
-npm run deploy:ota     # EAS OTA update
-npm run deploy:build   # EAS production build
+# Verify (run before committing — from app/)
+cd app && npm run lint && npm run typecheck:functions && npm run lint:functions && npx tsc --noEmit
+
+# Build & deploy (from app/)
+cd app && npm run build:local / build:device
+cd app && npm run deploy:ota     # EAS OTA update
+cd app && npm run deploy:build   # EAS production build
 ```
 
-`.env.local` needs: `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `DATABASE_URL=postgresql://authenticator:postgres@host.docker.internal:54322/postgres`, `SUPABASE_ANON_KEY`.
+`app/.env.local` needs: `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `DATABASE_URL=postgresql://authenticator:postgres@host.docker.internal:54322/postgres`, `SUPABASE_ANON_KEY`.
 
 ---
 
@@ -311,5 +330,5 @@ npm run deploy:build   # EAS production build
 
 ## TypeScript
 
-- Strict mode. Path alias `@/*` → `./`. `supabase/functions` excluded (Deno type-checks separately).
+- Strict mode. Path alias `@/*` → `./` (relative to `app/`). `supabase/functions` is outside the `app/` tsconfig root, so it is not type-checked here (Deno type-checks it separately via `npm run typecheck:functions`).
 - `types/database.ts` is auto-generated — never edit manually.

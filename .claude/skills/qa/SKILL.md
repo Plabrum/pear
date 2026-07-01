@@ -7,11 +7,13 @@ description: iOS QA playbook for the Wyng app. Use when running an exploratory Q
 
 ## What this app needs
 
+> The Expo project now lives in `app/`. Run all `npm`/script commands from `app/` (`cd app` first).
+
 - **Bundle id:** `com.plabrum.wingmate`
-- **Pre-built sim app:** `builds/dev-sim.app` (relative to repo root)
-- **Backend:** local Supabase stack via `npm run supabase:start` (idempotent)
-- **Seed:** `bash scripts/db-fixtures.sh` (reproducible local state)
-- **Bundler:** Metro on `http://localhost:8081`, started by `bash scripts/dev-sim.sh`
+- **Pre-built sim app:** `app/builds/dev-sim.app`
+- **Backend:** local Supabase stack via `cd app && npm run db:up` (idempotent)
+- **Seed:** `cd app && npm run db:fixtures` (reproducible local state)
+- **Bundler:** Metro on `http://localhost:8081`, started by `cd app && npm run dev:sim`
 - **Backlog:** open GitHub issues on the current repo, `bug` label
 
 ## flow_tests.md — your scratchpad
@@ -49,24 +51,24 @@ Format:
 
 Picking rules:
 
-1. If the file is missing or empty, brainstorm the flow list from `app/`, `CLAUDE.md`, and the data model. Cover every tab and every onboarding/auth path.
+1. If the file is missing or empty, brainstorm the flow list from `app/app/` (expo-router routes), `CLAUDE.md`, and the data model. Cover every tab and every onboarding/auth path.
 2. Pick the first unchecked flow from the top. If everything is checked, re-run the least-recently-tested flow from "Recently tested" — regressions ship constantly.
 3. Skip flows that need real hardware (real APNs delivery, Twilio SMS to a real phone, Apple ID sign-in). Note "skipped — needs real device" next to the entry.
 
 ## Bring up the backend
 
 ```
-npm run supabase:start          # idempotent; safe if already running
-bash scripts/db-fixtures.sh     # seeds reproducible local state
+cd app && npm run db:up          # idempotent; safe if already running
+cd app && npm run db:fixtures    # seeds reproducible local state
 ```
 
-If you need ad-hoc data beyond fixtures (a dater with N matches, etc.), use `psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -c "..."` or a temp `.ts` script invoked with `npx tsx`. Don't commit ad-hoc seeds.
+If you need ad-hoc data beyond fixtures (a dater with N matches, etc.), use `psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -c "..."` or a temp `.ts` script invoked with `npx tsx` (from `app/`). Don't commit ad-hoc seeds.
 
-If `supabase:start` fails outright, file ONE infrastructure issue and stop the session.
+If `npm run db:up` fails outright, file ONE infrastructure issue and stop the session.
 
 ## Metro lifecycle (the headless trap)
 
-`bash scripts/dev-sim.sh` starts Metro and never exits. If you call it foreground, your session wedges forever. Always launch detached and poll for readiness.
+`cd app && npm run dev:sim` (i.e. `app/scripts/dev-sim.sh`) starts Metro and never exits. If you call it foreground, your session wedges forever. Always launch detached and poll for readiness.
 
 First check whether Metro is already running (likely — humans leave dev-sim up between sessions):
 
@@ -78,7 +80,7 @@ curl -fsS http://localhost:8081/status >/dev/null && echo "metro already up" || 
 - "metro down" → start detached and poll for up to 5 minutes:
 
 ```
-nohup bash scripts/dev-sim.sh > /tmp/dev-sim-qa.log 2>&1 & disown
+nohup bash -c 'cd app && npm run dev:sim' > /tmp/dev-sim-qa.log 2>&1 & disown
 for i in $(seq 1 60); do
   curl -fsS http://localhost:8081/status >/dev/null && { echo "metro up after ${i}x5s"; break; }
   sleep 5
@@ -93,7 +95,7 @@ If Metro never comes up, file ONE infrastructure issue with the `/tmp/dev-sim-qa
 Use the MCP tools — don't shell out to `xcrun` for anything the MCP can do.
 
 - `mcp__XcodeBuildMCP__list_sims` — confirm a booted simulator exists.
-- `mcp__XcodeBuildMCP__install_app_sim` with `appPath: "/Users/phil/repos/wingmate/builds/dev-sim.app"` — re-install fresh each session for a clean slate.
+- `mcp__XcodeBuildMCP__install_app_sim` with `appPath: "/Users/phil/repos/wingmate/app/builds/dev-sim.app"` — re-install fresh each session for a clean slate.
 - `mcp__XcodeBuildMCP__launch_app_sim` — pass `env: { EXPO_PUBLIC_DEV_AUTOFILL: "1" }` if useful.
 - `mcp__XcodeBuildMCP__start_sim_log_cap` with `subsystemFilter: "app"` and `captureConsole: true` BEFORE you start exercising the flow. Save the returned `logSessionId`.
 - `mcp__XcodeBuildMCP__screenshot` — capture before each interaction and after each state change.
@@ -179,10 +181,10 @@ After filing, update `flow_tests.md`:
 - Never push to `main`, never open PRs, never modify app code. Only writes allowed: `flow_tests.md` (gitignored), `.gitignore` (only on first run, to add `flow_tests.md`), GitHub issues, and evidence files (screenshots, log slices, scratch notes) inside the gitignored `qa/` directory. Create `qa/` if it doesn't exist. Never write evidence to the repo root or any other tracked path.
 - Never `git add`, `git commit`, or `git push`. The QA loop is read-only against the working tree apart from the writes listed above.
 - Never run `npm run deploy*`, `eas submit`, `eas update`, or any production-touching script.
-- Never run destructive DB ops against anything but the local supabase stack. `supabase db reset --linked` is forbidden. Local-only `bash scripts/db-reset.sh` is fine.
+- Never run destructive DB ops against anything but the local supabase stack. `supabase db reset --linked` is forbidden. Local-only `cd app && npm run db:reset` is fine.
 - Never commit ad-hoc seed scripts, screenshots, or log dumps.
 - Don't skip the dedup step. Duplicate issues are noise.
 - Don't file issues without screenshot + log evidence. Bare-text reports are insufficient.
 - Don't bundle multiple bugs into one issue. One bug = one issue, even if you find five in one flow.
 - Don't file issues for: things explicitly marked TODO/FIXME in code (those are known), or pre-existing console warnings that fire before you interact (note them in `flow_tests.md` instead).
-- If `npm run supabase:start` or `dev-sim.sh` fails outright, file one infrastructure issue and stop.
+- If `npm run db:up` or `npm run dev:sim` (both from `app/`) fails outright, file one infrastructure issue and stop.

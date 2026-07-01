@@ -6,10 +6,14 @@ allowed-tools: Bash(git status:*), Bash(git log:*), Bash(git add:*), Bash(git co
 
 ## Context
 
-- Current version: !`node -p "require('./package.json').version"`
+- Current version: !`node -p "require('./app/package.json').version"`
 - Git status: !`git status --short`
 - Current branch: !`git branch --show-current`
 - Recent tags: !`git tag --sort=-v:refname | head -5`
+
+> Note: the Expo project (and `package.json`) now lives in `app/`. Run the `npm version` /
+> staging steps from `app/` (`cd app && …`), but run all `git` commands (commit, tag, push)
+> from the repo root since `.git` is at the root.
 
 ## Your task
 
@@ -19,9 +23,9 @@ Cut a release by following these steps **in order**, running all git commands in
 
 2. **Determine bump type**: Use the argument `$ARGUMENTS` if provided (`patch`, `minor`, or `major`). Default to `patch` if no argument given.
 
-3. **Bump version**: Run `npm version <bump-type> --no-git-tag-version` to update `package.json` only (no auto-commit or tag from npm).
+3. **Bump version**: Run `cd app && npm version <bump-type> --no-git-tag-version` to update `app/package.json` only (no auto-commit or tag from npm).
 
-4. **Commit**: Run `git add package.json package-lock.json` then commit with message `bump version to <new-version>` (no Co-Authored-By line needed for release commits).
+4. **Commit**: From the repo root, run `git add app/package.json app/package-lock.json` then commit with message `bump version to <new-version>` (no Co-Authored-By line needed for release commits).
 
 5. **Tag**: Create an annotated git tag `v<new-version>` with message `Release v<new-version>`.
 

@@ -1,6 +1,8 @@
 #!/bin/zsh
 set -e
-cd "$(dirname "$0")/.."
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+APP="$ROOT/app"
+cd "$ROOT"
 
 echo "==> Ensuring Colima is running..."
 if ! colima status 2>/dev/null | grep -q "running"; then
@@ -16,7 +18,7 @@ echo "==> Applying migrations..."
 supabase db push
 
 echo "==> Generating types..."
-npm run db:types
+(cd "$APP" && npm run db:types)
 
 echo "Local Supabase is up."
 supabase status

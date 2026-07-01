@@ -1,0 +1,269 @@
+locals {
+  name = "${var.project_name}-${var.environment}"
+
+  common_tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
+}
+
+# -- AMI -----------------------------------------------------------------------
+# Amazon Linux 2023 x86_64 - matches the linux/amd64 CI build target
+
+data "aws_ami" "al2023" {
+  most_recent = true
+  owners      = ["amazon"]
+
+  filter {
+    name   = "name"
+    values = ["al2023-ami-*-x86_64"]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+}
+
+# -- S3 ------------------------------------------------------------------------
+
+resource "random_id" "bucket_suffix" {
+  byte_length = 4
+}
+
+module "media" {
+  source = "../s3_bucket"
+
+  name        = "${local.name}-media-${random_id.bucket_suffix.hex}"
+  tags        = merge(local.common_tags, { Name = "${local.name}-media", Purpose = "media-uploads" })
+  cors_origin = "https://app.${var.domain}"
+
+  lifecycle_pending_expiry_days = 1
+}
+
+# -- Secrets Manager -----------------------------------------------------------
+# Created with placeholder values by Terraform; populate after first apply:
+#   aws secretsmanager put-secret-value --secret-id <arn> --secret-string '{"SECRET_KEY":"..."}'
+# deploy.sh refreshes the box's .env from here on every deploy.
+
+resource "aws_secretsmanager_secret" "app" {
+  name                    = "${local.name}-app-secrets"
+  description             = "Pear ${var.environment} secrets - populate manually after first apply"
+  recovery_window_in_days = var.environment == "production" ? 7 : 0
+
+  tags = { Name = "${local.name}-app-secrets" }
+}
+
+resource "aws_secretsmanager_secret_version" "app" {
+  secret_id = aws_secretsmanager_secret.app.id
+
+  # Pear's app secrets. All placeholders - populate real values out of band after
+  # first apply. NO Supabase secrets: Pear self-hosts auth (Phase 4) and push (Phase 6).
+  secret_string = jsonencode({
+    SECRET_KEY                = "CHANGE-ME" # Litestar session / signing secret
+    JWT_SIGNING_KEY           = "CHANGE-ME" # ES256 private key - we issue our own tokens (Phase 4)
+    TWILIO_ACCOUNT_SID        = "CHANGE-ME" # phone OTP
+    TWILIO_AUTH_TOKEN         = "CHANGE-ME" # phone OTP
+    TWILIO_VERIFY_SERVICE_SID = "CHANGE-ME" # phone OTP
+    APPLE_CLIENT_ID           = "CHANGE-ME" # Apple Sign-In `aud`
+    APNS_KEY                  = ""          # APNs auth key (.p8 contents) - push (Phase 6)
+    APNS_KEY_ID               = ""          # APNs key ID - push (Phase 6)
+    APNS_TEAM_ID              = ""          # Apple team ID - push (Phase 6)
+  })
+
+  lifecycle {
+    ignore_changes = [secret_string]
+  }
+}
+
+# -- SES -----------------------------------------------------------------------
+
+resource "aws_ses_configuration_set" "main" {
+  name = "${local.name}-ses"
+}
+
+# -- Security group ------------------------------------------------------------
+
+resource "aws_security_group" "app" {
+  name        = "${local.name}-app"
+  description = "${local.name} EC2 - HTTP/HTTPS public, SSH restricted"
+
+  ingress {
+    description = "HTTP (Caddy ACME + redirect)"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    description = "HTTPS"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  dynamic "ingress" {
+    for_each = length(var.ssh_allowed_cidrs) > 0 ? [1] : []
+    content {
+      description = "SSH"
+      from_port   = 22
+      to_port     = 22
+      protocol    = "tcp"
+      cidr_blocks = var.ssh_allowed_cidrs
+    }
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = merge(local.common_tags, { Name = "${local.name}-app" })
+}
+
+# -- IAM -----------------------------------------------------------------------
+
+resource "aws_iam_role" "app" {
+  name = "${local.name}-ec2"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "ec2.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
+  })
+
+  tags = merge(local.common_tags, { Name = "${local.name}-ec2" })
+}
+
+resource "aws_iam_role_policy_attachment" "ssm" {
+  role       = aws_iam_role.app.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+resource "aws_iam_role_policy" "app" {
+  name = "${local.name}-ec2-policy"
+  role = aws_iam_role.app.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ecr:GetAuthorizationToken",
+          "ecr:BatchCheckLayerAvailability",
+          "ecr:GetDownloadUrlForLayer",
+          "ecr:BatchGetImage",
+        ]
+        Resource = "*"
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["secretsmanager:GetSecretValue"]
+        Resource = [aws_secretsmanager_secret.app.arn]
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["ses:SendEmail", "ses:SendRawEmail", "ses:SendTemplatedEmail"]
+        Resource = ["*"]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject",
+          "s3:ListBucket",
+          "s3:GetObjectTagging",
+          "s3:PutObjectTagging",
+          "s3:DeleteObjectTagging",
+        ]
+        Resource = [
+          module.media.bucket_arn,
+          "${module.media.bucket_arn}/*",
+        ]
+      },
+    ]
+  })
+}
+
+resource "aws_iam_instance_profile" "app" {
+  name = "${local.name}-ec2"
+  role = aws_iam_role.app.name
+}
+
+# -- EC2 instance --------------------------------------------------------------
+
+resource "aws_instance" "app" {
+  ami                    = data.aws_ami.al2023.id
+  instance_type          = var.instance_type
+  iam_instance_profile   = aws_iam_instance_profile.app.name
+  key_name               = var.key_pair_name != "" ? var.key_pair_name : null
+  vpc_security_group_ids = [aws_security_group.app.id]
+
+  user_data = base64encode(templatefile("${path.module}/user_data.sh", {
+    compose_content   = file("${path.module}/docker-compose.yml")
+    caddyfile_content = file("${path.module}/Caddyfile")
+    aws_region        = var.aws_region
+    ecr_repo_url      = var.ecr_repository_url
+    image_tag         = var.image_tag
+    domain            = var.domain
+    api_subdomain     = var.api_subdomain
+    db_name           = var.db_name
+    db_user           = var.db_username
+    db_password       = var.db_password
+    secrets_arn       = aws_secretsmanager_secret.app.arn
+    ses_config_set    = aws_ses_configuration_set.main.name
+    s3_media_bucket   = module.media.bucket_name
+    frontend_origin   = "https://app.${var.domain}"
+    api_base_url      = "https://${var.api_subdomain}.${var.domain}"
+    otlp_host         = var.betterstack_otlp_ingesting_host
+    otlp_token        = var.betterstack_otlp_source_token
+    extra_env         = var.extra_env
+  }))
+
+  root_block_device {
+    volume_size           = 30
+    volume_type           = "gp3"
+    delete_on_termination = true
+  }
+
+  tags = merge(local.common_tags, { Name = "${local.name}-app" })
+
+  # user_data only runs at first boot - replace instance if it changes
+  lifecycle {
+    create_before_destroy = true
+    prevent_destroy       = true
+  }
+}
+
+# -- Elastic IP ----------------------------------------------------------------
+# A single box WILL get stopped at some point; an ephemeral public IP changes on
+# stop/start and would silently break the api.<domain> A-record. The EIP gives
+# the instance a stable address so DNS never needs a re-apply.
+
+resource "aws_eip" "app" {
+  instance = aws_instance.app.id
+  domain   = "vpc"
+
+  tags = merge(local.common_tags, { Name = "${local.name}-app" })
+}
+
+# -- Route53 -------------------------------------------------------------------
+# Points api.<domain> at the stable Elastic IP (not the instance's ephemeral IP).
+
+resource "aws_route53_record" "api" {
+  zone_id = var.hosted_zone_id
+  name    = "${var.api_subdomain}.${var.domain}"
+  type    = "A"
+  ttl     = 60
+  records = [aws_eip.app.public_ip]
+}

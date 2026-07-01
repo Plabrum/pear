@@ -1,25 +1,7 @@
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
-# dependencies
+# dependencies (any nested node_modules across the monorepo)
 node_modules/
-
-# Expo
-.expo/
-dist/
-web-build/
-expo-env.d.ts
-
-# Native
-.kotlin/
-*.orig.*
-*.jks
-*.p8
-*.p12
-*.key
-*.mobileprovision
-
-# Metro
-.metro-health-check*
 
 # debug
 npm-debug.*
@@ -32,27 +14,6 @@ yarn-error.*
 
 # local env files
 .env*.local
-
-# typescript
-*.tsbuildinfo
-
-app-example
-
-# generated native folders
-/ios
-/android
-
-# local builds
-/builds
-/builds/dev-sim-extracted
-
-# fingerprint cache (local build state)
-.build-fingerprint
-.dev-sim-fingerprint
-.env.production
-
-# drizzle-kit introspect artifacts (we only commit schema.ts + relations.ts)
-.drizzle/
 
 # agent prompts (scratch / per-milestone notes)
 .agent-prompts/

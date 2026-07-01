@@ -1,0 +1,78 @@
+name: Deploy to ECS (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      ecr_repository_url:
+        description: "ECR repository URL (from terraform output)"
+        required: false
+        type: string
+      ecs_cluster_name:
+        description: "ECS cluster name"
+        required: true
+        type: string
+      ecs_service_name:
+        description: "ECS service name"
+        required: true
+        type: string
+      worker_service_name:
+        description: "ECS worker service name"
+        required: true
+        type: string
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: pear-api
+
+jobs:
+  deploy:
+    name: Deploy to ECS Fargate
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.OIDC_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Get ECR image URI
+        id: ecr
+        run: |
+          if [ -n "${{ inputs.ecr_repository_url }}" ]; then
+            IMAGE_URI="${{ inputs.ecr_repository_url }}:latest"
+          else
+            AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+            IMAGE_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:latest"
+          fi
+          echo "image_uri=${IMAGE_URI}" >> $GITHUB_OUTPUT
+          echo "Deploying image: ${IMAGE_URI}"
+
+      - name: Force new ECS deployment
+        run: |
+          aws ecs update-service \
+            --cluster ${{ inputs.ecs_cluster_name }} \
+            --service ${{ inputs.ecs_service_name }} \
+            --force-new-deployment
+          aws ecs update-service \
+            --cluster ${{ inputs.ecs_cluster_name }} \
+            --service ${{ inputs.worker_service_name }} \
+            --force-new-deployment
+
+      - name: Wait for deployment to stabilise
+        run: |
+          aws ecs wait services-stable \
+            --cluster ${{ inputs.ecs_cluster_name }} \
+            --services ${{ inputs.ecs_service_name }} ${{ inputs.worker_service_name }}
+
+      - name: Get deployment status
+        run: |
+          aws ecs describe-services \
+            --cluster ${{ inputs.ecs_cluster_name }} \
+            --services ${{ inputs.ecs_service_name }} ${{ inputs.worker_service_name }} \
+            --query 'services[*].{Status:status,Running:runningCount,Desired:desiredCount,Pending:pendingCount}' \
+            --output table

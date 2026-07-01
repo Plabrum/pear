@@ -6,7 +6,7 @@ const url =
 
 export default defineConfig({
   dialect: 'postgresql',
-  schema: './supabase/functions/api/db/schema.ts',
+  schema: '../supabase/functions/api/db/schema.ts',
   out: './.drizzle',
   schemaFilter: ['public'],
   dbCredentials: { url },

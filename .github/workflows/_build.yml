@@ -1,0 +1,39 @@
+name: Build & Push Image (Reusable)
+
+on:
+  workflow_call:
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: pear-api
+
+jobs:
+  build:
+    name: Build & Push Docker Image
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.OIDC_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push Docker image
+        run: |
+          AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          ECR_URL="${AWS_ACCOUNT_ID}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}"
+
+          docker build --platform linux/amd64 -t ${ECR_URL}:latest ./backend
+          docker push ${ECR_URL}:latest
+
+          echo "✅ Built and pushed: ${ECR_URL}:latest"

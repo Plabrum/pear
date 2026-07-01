@@ -1,0 +1,115 @@
+name: Build · Test · Deploy
+
+# Deploy target is controlled by var.deploy_target in infra/variables.tf.
+# Default: ec2 (docker-compose on a single t3.small).
+# To switch to the ECS path: change the default to "ecs" and open a PR.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      deploy_infrastructure:
+        description: "Deploy infrastructure"
+        type: boolean
+        default: true
+      deploy_application:
+        description: "Deploy application"
+        type: boolean
+        default: true
+
+jobs:
+  detect-changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      infrastructure_changed: ${{ steps.changes.outputs.infrastructure }}
+      backend_changed: ${{ steps.changes.outputs.backend }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changes
+        id: changes
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "infrastructure=${{ github.event.inputs.deploy_infrastructure }}" >> $GITHUB_OUTPUT
+            echo "backend=${{ github.event.inputs.deploy_application }}" >> $GITHUB_OUTPUT
+          else
+            BASE="${{ github.event.before }}"
+            CHANGED_FILES=$(git diff --name-only "$BASE" HEAD)
+
+            if echo "$CHANGED_FILES" | grep -qE '^\.github/workflows/'; then
+              echo "infrastructure=true" >> $GITHUB_OUTPUT
+              echo "backend=true" >> $GITHUB_OUTPUT
+            else
+              # Monorepo path filters: backend lives in backend/**, infra in infra/**.
+              # Changes elsewhere (app/, supabase/, docs/) do NOT trigger this pipeline.
+              if echo "$CHANGED_FILES" | grep -qE '^infra/'; then
+                echo "infrastructure=true" >> $GITHUB_OUTPUT
+              else
+                echo "infrastructure=false" >> $GITHUB_OUTPUT
+              fi
+              if echo "$CHANGED_FILES" | grep -qE '^backend/'; then
+                echo "backend=true" >> $GITHUB_OUTPUT
+              else
+                echo "backend=false" >> $GITHUB_OUTPUT
+              fi
+            fi
+          fi
+
+  test:
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.backend_changed == 'true'
+    uses: ./.github/workflows/_test.yml
+    secrets: inherit
+
+  build-image:
+    needs: [detect-changes, test]
+    if: always() && needs.detect-changes.outputs.backend_changed == 'true' && (needs.test.result == 'success' || needs.test.result == 'skipped')
+    permissions:
+      id-token: write
+      contents: read
+    uses: ./.github/workflows/_build.yml
+    secrets: inherit
+
+  infrastructure:
+    needs: [detect-changes, test, build-image]
+    if: |
+      always() &&
+      (needs.detect-changes.outputs.infrastructure_changed == 'true' || needs.build-image.result == 'success') &&
+      (needs.test.result == 'success' || needs.test.result == 'skipped')
+    permissions:
+      id-token: write
+      contents: read
+      pull-requests: write
+    uses: ./.github/workflows/_infrastructure.yml
+    with:
+      terraform_action: "apply"
+    secrets: inherit
+
+  deploy-ec2:
+    needs: [build-image, infrastructure]
+    if: always() && needs.infrastructure.outputs.deploy_target != 'ecs' && needs.build-image.result == 'success' && needs.infrastructure.result == 'success'
+    permissions:
+      id-token: write
+      contents: read
+    uses: ./.github/workflows/_deploy_ec2.yml
+    with:
+      instance_id: ${{ needs.infrastructure.outputs.instance_id }}
+    secrets: inherit
+
+  deploy-ecs:
+    needs: [build-image, infrastructure]
+    if: always() && needs.infrastructure.outputs.deploy_target == 'ecs' && needs.build-image.result == 'success' && needs.infrastructure.result == 'success'
+    permissions:
+      id-token: write
+      contents: read
+    uses: ./.github/workflows/_deploy_ecs.yml
+    with:
+      ecr_repository_url: ${{ needs.infrastructure.outputs.ecr_repository_url }}
+      ecs_cluster_name: ${{ needs.infrastructure.outputs.ecs_cluster_name }}
+      ecs_service_name: ${{ needs.infrastructure.outputs.ecs_service_name }}
+      worker_service_name: ${{ needs.infrastructure.outputs.worker_service_name }}
+    secrets: inherit

@@ -1,0 +1,173 @@
+name: Infrastructure (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      terraform_action:
+        description: "Terraform action: plan or apply"
+        required: false
+        default: "apply"
+        type: string
+    outputs:
+      deploy_target:
+        description: "Active deploy target (ec2 or ecs) — read from terraform output"
+        value: ${{ jobs.terraform.outputs.deploy_target }}
+      ecr_repository_url:
+        description: "ECR repository URL"
+        value: ${{ jobs.terraform.outputs.ecr_repository_url }}
+      instance_id:
+        description: "EC2 instance ID (ec2 target only)"
+        value: ${{ jobs.terraform.outputs.instance_id }}
+      ecs_cluster_name:
+        description: "ECS cluster name (ecs target only)"
+        value: ${{ jobs.terraform.outputs.ecs_cluster_name }}
+      ecs_service_name:
+        description: "ECS service name (ecs target only)"
+        value: ${{ jobs.terraform.outputs.ecs_service_name }}
+      worker_service_name:
+        description: "ECS worker service name (ecs target only)"
+        value: ${{ jobs.terraform.outputs.worker_service_name }}
+      alb_dns_name:
+        description: "ALB DNS name (ecs target only)"
+        value: ${{ jobs.terraform.outputs.alb_dns_name }}
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  terraform:
+    name: Terraform ${{ inputs.terraform_action }}
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+      contents: read
+      pull-requests: write
+
+    outputs:
+      deploy_target: ${{ steps.outputs.outputs.deploy_target }}
+      ecr_repository_url: ${{ steps.outputs.outputs.ecr_repository_url }}
+      instance_id: ${{ steps.outputs.outputs.instance_id }}
+      ecs_cluster_name: ${{ steps.outputs.outputs.ecs_cluster_name }}
+      ecs_service_name: ${{ steps.outputs.outputs.ecs_service_name }}
+      worker_service_name: ${{ steps.outputs.outputs.worker_service_name }}
+      alb_dns_name: ${{ steps.outputs.outputs.alb_dns_name }}
+
+    defaults:
+      run:
+        working-directory: ./infra
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.OIDC_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Compute workspace
+        id: ws
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF_NAME}" == "main" ]]; then
+            echo "ws=production" >> "$GITHUB_OUTPUT"
+            echo "env=production" >> "$GITHUB_OUTPUT"
+          else
+            WS="$(echo "${GITHUB_REF_NAME}" | tr '/.' '-' | tr -cd '[:alnum:]-' | cut -c1-40)"
+            echo "ws=${WS}" >> "$GITHUB_OUTPUT"
+            echo "env=staging" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set backend config
+        id: backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUCKET="tf-state-pear-${{ env.AWS_REGION }}"
+          KEY="pear/terraform.tfstate"
+          echo "bucket=${BUCKET}" >> "$GITHUB_OUTPUT"
+          echo "key=${KEY}" >> "$GITHUB_OUTPUT"
+          echo "bucket: ${BUCKET}"
+          echo "key: ${KEY}"
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: Terraform format check
+        run: terraform fmt -check -recursive
+
+      - name: Terraform init
+        run: |
+          terraform init -reconfigure \
+            -backend-config="bucket=${{ steps.backend.outputs.bucket }}" \
+            -backend-config="key=${{ steps.backend.outputs.key }}" \
+            -backend-config="region=${{ env.AWS_REGION }}" \
+            -backend-config="encrypt=true"
+
+      - name: Select/create workspace
+        run: |
+          terraform workspace new "${{ steps.ws.outputs.ws }}" || true
+          terraform workspace select "${{ steps.ws.outputs.ws }}"
+
+      - name: Terraform validate
+        run: terraform validate
+
+      - name: Terraform plan
+        id: plan
+        env:
+          TF_VAR_aws_region: ${{ env.AWS_REGION }}
+          TF_VAR_project_name: pear
+          TF_VAR_environment: ${{ steps.ws.outputs.env }}
+
+          TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
+          # Optional: empty when the secret is unset; logtail wiring is gated on this.
+          TF_VAR_logtail_api_token: ${{ secrets.LOGTAIL_API_TOKEN }}
+        run: |
+          terraform plan -no-color -out=tfplan
+          terraform show -no-color tfplan > plan_output.txt
+
+      - name: Comment PR with plan
+        if: github.event_name == 'pull_request' && inputs.terraform_action == 'plan'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const plan = fs.readFileSync('./infra/plan_output.txt', 'utf8');
+            const maxLength = 60000;
+            const trimmed = plan.length > maxLength
+              ? plan.substring(0, maxLength) + '\n\n... (truncated)'
+              : plan;
+            const output = `## Terraform Plan\n<details>\n<summary>Show Plan</summary>\n\n\`\`\`terraform\n${trimmed}\n\`\`\`\n</details>`;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output,
+            });
+
+      - name: Terraform apply
+        if: inputs.terraform_action == 'apply'
+        env:
+          TF_VAR_aws_region: ${{ env.AWS_REGION }}
+          TF_VAR_project_name: pear
+          TF_VAR_environment: ${{ steps.ws.outputs.env }}
+
+          TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
+          # Optional: empty when the secret is unset; logtail wiring is gated on this.
+          TF_VAR_logtail_api_token: ${{ secrets.LOGTAIL_API_TOKEN }}
+        run: terraform apply -auto-approve tfplan
+
+      - name: Get Terraform outputs
+        if: inputs.terraform_action == 'apply'
+        id: outputs
+        run: |
+          echo "deploy_target=$(terraform output -raw deploy_target)" >> $GITHUB_OUTPUT
+          echo "ecr_repository_url=$(terraform output -raw ecr_repository_url)" >> $GITHUB_OUTPUT
+          echo "instance_id=$(terraform output -raw instance_id 2>/dev/null || echo '')" >> $GITHUB_OUTPUT
+          echo "ecs_cluster_name=$(terraform output -raw ecs_cluster_name 2>/dev/null || echo '')" >> $GITHUB_OUTPUT
+          echo "ecs_service_name=$(terraform output -raw ecs_service_name 2>/dev/null || echo '')" >> $GITHUB_OUTPUT
+          echo "worker_service_name=$(terraform output -raw worker_service_name 2>/dev/null || echo '')" >> $GITHUB_OUTPUT
+          echo "alb_dns_name=$(terraform output -raw alb_dns_name 2>/dev/null || echo '')" >> $GITHUB_OUTPUT

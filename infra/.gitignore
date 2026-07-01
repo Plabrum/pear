@@ -1,0 +1,15 @@
+# Terraform provider cache + state — never commit
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Per-module lock files are verification artifacts; only the root
+# infra/.terraform.lock.hcl is committed to pin provider versions.
+modules/*/.terraform.lock.hcl

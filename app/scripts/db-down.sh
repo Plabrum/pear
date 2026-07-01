@@ -1,6 +1,7 @@
 #!/bin/zsh
 set -e
-cd "$(dirname "$0")/.."
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+cd "$ROOT"
 
 echo "==> Stopping local Supabase..."
 supabase stop
