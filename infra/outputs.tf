@@ -54,6 +54,16 @@ output "s3_media_bucket" {
   value       = try(module.ec2[0].s3_media_bucket, try(module.ecs[0].s3_media_bucket, ""))
 }
 
+output "cloudfront_domain" {
+  description = "CloudFront domain fronting the media bucket's updates/* prefix - set as ota.yml's vars.CLOUDFRONT_DOMAIN"
+  value       = try(module.ec2[0].cloudfront_domain, try(module.ecs[0].cloudfront_domain, ""))
+}
+
+output "cloudfront_distribution_id" {
+  description = "CloudFront distribution ID - set as ota.yml's vars.CLOUDFRONT_DISTRIBUTION_ID"
+  value       = try(module.ec2[0].cloudfront_distribution_id, try(module.ecs[0].cloudfront_distribution_id, ""))
+}
+
 output "database_endpoint" {
   description = "Aurora write endpoint (ecs only)"
   value       = try(module.ecs[0].database_endpoint, "")

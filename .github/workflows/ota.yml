@@ -14,6 +14,16 @@ name: OTA Publish
 # build-test-deploy.yml) — no long-lived AWS keys. That role must additionally
 # allow s3:PutObject/s3:List on the updates/ prefix of the media bucket and
 # cloudfront:CreateInvalidation on the CDN distribution in front of it.
+#
+# REQUIRED repo config (Settings → Actions → Variables/Secrets) — this job fails
+# closed if any of these are missing, except CLOUDFRONT_DOMAIN/_DISTRIBUTION_ID
+# which degrade to a warning until infra/ grows a CloudFront distribution:
+#   vars.S3_MEDIA_BUCKET          — the Phase 06 media bucket name (Terraform-generated).
+#   vars.API_BASE_URL             — e.g. https://api.pear.app (no trailing slash).
+#   vars.NATIVE_BUILD_FINGERPRINT — written by Xcode Cloud after each native archive.
+#   vars.CLOUDFRONT_DOMAIN        — CDN domain in front of the media bucket (optional today).
+#   vars.CLOUDFRONT_DISTRIBUTION_ID — for cache invalidation (optional today).
+#   secrets.UPDATES_PUBLISH_TOKEN  — must equal the backend's UPDATES_PUBLISH_TOKEN.
 
 on:
   push:
@@ -31,6 +41,10 @@ env:
   # a repo/environment variable (Settings → Actions → Variables) mirroring the
   # backend's S3_MEDIA_BUCKET value.
   S3_MEDIA_BUCKET: ${{ vars.S3_MEDIA_BUCKET }}
+  # The backend's own base URL — same value the app embeds as EXPO_PUBLIC_API_URL
+  # (app.config.js `updates.url` = `${API_BASE_URL}/updates/manifest`) so the
+  # exported bundle's baked-in manifest URL matches where this job publishes to.
+  API_BASE_URL: ${{ vars.API_BASE_URL }}
 
 jobs:
   export-and-publish:
@@ -80,6 +94,7 @@ jobs:
           ')
 
           echo "Computed fingerprint: ${FINGERPRINT}"
+          echo "FINGERPRINT=${FINGERPRINT}" >> "$GITHUB_ENV"
 
           EXPECTED="${{ vars.NATIVE_BUILD_FINGERPRINT }}"
           if [ -z "$EXPECTED" ]; then
@@ -95,6 +110,8 @@ jobs:
           echo "UPDATE_ID=$(node -e 'process.stdout.write(require("crypto").randomUUID())')" >> "$GITHUB_ENV"
 
       - name: Export JS bundle + assets
+        env:
+          EXPO_PUBLIC_API_URL: ${{ env.API_BASE_URL }}
         run: npm run export:ota
 
       - name: Configure AWS credentials (OIDC)
@@ -107,19 +124,37 @@ jobs:
         run: |
           aws s3 sync dist/ "s3://${S3_MEDIA_BUCKET}/updates/${UPDATE_ID}/"
 
-      # TODO(backend): no authenticated "register update" endpoint / one-shot task
-      # exists yet to insert the app_updates row (backend/app/domain/updates/ only
-      # has routes.py/models.py/schemas.py — no actions.py and no task under
-      # app/platform/queue/**). Per CLAUDE.md, system-mode writes only happen from
-      # the worker/task layer, so the right shape here is almost certainly an SAQ
-      # task (enqueued via an authenticated POST from this job, or a dedicated
-      # CI-only registration route gated by a shared secret) that inserts the row
-      # under `is_system_mode()` — NOT a new request-path system-mode escape. Until
-      # that lands, this step is a placeholder and the manifest route has nothing
-      # new to serve after this workflow runs.
-      - name: Register update (TODO — backend endpoint/task not implemented yet)
+      - name: Register update
+        # `POST /updates/publish` (backend/app/platform/updates/routes.py) — bearer-
+        # token guarded (`requires_updates_publish_token`), inserts the app_updates
+        # row directly (no RLS on that table, no task/worker indirection — see the
+        # model's docstring). Asset URLs point at CloudFront when
+        # vars.CLOUDFRONT_DOMAIN is set, otherwise the direct S3 virtual-hosted URL
+        # (which requires the updates/ prefix to itself be publicly readable, since
+        # `expo-updates` on the client fetches asset URLs directly — no CDN yet is
+        # a real gap, not just a cache-miss inconvenience, until infra/ grows a
+        # `aws_cloudfront_distribution` in front of this bucket).
         run: |
-          echo "::warning::No backend endpoint/task exists yet to register app_updates rows for update ${UPDATE_ID}. Uploaded assets to s3://${S3_MEDIA_BUCKET}/updates/${UPDATE_ID}/ but the manifest route (GET /updates/manifest) will NOT serve this update until backend/app/domain/updates/actions.py (or an SAQ task) is added to insert the app_updates row. See the TODO comment in .github/workflows/ota.yml."
+          if [ -n "${{ vars.CLOUDFRONT_DOMAIN }}" ]; then
+            ASSET_BASE_URL="https://${{ vars.CLOUDFRONT_DOMAIN }}/updates/${UPDATE_ID}"
+          else
+            echo "::warning::vars.CLOUDFRONT_DOMAIN is unset — publishing asset URLs straight at S3. This only works if the updates/ prefix is public; see the TODO in infra/ for the missing CloudFront distribution."
+            ASSET_BASE_URL="https://${S3_MEDIA_BUCKET}.s3.${AWS_REGION}.amazonaws.com/updates/${UPDATE_ID}"
+          fi
+
+          PAYLOAD=$(node scripts/build-ota-payload.js dist "$ASSET_BASE_URL" "$FINGERPRINT" production ios)
+
+          HTTP_STATUS=$(curl -sS -o response.json -w '%{http_code}' \
+            -X POST "${API_BASE_URL}/updates/publish" \
+            -H "Authorization: Bearer ${{ secrets.UPDATES_PUBLISH_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD")
+
+          cat response.json
+          if [ "$HTTP_STATUS" -ge 300 ]; then
+            echo "::error::POST ${API_BASE_URL}/updates/publish returned ${HTTP_STATUS} — update ${UPDATE_ID} was NOT registered. Assets are already in s3://${S3_MEDIA_BUCKET}/updates/${UPDATE_ID}/, orphaned until this is retried."
+            exit 1
+          fi
 
       - name: Invalidate CloudFront cache
         # TODO(infra): no aws_cloudfront_distribution resource exists yet in

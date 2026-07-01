@@ -10,6 +10,12 @@ locals {
   }
 
   inbound_emails_bucket_name = "${local.name}-inbound-emails-${random_id.bucket_suffix.hex}"
+
+  # Built from the same inputs that produce module.media's bucket name/ARN, not
+  # from module.media's own output — a module can't reference its own output as
+  # one of its inputs, and this statement is itself an input to module.media.
+  media_bucket_name = "${local.name}-media-${random_id.bucket_suffix.hex}"
+  media_bucket_arn  = "arn:aws:s3:::${local.media_bucket_name}"
 }
 
 resource "random_id" "bucket_suffix" {
@@ -38,11 +44,36 @@ module "networking" {
 module "media" {
   source = "../s3_bucket"
 
-  name        = "${local.name}-media-${random_id.bucket_suffix.hex}"
+  name        = local.media_bucket_name
   tags        = merge(local.common_tags, { Name = "${local.name}-media", Purpose = "media-uploads" })
   cors_origin = "https://app.${var.domain}"
 
   lifecycle_pending_expiry_days = 1
+
+  # Scopes CloudFront's OAC read access to the `updates/*` prefix only (self-hosted
+  # OTA bundle/asset delivery, docs/migration/09-off-eas.md 9b) — everything else
+  # in the bucket (profile photos) stays reachable only via presigned URLs,
+  # exactly as before this existed. The `AWS:SourceArn` condition means this grant
+  # is useless to any CloudFront distribution other than media_cdn specifically,
+  # even though the Principal is the whole `cloudfront.amazonaws.com` service.
+  extra_bucket_policy_statements = [{
+    Sid       = "AllowCloudFrontOACReadUpdatesPrefix"
+    Effect    = "Allow"
+    Principal = { Service = "cloudfront.amazonaws.com" }
+    Action    = "s3:GetObject"
+    Resource  = "${local.media_bucket_arn}/updates/*"
+    Condition = { StringEquals = { "AWS:SourceArn" = module.media_cdn.distribution_arn } }
+  }]
+}
+
+# -- CloudFront (self-hosted OTA update delivery) -------------------------------
+
+module "media_cdn" {
+  source = "../cloudfront_media"
+
+  name                        = "${local.name}-media"
+  bucket_regional_domain_name = module.media.bucket_regional_domain_name
+  tags                        = merge(local.common_tags, { Name = "${local.name}-media-cdn" })
 }
 
 module "inbound_emails" {

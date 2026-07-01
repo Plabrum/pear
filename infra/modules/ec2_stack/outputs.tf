@@ -21,3 +21,13 @@ output "s3_media_bucket" {
 output "ses_configuration_set" {
   value = aws_ses_configuration_set.main.name
 }
+
+output "cloudfront_domain" {
+  description = "CloudFront domain fronting the media bucket's updates/* prefix - set as ota.yml's vars.CLOUDFRONT_DOMAIN"
+  value       = module.media_cdn.domain_name
+}
+
+output "cloudfront_distribution_id" {
+  description = "CloudFront distribution ID - set as ota.yml's vars.CLOUDFRONT_DISTRIBUTION_ID"
+  value       = module.media_cdn.distribution_id
+}

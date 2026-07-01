@@ -408,6 +408,12 @@ to safe defaults (port 5432, `Local*` clients). The app needs
 `EXPO_PUBLIC_API_URL=https://api.<domain>` (or `http://localhost:8000` locally) — it is
 the only backend coordinate the client needs.
 
+**Terraform (`infra/`).** All infra changes are committed to the repo and applied via
+CI/CD (`.github/workflows/build-test-deploy.yml` / the infra workflow) — never run
+`terraform apply` (or `import`/`destroy`) against the real backend from a local machine
+or an agent session, even with valid AWS credentials on hand. `terraform plan` is fine
+for review. Land the `.tf` changes in a PR and let the pipeline apply them.
+
 ---
 
 ## Image Handling
