@@ -36,9 +36,9 @@ async def test_first_login_bootstrap_succeeds_in_system_mode_without_actor(
     before_identities = (await db_session.execute(select(func.count()).select_from(AuthIdentity))).scalar_one()
 
     service = AuthService(db_session, test_config, TokenService(db=db_session, config=test_config))
-    subject = f"+1{uuid4().int % 10_000_000_000:010d}"
+    subject = f"bootstrap-{uuid4().hex}@example.com"
 
-    profile, created = await service.find_or_create_identity(AuthProvider.PHONE, subject)
+    profile, created = await service.find_or_create_identity(AuthProvider.EMAIL, subject)
 
     assert created is True
     assert profile.id is not None
@@ -52,7 +52,7 @@ async def test_first_login_bootstrap_succeeds_in_system_mode_without_actor(
     identity = (
         await db_session.execute(
             select(AuthIdentity).where(
-                AuthIdentity.provider == AuthProvider.PHONE,
+                AuthIdentity.provider == AuthProvider.EMAIL,
                 AuthIdentity.provider_subject == subject,
             )
         )
@@ -60,7 +60,7 @@ async def test_first_login_bootstrap_succeeds_in_system_mode_without_actor(
     assert identity.profile_id == profile.id
 
     # Idempotent: a second call resolves the SAME profile without creating rows.
-    profile2, created2 = await service.find_or_create_identity(AuthProvider.PHONE, subject)
+    profile2, created2 = await service.find_or_create_identity(AuthProvider.EMAIL, subject)
     assert created2 is False
     assert profile2.id == profile.id
 

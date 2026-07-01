@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+from uuid import UUID
 
 from app.domain.profiles.models import Profile
 from app.domain.prompts.models import ProfilePrompt, PromptResponse, PromptTemplate
@@ -10,7 +11,10 @@ from app.domain.prompts.schemas import (
     PromptResponseAuthor,
     PromptTemplate as PromptTemplateSchema,
 )
-from app.platform.media.client import BaseMediaClient
+
+# `url_by_media` maps a Media id -> its resolved URL; the route batches one
+# MediaService resolve over every response-author avatar, then hands it down.
+UrlByMedia = dict[UUID, str]
 
 
 def _iso(value: datetime | date | None) -> str:
@@ -19,9 +23,8 @@ def _iso(value: datetime | date | None) -> str:
     return value.isoformat()
 
 
-def _avatar_url(key: str | None, media: BaseMediaClient) -> str | None:
-    """Avatar keys resolve to a public-read URL (no presign needed)."""
-    return media.public_url(key) if key else None
+def _resolve(media_id: UUID | None, url_by_media: UrlByMedia) -> str | None:
+    return url_by_media.get(media_id) if media_id is not None else None
 
 
 def row_to_prompt_template(row: PromptTemplate) -> PromptTemplateSchema:
@@ -29,7 +32,7 @@ def row_to_prompt_template(row: PromptTemplate) -> PromptTemplateSchema:
 
 
 def row_to_prompt_response(
-    response: PromptResponse, author: Profile | None, media: BaseMediaClient
+    response: PromptResponse, author: Profile | None, url_by_media: UrlByMedia
 ) -> PromptResponseSchema:
     return PromptResponseSchema(
         id=response.id,
@@ -42,7 +45,7 @@ def row_to_prompt_response(
             PromptResponseAuthor(
                 id=author.id,
                 chosenName=author.chosen_name,
-                avatarUrl=_avatar_url(author.avatar_url, media),
+                avatarUrl=_resolve(author.avatar_media_id, url_by_media),
             )
             if author is not None
             else None
@@ -55,11 +58,21 @@ def row_to_prompt_response(
 ResponseBundle = list[tuple[PromptResponse, Profile | None]]
 
 
+def prompt_bundle_media_ids(bundles: list[tuple[ProfilePrompt, str, ResponseBundle]]) -> list[UUID]:
+    """Every author-avatar Media id referenced across a list of prompt bundles."""
+    return [
+        author.avatar_media_id
+        for _, _, responses in bundles
+        for _, author in responses
+        if author and author.avatar_media_id
+    ]
+
+
 def row_to_profile_prompt(
     prompt: ProfilePrompt,
     question: str,
     responses: ResponseBundle,
-    media: BaseMediaClient,
+    url_by_media: UrlByMedia,
 ) -> ProfilePromptSchema:
     return ProfilePromptSchema(
         id=prompt.id,
@@ -67,5 +80,5 @@ def row_to_profile_prompt(
         answer=prompt.answer,
         createdAt=_iso(prompt.created_at),
         template=PromptTemplateSchema(id=prompt.prompt_template_id, question=question),
-        responses=[row_to_prompt_response(r, author, media) for r, author in responses],
+        responses=[row_to_prompt_response(r, author, url_by_media) for r, author in responses],
     )

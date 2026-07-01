@@ -7,7 +7,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import Config, config
 from app.domain.profiles.models import Profile
 from app.platform.auth.clients.apple import BaseAppleVerifier, build_apple_verifier
-from app.platform.auth.clients.otp import BaseOtpClient, build_otp_client
 from app.platform.auth.magic_link import BaseMagicLinkStore, build_magic_link_store
 from app.platform.auth.principal import User
 from app.platform.auth.rate_limit import BaseRateLimiter, build_rate_limiter
@@ -59,12 +58,6 @@ def provide_auth_service(transaction: AsyncSession, request: Request, token_serv
     return AuthService(db=transaction, config=_active_config(request), tokens=token_service)
 
 
-@dep("otp_client", sync_to_thread=False)
-def provide_otp_client(request: Request) -> BaseOtpClient:
-    """OTP client for the login-method routes: Local fake in dev/test, Twilio in prod."""
-    return build_otp_client(_active_config(request))
-
-
 @dep("apple_verifier", sync_to_thread=False)
 def provide_apple_verifier(request: Request) -> BaseAppleVerifier:
     """Apple identity-token verifier: injected-key in test, JWKS in prod."""
@@ -83,7 +76,7 @@ def provide_magic_link_store(request: Request) -> BaseMagicLinkStore:
 
 @dep("rate_limiter", sync_to_thread=False)
 def provide_rate_limiter(request: Request) -> BaseRateLimiter:
-    """Fixed-window rate limiter for otp/start + magic-link/request.
+    """Fixed-window rate limiter for magic-link/request.
 
     In-memory in dev/test, Redis in prod. Memoized per config so counts accumulate
     across requests.

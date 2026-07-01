@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+from uuid import UUID
 
 from app.domain.dating_profiles.models import DatingProfile
 from app.domain.photos.models import ProfilePhoto
@@ -20,7 +21,11 @@ from app.domain.profiles.schemas import (
     PublicProfilePrompt,
 )
 from app.domain.prompts.models import ProfilePrompt, PromptResponse
-from app.platform.media.client import BaseMediaClient
+
+# `url_by_media` maps a Media id -> its resolved (presigned/public) URL. The route
+# batches one MediaService resolve over every avatar + photo media id, then hands
+# the map down so the mappers stay synchronous and do no I/O.
+UrlByMedia = dict[UUID, str]
 
 
 def _iso(value: datetime | date | None) -> str | None:
@@ -29,16 +34,16 @@ def _iso(value: datetime | date | None) -> str | None:
     return value.isoformat()
 
 
-def _avatar_url(key: str | None, media: BaseMediaClient) -> str | None:
-    """Resolve an avatar key to its public-read URL (avatars are public; no presign)."""
-    return media.public_url(key) if key else None
+def _resolve(media_id: UUID | None, url_by_media: UrlByMedia) -> str | None:
+    """A Media id -> its resolved URL (or None when absent/unresolved)."""
+    return url_by_media.get(media_id) if media_id is not None else None
 
 
-def row_to_profile(row: ProfileModel, media: BaseMediaClient) -> Profile:
+def row_to_profile(row: ProfileModel, url_by_media: UrlByMedia) -> Profile:
     return Profile(
         id=row.id,
         chosenName=row.chosen_name,
-        avatarUrl=_avatar_url(row.avatar_url, media),
+        avatarUrl=_resolve(row.avatar_media_id, url_by_media),
         phoneNumber=row.phone_number,
         dateOfBirth=_iso(row.date_of_birth),
         gender=row.gender,
@@ -47,10 +52,10 @@ def row_to_profile(row: ProfileModel, media: BaseMediaClient) -> Profile:
     )
 
 
-async def _photo_to_own(photo: ProfilePhoto, suggester_name: str | None, media: BaseMediaClient) -> OwnProfilePhoto:
+def _photo_to_own(photo: ProfilePhoto, suggester_name: str | None, url_by_media: UrlByMedia) -> OwnProfilePhoto:
     return OwnProfilePhoto(
         id=photo.id,
-        storageUrl=await media.presign_download(photo.storage_url),
+        storageUrl=_resolve(photo.media_id, url_by_media) or "",
         displayOrder=photo.display_order,
         approvedAt=_iso(photo.approved_at),
         suggesterId=photo.suggester_id,
@@ -64,7 +69,7 @@ def _prompt_to_own(
     prompt: ProfilePrompt,
     question: str,
     responses: list[tuple[PromptResponse, ProfileModel | None]],
-    media: BaseMediaClient,
+    url_by_media: UrlByMedia,
 ) -> OwnProfilePrompt:
     return OwnProfilePrompt(
         id=prompt.id,
@@ -82,7 +87,7 @@ def _prompt_to_own(
                     PromptResponseAuthor(
                         id=author.id,
                         chosenName=author.chosen_name,
-                        avatarUrl=_avatar_url(author.avatar_url, media),
+                        avatarUrl=_resolve(author.avatar_media_id, url_by_media),
                     )
                     if author is not None
                     else None
@@ -118,14 +123,30 @@ ResponseBundle = list[tuple[PromptResponse, ProfileModel | None]]
 PromptBundle = list[tuple[ProfilePrompt, str, ResponseBundle]]
 
 
-async def dating_profile_to_own(
+def own_media_ids(photos: PhotoBundle, prompts: PromptBundle) -> list[UUID]:
+    """Every Media id referenced by an own-dating-profile bundle (photos + author avatars)."""
+    ids: list[UUID] = [photo.media_id for photo, _ in photos]
+    for _, _, responses in prompts:
+        ids.extend(author.avatar_media_id for _, author in responses if author and author.avatar_media_id)
+    return ids
+
+
+def public_media_ids(profile: ProfileModel, photos: PhotoBundle) -> list[UUID]:
+    """Every Media id referenced by a public-profile bundle (avatar + approved photos)."""
+    ids: list[UUID] = [photo.media_id for photo, _ in photos]
+    if profile.avatar_media_id is not None:
+        ids.append(profile.avatar_media_id)
+    return ids
+
+
+def dating_profile_to_own(
     base: DatingProfile,
     photos: PhotoBundle,
     prompts: PromptBundle,
-    media: BaseMediaClient,
+    url_by_media: UrlByMedia,
 ) -> OwnDatingProfile:
-    mapped_photos = [await _photo_to_own(photo, name, media) for photo, name in photos]
-    mapped_prompts = [_prompt_to_own(p, q, r, media) for p, q, r in prompts]
+    mapped_photos = [_photo_to_own(photo, name, url_by_media) for photo, name in photos]
+    mapped_prompts = [_prompt_to_own(p, q, r, url_by_media) for p, q, r in prompts]
     return OwnDatingProfile(
         id=base.id,
         userId=base.user_id,
@@ -147,19 +168,19 @@ async def dating_profile_to_own(
     )
 
 
-async def bundle_to_public_profile(
+def bundle_to_public_profile(
     profile: ProfileModel,
     base: DatingProfile | None,
     photos: PhotoBundle,
     prompts: PromptBundle,
-    media: BaseMediaClient,
+    url_by_media: UrlByMedia,
 ) -> PublicProfile:
-    # The query already restricts a public bundle to APPROVED photos, so presigning
+    # The query already restricts a public bundle to APPROVED photos, so resolving
     # every one here cannot leak a pending/rejected image.
     public_photos = [
         PublicProfilePhoto(
             id=photo.id,
-            storageUrl=await media.presign_download(photo.storage_url),
+            storageUrl=_resolve(photo.media_id, url_by_media) or "",
             displayOrder=photo.display_order,
             approvedAt=_iso(photo.approved_at),
             suggesterId=photo.suggester_id,
@@ -169,7 +190,7 @@ async def bundle_to_public_profile(
     return PublicProfile(
         id=profile.id,
         chosenName=profile.chosen_name,
-        avatarUrl=_avatar_url(profile.avatar_url, media),
+        avatarUrl=_resolve(profile.avatar_media_id, url_by_media),
         datingProfile=(
             PublicDatingProfile(
                 id=base.id,

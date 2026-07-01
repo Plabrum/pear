@@ -9,8 +9,8 @@ output "instance_id" {
   value       = try(module.ec2[0].instance_id, "")
 }
 
-# Instance public IP (ephemeral - changes on stop/start). No EIP is allocated;
-# the api.<domain> A-record in modules/ec2_stack tracks this value.
+# Instance public IP (ephemeral - changes on stop/start). The api.<domain>
+# A-record in modules/ec2_stack tracks this value; re-apply after a stop/start.
 output "public_ip" {
   description = "EC2 public IP (ec2 only)"
   value       = try(module.ec2[0].public_ip, "")

@@ -52,7 +52,7 @@ prompt_response_actions = action_group_factory(
 
 @profile_prompt_actions
 class CreateProfilePrompt(BaseTopLevelAction[CreateProfilePromptData]):
-    action_key = "create"  # type: ignore[assignment]
+    action_key = "create"
     label = "Add Prompt"
     icon = ActionIcon.ADD
 
@@ -86,7 +86,7 @@ class CreateProfilePrompt(BaseTopLevelAction[CreateProfilePromptData]):
 
 @profile_prompt_actions
 class DeleteProfilePrompt(BaseObjectAction[ProfilePrompt, EmptyActionData]):
-    action_key = "delete"  # type: ignore[assignment]
+    action_key = "delete"
     label = "Delete Prompt"
     icon = ActionIcon.TRASH
 
@@ -124,7 +124,7 @@ class DeleteProfilePrompt(BaseObjectAction[ProfilePrompt, EmptyActionData]):
 
 @prompt_response_actions
 class CreatePromptResponse(BaseTopLevelAction[CreatePromptResponseData]):
-    action_key = "create"  # type: ignore[assignment]
+    action_key = "create"
     label = "Add Comment"
     icon = ActionIcon.MESSAGE
 
@@ -165,7 +165,7 @@ class CreatePromptResponse(BaseTopLevelAction[CreatePromptResponseData]):
 
 @prompt_response_actions
 class ApprovePromptResponse(BaseObjectAction[PromptResponse, EmptyActionData]):
-    action_key = "approve"  # type: ignore[assignment]
+    action_key = "approve"
     label = "Approve Comment"
     icon = ActionIcon.CHECK
     target_state = ApprovalState.APPROVED
@@ -209,7 +209,7 @@ class ApprovePromptResponse(BaseObjectAction[PromptResponse, EmptyActionData]):
 
 @prompt_response_actions
 class DeletePromptResponse(BaseObjectAction[PromptResponse, EmptyActionData]):
-    action_key = "delete"  # type: ignore[assignment]
+    action_key = "delete"
     label = "Delete Comment"
     icon = ActionIcon.TRASH
 

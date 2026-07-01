@@ -20,7 +20,12 @@ class ProfilePhoto(BaseDBModel):
         sa.ForeignKey("profiles.id", ondelete="SET NULL"),
         nullable=True,
     )
-    storage_url: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    # SQL: not null references media(id) on delete cascade -- the platform Media row
+    # carrying this photo's bytes + processing lifecycle (resolve its URL via MediaService).
+    media_id: Mapped[UUID] = mapped_column(
+        sa.ForeignKey("media.id", ondelete="CASCADE"),
+        nullable=False,
+    )
     display_order: Mapped[int] = mapped_column(sa.Integer, nullable=False)
     # null = pending approval
     approved_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True), nullable=True)

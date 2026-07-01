@@ -113,8 +113,16 @@ machine. A new domain lives under `backend/app/domain/<feature>/`:
 
 1. **Model + enums** — SQLAlchemy model in `models.py`, `TextEnum` (StrEnum) members in
    `enums.py`. Then `just db-migrate "<message>"` (Alembic autogenerate). If the table
-   needs RLS, add policies-as-code in `rls_policies.py` (enable + FORCE RLS; the
-   `pear_app` grants come automatically). `just db-upgrade` to apply locally.
+   needs RLS, reach for the reusable mixins in `rls_mixins.py` first: subclass
+   `UserScopedMixin` (owner-only access; override the owner column with
+   `class T(BaseDBModel, UserScopedMixin, user_id_column="...")`) for plain user-scoped
+   tables, or `WingpersonScopedMixin` (owner OR active wingperson; `owner_column="..."`)
+   for tables a dater and their active winger both touch. The mixin registers its
+   `is_system_mode()`-escaped policy automatically — no `rls_policies.py` entry needed.
+   Only hand-write a bespoke policy in `rls_policies.py` when the access shape genuinely
+   diverges (public select, relational EXISTS joins, suggester/approval rules, etc.).
+   Either way the table is enabled + FORCE RLS and the `pear_app` grants come
+   automatically. `just db-upgrade` to apply locally.
 2. **`schemas.py`** — `msgspec.Struct` request/response shapes. Derive literals from the
    domain enums.
 3. **`routes.py`** — reads only. Use `CRUDConfig`/`make_crud_controller` for standard

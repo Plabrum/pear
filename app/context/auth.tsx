@@ -7,8 +7,6 @@ import {
   logout as clientLogout,
   magicLinkRequest as clientMagicLinkRequest,
   magicLinkVerify as clientMagicLinkVerify,
-  otpCheck,
-  otpStart,
   restoreSession,
   type AuthUser,
 } from '@/lib/auth-client';
@@ -34,19 +32,6 @@ type AuthContextValue = {
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
-
-// --- Start-OTP (plain function — no session commit, so no React state) ---
-// Returns { error } rather than throwing across the callback boundary.
-// The verify step that commits a session lives in useAuthActions().verifyOTP.
-
-export async function sendOTP(phone: string): Promise<AuthResult> {
-  try {
-    await otpStart(phone);
-    return { error: null };
-  } catch (e) {
-    return { error: e instanceof Error ? e : new Error('Failed to send code') };
-  }
-}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSessionState] = useState<Session | null>(null);
@@ -130,16 +115,6 @@ export function useAuthActions() {
   const { setSession } = ctx;
 
   return {
-    // Phone OTP verify that also commits the session.
-    async verifyOTP(phone: string, code: string): Promise<AuthResult> {
-      try {
-        const user = await otpCheck(phone, code);
-        setSession(user);
-        return { error: null };
-      } catch (e) {
-        return { error: e instanceof Error ? e : new Error('Failed to verify code') };
-      }
-    },
     async signInWithApple(identityToken: string, fullName?: string): Promise<AuthResult> {
       try {
         const user = await clientAppleSignIn(identityToken, fullName);

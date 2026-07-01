@@ -10,19 +10,8 @@ from cryptography.hazmat.primitives.asymmetric import ec
 
 from app.config import TestConfig
 from app.platform.auth.clients.apple import AppleAuthError, LocalAppleVerifier
-from app.platform.auth.clients.otp import LocalOtpClient
 from app.platform.auth.magic_link import InMemoryMagicLinkStore
 from app.platform.auth.rate_limit import InMemoryRateLimiter
-
-# ── OTP (local fake) ──────────────────────────────────────────────────────────
-
-
-async def test_local_otp_accepts_dev_code() -> None:
-    client = LocalOtpClient(dev_code="000000")
-    await client.send("+15551234567")  # no-op, logs only
-    assert await client.check("+15551234567", "000000") is True
-    assert await client.check("+15551234567", "999999") is False
-
 
 # ── Magic-link store ──────────────────────────────────────────────────────────
 
@@ -55,7 +44,7 @@ async def test_magic_link_expired_token_rejected() -> None:
 
 async def test_rate_limiter_allows_within_budget_then_denies() -> None:
     limiter = InMemoryRateLimiter(limit=3, window_seconds=300)
-    key = "otp:+15551234567:1.2.3.4"
+    key = "magic:dater@example.com:1.2.3.4"
     assert [await limiter.allow(key) for _ in range(3)] == [True, True, True]
     assert await limiter.allow(key) is False  # 4th over the budget
 

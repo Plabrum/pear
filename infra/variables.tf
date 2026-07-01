@@ -82,14 +82,3 @@ variable "extra_env" {
   type        = map(string)
   default     = {}
 }
-
-# -- BetterStack ----------------------------------------------------------------
-# Optional: leave blank for `terraform validate`/`plan` to work without a token.
-# Production should set logtail_api_token to wire up OTLP logging.
-
-variable "logtail_api_token" {
-  description = "BetterStack personal API token - from account settings. Leave blank to disable logtail wiring."
-  type        = string
-  sensitive   = true
-  default     = ""
-}

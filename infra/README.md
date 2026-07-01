@@ -28,7 +28,6 @@ infra and is never renamed.
 | Email | SES | Transactional (login codes, summaries) — `<domain>` identity |
 | DNS | Route53 | `<domain>` zone — `api.<domain>` A-record → instance, SES records |
 | Shell access | SSM Session Manager | No SSH keys / open ports — `just prod-ssh` |
-| Logs (optional) | BetterStack / logtail | OTLP source, gated on `logtail_api_token` |
 
 State bucket and key are passed via `-backend-config` flags (see `scripts/tf-init.sh`),
 not hard-coded in `main.tf` (`backend "s3" {}` is empty). Key: `pear/terraform.tfstate`.
@@ -97,9 +96,6 @@ aws secretsmanager put-secret-value \
   --secret-string '{
     "SECRET_KEY": "...",
     "JWT_SIGNING_KEY": "...",
-    "TWILIO_ACCOUNT_SID": "...",
-    "TWILIO_AUTH_TOKEN": "...",
-    "TWILIO_VERIFY_SERVICE_SID": "...",
     "APPLE_CLIENT_ID": "...",
     "APNS_KEY": "...",
     "APNS_KEY_ID": "...",
@@ -117,16 +113,6 @@ just prod-ssh -- 'cd /opt/pear && docker compose ps'
 ```
 
 `db`/`redis`/`caddy` up, `api`/`worker` restarting until the image lands.
-
-### Optional: BetterStack logs
-
-`logtail_api_token` defaults to `""`, which disables the logtail wiring so
-`terraform validate`/`plan` work with no token. **Production should set it** — on a
-single box, container logs are otherwise lost on instance replacement:
-
-```bash
-export TF_VAR_logtail_api_token='...'   # then tf-apply
-```
 
 ---
 
@@ -224,9 +210,9 @@ docker compose ps
 2. Stop the instance, detach the corrupt root volume, attach the restored volume as
    the root device (`/dev/xvda`), start the instance. *Or* launch a replacement
    instance from the snapshot and re-point DNS.
-3. Because the `api` Route53 record tracks the instance, run `just tf-apply` after a
-   stop/start so the A-record picks up the current IP (an Elastic IP avoids this —
-   see `ec2_stack`).
+3. Because the `api` Route53 record tracks the instance's public IP (which is
+   ephemeral), run `just tf-apply` after a stop/start so the A-record picks up the
+   current IP.
 4. `just prod-ssh -- 'cd /opt/pear && docker compose up -d && docker compose ps'`.
 
 **Test the restore quarterly.** A backup you have never restored is a hypothesis,
@@ -266,7 +252,7 @@ Resolves the instance from `terraform output instance_id`, falling back to the
 
 ```
 infra/
-├── main.tf              # Providers (AWS, random, logtail), module calls, outputs
+├── main.tf              # Providers (AWS, random), module calls, outputs
 ├── variables.tf         # Input variables with defaults
 ├── shared.tf            # ECR, Route53 zone, SES identity + DKIM/SPF/DMARC/MX
 ├── scripts/

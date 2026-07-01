@@ -138,30 +138,15 @@ export default function LoginScreen() {
         >
           Continue with Apple
         </Sprout>
-        <View className="flex-row" style={{ gap: 10 }}>
-          <View className="flex-1">
-            <Sprout
-              block
-              size="lg"
-              variant="secondary"
-              icon={<IconSymbol name="phone.fill" size={16} color="#1F1B16" />}
-              onPress={() => router.push('/(auth)/sms')}
-            >
-              Phone
-            </Sprout>
-          </View>
-          <View className="flex-1">
-            <Sprout
-              block
-              size="lg"
-              variant="secondary"
-              icon={<IconSymbol name="envelope.fill" size={16} color="#1F1B16" />}
-              onPress={() => router.push('/(auth)/email')}
-            >
-              Email
-            </Sprout>
-          </View>
-        </View>
+        <Sprout
+          block
+          size="lg"
+          variant="secondary"
+          icon={<IconSymbol name="envelope.fill" size={16} color="#1F1B16" />}
+          onPress={() => router.push('/(auth)/email')}
+        >
+          Email
+        </Sprout>
         <Text
           className="text-foreground-subtle text-center mt-2"
           style={{ fontSize: 11, lineHeight: 17 }}

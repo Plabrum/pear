@@ -123,8 +123,6 @@ jobs:
           TF_VAR_environment: ${{ steps.ws.outputs.env }}
 
           TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
-          # Optional: empty when the secret is unset; logtail wiring is gated on this.
-          TF_VAR_logtail_api_token: ${{ secrets.LOGTAIL_API_TOKEN }}
         run: |
           terraform plan -no-color -out=tfplan
           terraform show -no-color tfplan > plan_output.txt
@@ -156,8 +154,6 @@ jobs:
           TF_VAR_environment: ${{ steps.ws.outputs.env }}
 
           TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
-          # Optional: empty when the secret is unset; logtail wiring is gated on this.
-          TF_VAR_logtail_api_token: ${{ secrets.LOGTAIL_API_TOKEN }}
         run: terraform apply -auto-approve tfplan
 
       - name: Get Terraform outputs

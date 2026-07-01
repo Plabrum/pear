@@ -59,17 +59,14 @@ resource "aws_secretsmanager_secret_version" "app" {
   secret_id = aws_secretsmanager_secret.app.id
 
   # Pear's app secrets. All placeholders - populate real values out of band after
-  # first apply. NO Supabase secrets: Pear self-hosts auth (Phase 4) and push (Phase 6).
+  # first apply. Auth is magic-link + Apple; Pear self-hosts auth and push.
   secret_string = jsonencode({
-    SECRET_KEY                = "CHANGE-ME" # Litestar session / signing secret
-    JWT_SIGNING_KEY           = "CHANGE-ME" # ES256 private key - we issue our own tokens (Phase 4)
-    TWILIO_ACCOUNT_SID        = "CHANGE-ME" # phone OTP
-    TWILIO_AUTH_TOKEN         = "CHANGE-ME" # phone OTP
-    TWILIO_VERIFY_SERVICE_SID = "CHANGE-ME" # phone OTP
-    APPLE_CLIENT_ID           = "CHANGE-ME" # Apple Sign-In `aud`
-    APNS_KEY                  = ""          # APNs auth key (.p8 contents) - push (Phase 6)
-    APNS_KEY_ID               = ""          # APNs key ID - push (Phase 6)
-    APNS_TEAM_ID              = ""          # Apple team ID - push (Phase 6)
+    SECRET_KEY      = "CHANGE-ME" # Litestar session / signing secret
+    JWT_SIGNING_KEY = "CHANGE-ME" # ES256 private key - we issue our own tokens
+    APPLE_CLIENT_ID = "CHANGE-ME" # Apple Sign-In `aud`
+    APNS_KEY        = ""          # APNs auth key (.p8 contents) - push
+    APNS_KEY_ID     = ""          # APNs key ID - push
+    APNS_TEAM_ID    = ""          # Apple team ID - push
   })
 
   lifecycle {
@@ -225,8 +222,6 @@ resource "aws_instance" "app" {
     s3_media_bucket   = module.media.bucket_name
     frontend_origin   = "https://app.${var.domain}"
     api_base_url      = "https://${var.api_subdomain}.${var.domain}"
-    otlp_host         = var.betterstack_otlp_ingesting_host
-    otlp_token        = var.betterstack_otlp_source_token
     extra_env         = var.extra_env
   }))
 
@@ -245,25 +240,14 @@ resource "aws_instance" "app" {
   }
 }
 
-# -- Elastic IP ----------------------------------------------------------------
-# A single box WILL get stopped at some point; an ephemeral public IP changes on
-# stop/start and would silently break the api.<domain> A-record. The EIP gives
-# the instance a stable address so DNS never needs a re-apply.
-
-resource "aws_eip" "app" {
-  instance = aws_instance.app.id
-  domain   = "vpc"
-
-  tags = merge(local.common_tags, { Name = "${local.name}-app" })
-}
-
 # -- Route53 -------------------------------------------------------------------
-# Points api.<domain> at the stable Elastic IP (not the instance's ephemeral IP).
+# Points api.<domain> at the instance's public IP. The IP is ephemeral (changes
+# on stop/start), so re-apply after a stop/start to refresh the A-record.
 
 resource "aws_route53_record" "api" {
   zone_id = var.hosted_zone_id
   name    = "${var.api_subdomain}.${var.domain}"
   type    = "A"
   ttl     = 60
-  records = [aws_eip.app.public_ip]
+  records = [aws_instance.app.public_ip]
 }

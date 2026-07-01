@@ -35,8 +35,8 @@ class AuthService:
     ) -> tuple[Profile, bool]:
         """Resolve (provider, subject) to a profile, bootstrapping on first login.
 
-        `email`/`name` are persisted onto the profile only when creating it (Apple
-        delivers them once, on first authorization). Returns `(profile, created)`.
+        `name` is persisted onto the profile only when creating it (Apple delivers
+        it once, on first authorization). Returns `(profile, created)`.
         """
         await self._enter_system_mode()
 
@@ -51,34 +51,25 @@ class AuthService:
             profile = await self.db.get(Profile, identity.profile_id)
             if profile is None:
                 # Identity orphaned (profile soft-deleted/gone) — recreate a profile.
-                profile = await self._create_profile(provider, subject, email=email, name=name)
+                profile = await self._create_profile(name=name)
                 identity.profile_id = profile.id
                 await self.db.flush()
                 return profile, True
             return profile, False
 
-        profile = await self._create_profile(provider, subject, email=email, name=name)
+        profile = await self._create_profile(name=name)
         identity = AuthIdentity(provider=provider, provider_subject=subject, profile_id=profile.id)
         self.db.add(identity)
         await self.db.flush()
         return profile, True
 
-    async def _create_profile(
-        self,
-        provider: AuthProvider,
-        subject: str,
-        *,
-        email: str | None = None,
-        name: str | None = None,
-    ) -> Profile:
+    async def _create_profile(self, *, name: str | None = None) -> Profile:
         """Create a bootstrap profile row. Onboarding fills in role/chosen_name."""
         profile = Profile()
-        if provider is AuthProvider.PHONE:
-            profile.phone_number = subject
         if name:
             profile.chosen_name = name
-        # `email` is recorded via the email identity row's subject; only stash the
-        # name here (profiles has no email column — that is the identity's subject).
+        # An email login records its address as the identity row's subject; the
+        # profile has no email column, so only the optional name is stashed here.
         self.db.add(profile)
         await self.db.flush()
         return profile

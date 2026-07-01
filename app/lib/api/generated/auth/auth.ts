@@ -25,15 +25,11 @@ import type {
   AuthMagicLinkVerifyMagicLinkVerify400,
   AuthMagicLinkVerifyMagicLinkVerifyRedirect400,
   AuthMagicLinkVerifyMagicLinkVerifyRedirectParams,
-  AuthOtpCheckOtpCheck400,
-  AuthOtpStartOtpStart400,
   AuthRefreshRefresh400,
   LogoutIn,
   MagicLinkRequestIn,
   MagicLinkVerifyIn,
   MeOut,
-  OtpCheckIn,
-  OtpStartIn,
   RefreshIn,
   SessionOut,
 } from '../model';
@@ -292,172 +288,6 @@ export function useAuthMeMeSuspense<TData = Awaited<ReturnType<typeof authMeMe>>
   return { ...query, queryKey: queryOptions.queryKey };
 }
 
-/**
- * @summary OtpStart
- */
-export const getAuthOtpStartOtpStartUrl = () => {
-  return `/auth/otp/start`;
-};
-
-export const authOtpStartOtpStart = async (
-  otpStartIn: OtpStartIn,
-  options?: RequestInit
-): Promise<void> => {
-  return pearFetch<void>(getAuthOtpStartOtpStartUrl(), {
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(otpStartIn),
-  });
-};
-
-export const getAuthOtpStartOtpStartMutationOptions = <
-  TError = AuthOtpStartOtpStart400,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof authOtpStartOtpStart>>,
-    TError,
-    { data: OtpStartIn },
-    TContext
-  >;
-  request?: SecondParameter<typeof pearFetch>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof authOtpStartOtpStart>>,
-  TError,
-  { data: OtpStartIn },
-  TContext
-> => {
-  const mutationKey = ['authOtpStartOtpStart'];
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof authOtpStartOtpStart>>,
-    { data: OtpStartIn }
-  > = (props) => {
-    const { data } = props ?? {};
-
-    return authOtpStartOtpStart(data, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type AuthOtpStartOtpStartMutationResult = NonNullable<
-  Awaited<ReturnType<typeof authOtpStartOtpStart>>
->;
-export type AuthOtpStartOtpStartMutationBody = OtpStartIn;
-export type AuthOtpStartOtpStartMutationError = AuthOtpStartOtpStart400;
-
-/**
- * @summary OtpStart
- */
-export const useAuthOtpStartOtpStart = <TError = AuthOtpStartOtpStart400, TContext = unknown>(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof authOtpStartOtpStart>>,
-      TError,
-      { data: OtpStartIn },
-      TContext
-    >;
-    request?: SecondParameter<typeof pearFetch>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof authOtpStartOtpStart>>,
-  TError,
-  { data: OtpStartIn },
-  TContext
-> => {
-  return useMutation(getAuthOtpStartOtpStartMutationOptions(options), queryClient);
-};
-/**
- * @summary OtpCheck
- */
-export const getAuthOtpCheckOtpCheckUrl = () => {
-  return `/auth/otp/check`;
-};
-
-export const authOtpCheckOtpCheck = async (
-  otpCheckIn: OtpCheckIn,
-  options?: RequestInit
-): Promise<SessionOut> => {
-  return pearFetch<SessionOut>(getAuthOtpCheckOtpCheckUrl(), {
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(otpCheckIn),
-  });
-};
-
-export const getAuthOtpCheckOtpCheckMutationOptions = <
-  TError = AuthOtpCheckOtpCheck400,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof authOtpCheckOtpCheck>>,
-    TError,
-    { data: OtpCheckIn },
-    TContext
-  >;
-  request?: SecondParameter<typeof pearFetch>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof authOtpCheckOtpCheck>>,
-  TError,
-  { data: OtpCheckIn },
-  TContext
-> => {
-  const mutationKey = ['authOtpCheckOtpCheck'];
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof authOtpCheckOtpCheck>>,
-    { data: OtpCheckIn }
-  > = (props) => {
-    const { data } = props ?? {};
-
-    return authOtpCheckOtpCheck(data, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type AuthOtpCheckOtpCheckMutationResult = NonNullable<
-  Awaited<ReturnType<typeof authOtpCheckOtpCheck>>
->;
-export type AuthOtpCheckOtpCheckMutationBody = OtpCheckIn;
-export type AuthOtpCheckOtpCheckMutationError = AuthOtpCheckOtpCheck400;
-
-/**
- * @summary OtpCheck
- */
-export const useAuthOtpCheckOtpCheck = <TError = AuthOtpCheckOtpCheck400, TContext = unknown>(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof authOtpCheckOtpCheck>>,
-      TError,
-      { data: OtpCheckIn },
-      TContext
-    >;
-    request?: SecondParameter<typeof pearFetch>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof authOtpCheckOtpCheck>>,
-  TError,
-  { data: OtpCheckIn },
-  TContext
-> => {
-  return useMutation(getAuthOtpCheckOtpCheckMutationOptions(options), queryClient);
-};
 /**
  * @summary AppleSignIn
  */

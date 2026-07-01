@@ -20,19 +20,16 @@
 // Create-style actions carry the new row id in `created_id`; decision actions use
 // `created_id` as the match id (non-null => a mutual match was just formed).
 //
-// NOTE: `POST /api/photos/upload-url` is a dedicated route (NOT an action).
-// `getPhotoUploadUrl` re-exports the generated function so all photo writes
-// import from one place.
+// NOTE: Image uploads do NOT go through actions. They use the media domain's
+// dedicated routes (`POST /api/media/upload-url` -> PUT bytes -> `POST
+// /api/media/{id}/uploaded`) in `lib/photos.ts`, which yields a media id that
+// photo/avatar writes here pin to a row (`mediaId` / `avatarMediaId`).
 import {
   apiActionsActionGroupExecuteAction,
   apiActionsActionGroupObjectIdExecuteObjectAction,
 } from '@/lib/api/generated/actions/actions';
-import { postApiPhotosUploadUrl } from '@/lib/api/generated/photos/photos';
-import { postApiProfilesMeAvatarUploadUrl } from '@/lib/api/generated/profiles/profiles';
 import type {
   ActionExecutionResponse,
-  AvatarUploadUrlData,
-  AvatarUploadUrlResponse,
   CreateDatingProfileData,
   CreatePhotoData,
   CreateProfilePromptData,
@@ -42,8 +39,6 @@ import type {
   ActSuggestionData,
   SuggestData,
   InviteWingpersonData,
-  PhotoUploadUrlData,
-  PhotoUploadUrlResponse,
   ReorderPhotoData,
   SendMessageData,
   UpdateDatingProfileData,
@@ -143,27 +138,6 @@ export function addPhoto(data: CreatePhotoData): Promise<ActionExecutionResponse
     action: 'photo_actions__create',
     data,
   });
-}
-
-/**
- * `POST /api/photos/upload-url` — a dedicated route (NOT an action), re-exported
- * here so every photo write lives in one module. The response is a presigned S3
- * PUT `{ uploadUrl, key }`. The client `PUT`s the JPEG bytes to `uploadUrl`, then
- * writes the metadata row via `addPhoto({ storageUrl: key, ... })`.
- */
-export function getPhotoUploadUrl(data: PhotoUploadUrlData): Promise<PhotoUploadUrlResponse> {
-  return postApiPhotosUploadUrl(data);
-}
-
-/**
- * `POST /api/profiles/me/avatar-upload-url` — a dedicated route (NOT an action).
- * Mints a presigned S3 PUT for the CALLER's own avatar (the key is rooted in the
- * caller's id server-side; no datingProfileId needed). Returns
- * `{ uploadUrl, key, publicUrl }`. The client `PUT`s bytes to `uploadUrl`, then
- * PATCHes the profile with `avatarUrl = key`; `publicUrl` is the stable read URL.
- */
-export function getAvatarUploadUrl(data: AvatarUploadUrlData): Promise<AvatarUploadUrlResponse> {
-  return postApiProfilesMeAvatarUploadUrl(data);
 }
 
 /** Approve a photo. Object-scoped (photo id). */

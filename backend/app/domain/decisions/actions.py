@@ -88,7 +88,7 @@ decision_actions = action_group_factory(
 class RecordDirectDecision(BaseTopLevelAction[DirectDecisionData]):
     """A dater's own like/pass on a recipient (direct decision; upsert)."""
 
-    action_key = "record"  # type: ignore[assignment]
+    action_key = "record"
     label = "Decide"
     icon = ActionIcon.HEART
 
@@ -120,7 +120,7 @@ class RecordDirectDecision(BaseTopLevelAction[DirectDecisionData]):
 class ActOnSuggestion(BaseTopLevelAction[ActSuggestionData]):
     """Approve/decline a winger's pending suggestion (dater acts on their feed)."""
 
-    action_key = "act_suggestion"  # type: ignore[assignment]
+    action_key = "act_suggestion"
     label = "Act on Suggestion"
     icon = ActionIcon.CHECK
 
@@ -157,7 +157,7 @@ class CreateSuggestion(BaseTopLevelAction[SuggestData]):
     enforced by the decisions INSERT RLS policy.
     """
 
-    action_key = "create_suggestion"  # type: ignore[assignment]
+    action_key = "create_suggestion"
     label = "Suggest Profile"
     icon = ActionIcon.SEND
 

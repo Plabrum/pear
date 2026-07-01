@@ -2,7 +2,8 @@ import * as ImagePicker from 'expo-image-picker';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { toast } from 'sonner-native';
 
-import { getAvatarUploadUrl, updateMyProfile } from '@/lib/api/actions';
+import { updateMyProfile } from '@/lib/api/actions';
+import { postApiMediaUploadUrl, postApiMediaUploaded } from '@/lib/api/generated/media/media';
 
 const AVATAR_CONTENT_TYPE = 'image/jpeg';
 
@@ -32,31 +33,42 @@ export async function pickAndResizePhoto(opts?: {
   return saved.uri;
 }
 
-// Avatar upload (S3 presigned PUT, public-read key).
-// Asks the API for a presigned upload URL rooted in the caller's own id, `PUT`s
-// the resized JPEG bytes straight to S3, then PATCHes the profile with
-// `avatarUrl = key` (the DB stores the S3 KEY; reads resolve it to the stable
-// public URL). `userId` is the caller's own profile id (Profile.id === userId).
-export async function uploadAvatar(userId: string, uri: string): Promise<void> {
-  const { uploadUrl, key } = await getAvatarUploadUrl({
-    filename: `${userId}.jpg`,
-    contentType: AVATAR_CONTENT_TYPE,
-  });
-  // Raw PUT straight to S3 — NO Authorization header, the presigned URL IS the grant.
+// Three-step media upload. Mints a presigned PUT from the media domain, streams
+// the already-resized bytes straight to object storage (no Authorization header —
+// the presigned URL is the grant), then marks the row uploaded so the backend
+// enqueues async WebP processing. Returns the media id the caller pins to a photo
+// row or an avatar. The image never transits our API box.
+export async function uploadMedia(
+  uri: string,
+  fileName: string,
+  contentType: string
+): Promise<string> {
+  const { mediaId, uploadUrl } = await postApiMediaUploadUrl({ fileName, contentType });
+
   const blob = await fetch(uri).then((res) => res.blob());
   const putRes = await fetch(uploadUrl, {
     method: 'PUT',
     body: blob,
-    headers: { 'Content-Type': AVATAR_CONTENT_TYPE },
+    headers: { 'Content-Type': contentType },
   });
-  if (!putRes.ok) throw new Error(`S3 PUT failed: ${putRes.status}`);
-  // Persist the KEY; the avatar resolves to its stable public URL on reads.
-  await updateMyProfile(userId, { avatarUrl: key });
+  if (!putRes.ok) throw new Error(`Upload PUT failed: ${putRes.status}`);
+
+  // Flips the row toward processing; the response state is still PENDING here.
+  await postApiMediaUploaded(mediaId);
+  return mediaId;
 }
 
-// Read endpoints already return ready-to-load URLs in `storageUrl` (a short-lived
-// presigned GET for photos; a stable public URL for avatars), so this is now a
-// thin pass-through. Kept so callsites don't have to special-case null.
+// Avatar upload. Uploads the resized JPEG via the media domain, then PATCHes the
+// caller's profile with `avatarMediaId`. `userId` is the caller's own profile id
+// (Profile.id === userId). Reads resolve the avatar field to a presigned URL.
+export async function uploadAvatar(userId: string, uri: string): Promise<void> {
+  const mediaId = await uploadMedia(uri, `${userId}.jpg`, AVATAR_CONTENT_TYPE);
+  await updateMyProfile(userId, { avatarMediaId: mediaId });
+}
+
+// Reads return ready-to-load URLs in `storageUrl` / avatar fields (a presigned
+// GET for the READY WebP, falling back to the original while processing). The
+// client never sees a storage key, so this stays a thin null-safe pass-through.
 export function getPhotoUrl(storageUrl: string | null): string | null {
   return storageUrl ?? null;
 }

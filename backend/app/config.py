@@ -74,6 +74,11 @@ class Config:
     # Local-only: where `LocalS3Client` roots its fake URLs (and, optionally, where a
     # local upload sink could persist bytes). Never used in prod.
     LOCAL_MEDIA_BASE_URL: str = os.getenv("LOCAL_MEDIA_BASE_URL", "http://localhost:8000/_local-media")
+    # Target container format the image worker normalizes every upload to. WebP keeps
+    # transparency + compresses well; configurable so the normalize step can change.
+    MEDIA_IMAGE_FORMAT: str = os.getenv("MEDIA_IMAGE_FORMAT", "webp")
+    # WebP encode quality (0–100). ~80 is a good size/quality balance for photos.
+    MEDIA_WEBP_QUALITY: int = int(os.getenv("MEDIA_WEBP_QUALITY", "80"))
 
     # ─── Email templates ──────────────────────────────────────────────────────
     EMAIL_TEMPLATES_DIR: str = os.getenv("EMAIL_TEMPLATES_DIR", "email_templates")
@@ -96,15 +101,6 @@ class Config:
     JWT_AUDIENCE: str = os.getenv("JWT_AUDIENCE", "pear-app")
     # Refresh token lifetime (opaque, rotating, server-side stored). Default 30d.
     REFRESH_TOKEN_TTL_SECONDS: int = int(os.getenv("REFRESH_TOKEN_TTL_SECONDS", str(60 * 60 * 24 * 30)))
-
-    # ─── Twilio (phone OTP) ────────────────────────────────────────────────────
-    # In local/testing these are unused — `LocalOtpClient` is selected instead and
-    # accepts a fixed dev code (`DEV_OTP_CODE`).
-    TWILIO_ACCOUNT_SID: str = os.getenv("TWILIO_ACCOUNT_SID", "")
-    TWILIO_AUTH_TOKEN: str = os.getenv("TWILIO_AUTH_TOKEN", "")
-    TWILIO_VERIFY_SERVICE_SID: str = os.getenv("TWILIO_VERIFY_SERVICE_SID", "")
-    # Fixed code the LocalOtpClient accepts for any phone in local/testing.
-    DEV_OTP_CODE: str = os.getenv("DEV_OTP_CODE", "000000")
 
     # ─── Apple Sign-In ─────────────────────────────────────────────────────────
     # Service/app id — the `aud` we validate on Apple identity tokens.

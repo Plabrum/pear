@@ -9,7 +9,6 @@ from litestar.response import Redirect
 
 from app.config import Config, config
 from app.platform.auth.clients.apple import AppleAuthError, BaseAppleVerifier
-from app.platform.auth.clients.otp import BaseOtpClient, OtpError
 from app.platform.auth.enums import AuthProvider
 from app.platform.auth.magic_link import BaseMagicLinkStore
 from app.platform.auth.rate_limit import BaseRateLimiter
@@ -17,8 +16,6 @@ from app.platform.auth.schemas import (
     AppleIn,
     MagicLinkRequestIn,
     MagicLinkVerifyIn,
-    OtpCheckIn,
-    OtpStartIn,
     SessionOut,
 )
 from app.platform.auth.service import AuthService
@@ -42,47 +39,6 @@ def _normalize_email(raw: str) -> str:
         return validate_email(raw, check_deliverability=False).normalized.lower()
     except EmailNotValidError as e:
         raise HTTPException(status_code=400, detail="Invalid email address") from e
-
-
-# ── Phone OTP ─────────────────────────────────────────────────────────────────
-
-
-@post("/otp/start", status_code=204, exclude_from_auth=True)
-async def otp_start(
-    data: OtpStartIn,
-    otp_client: BaseOtpClient,
-    rate_limiter: BaseRateLimiter,
-    request: Request,
-) -> None:
-    """Send an OTP to a phone (Twilio Verify in prod, no-op fixed code in dev).
-
-    Rate-limited per phone+IP on top of Twilio's own limits. Returns 204.
-    """
-    if not await rate_limiter.allow(f"otp:{data.phone}:{_client_ip(request)}"):
-        raise HTTPException(status_code=429, detail="Too many code requests; try again later")
-    try:
-        await otp_client.send(data.phone)
-    except OtpError as e:
-        raise HTTPException(status_code=502, detail="Could not send verification code") from e
-
-
-@post("/otp/check", exclude_from_auth=True)
-async def otp_check(
-    data: OtpCheckIn,
-    otp_client: BaseOtpClient,
-    auth_service: AuthService,
-    request: Request,
-) -> SessionOut:
-    """Verify an OTP and issue a session, bootstrapping the phone identity."""
-    try:
-        ok = await otp_client.check(data.phone, data.code)
-    except OtpError as e:
-        raise NotAuthorizedException("Could not verify code") from e
-    if not ok:
-        raise NotAuthorizedException("Invalid or expired code")
-
-    profile, _created = await auth_service.find_or_create_identity(AuthProvider.PHONE, data.phone)
-    return await auth_service.issue_session(profile, device_info=_device_info(request))
 
 
 # ── Apple Sign-In ─────────────────────────────────────────────────────────────
@@ -192,8 +148,6 @@ def _device_info(request: Request) -> str | None:
 
 # Spread into `auth_router` in routes.py.
 LOGIN_METHOD_ROUTES: list[Any] = [
-    otp_start,
-    otp_check,
     apple_sign_in,
     magic_link_request,
     magic_link_verify_redirect,

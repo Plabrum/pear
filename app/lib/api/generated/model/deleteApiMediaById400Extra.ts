@@ -5,7 +5,7 @@
  * OpenAPI spec version: 1.0.0
  */
 
-export interface OtpCheckIn {
-  phone: string;
-  code: string;
-}
+/**
+ * @nullable
+ */
+export type DeleteApiMediaById400Extra = { [key: string]: unknown } | unknown[] | null;

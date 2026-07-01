@@ -49,7 +49,7 @@ photo_actions = action_group_factory(
 
 @photo_actions
 class CreatePhoto(BaseTopLevelAction[CreatePhotoData]):
-    action_key = "create"  # type: ignore[assignment]
+    action_key = "create"
     label = "Add Photo"
     icon = ActionIcon.ADD
 
@@ -70,7 +70,7 @@ class CreatePhoto(BaseTopLevelAction[CreatePhotoData]):
 
         photo = ProfilePhoto(
             dating_profile_id=data.datingProfileId,
-            storage_url=data.storageUrl,
+            media_id=data.mediaId,
             display_order=data.displayOrder,
             suggester_id=None if is_owner else deps.user.id,
             # Self-uploads are auto-approved; winger suggestions start pending.
@@ -100,7 +100,7 @@ class CreatePhoto(BaseTopLevelAction[CreatePhotoData]):
 
 @photo_actions
 class ApprovePhoto(BaseObjectAction[ProfilePhoto, EmptyActionData]):
-    action_key = "approve"  # type: ignore[assignment]
+    action_key = "approve"
     label = "Approve Photo"
     icon = ActionIcon.CHECK
     target_state = PhotoApprovalState.APPROVED
@@ -143,7 +143,7 @@ class ApprovePhoto(BaseObjectAction[ProfilePhoto, EmptyActionData]):
 
 @photo_actions
 class RejectPhoto(BaseObjectAction[ProfilePhoto, EmptyActionData]):
-    action_key = "reject"  # type: ignore[assignment]
+    action_key = "reject"
     label = "Reject Photo"
     icon = ActionIcon.X
     target_state = PhotoApprovalState.REJECTED
@@ -166,8 +166,6 @@ class RejectPhoto(BaseObjectAction[ProfilePhoto, EmptyActionData]):
 
         # The machine's RejectedState.on_enter sets rejected_at. We never assign the
         # timestamp column directly.
-        # Capture the S3 key before the transition so we can delete the bytes after.
-        storage_key = obj.storage_url
         await deps.state_machine_service.transition(
             photo_approval_machine,
             obj,
@@ -175,13 +173,9 @@ class RejectPhoto(BaseObjectAction[ProfilePhoto, EmptyActionData]):
             actor=deps.user,
         )
         await transaction.flush()
-        # The rejection ROW stays (it feeds the winger-activity rejection feed), but
-        # the image bytes are unwanted — delete the S3 object. Log-and-swallow: a
-        # failed delete leaks one object, never a broken DB reference. `media` is
-        # always injected on the request path; the None-guard only covers unit tests
-        # that build ActionDeps without it.
-        if deps.media is not None:
-            await deps.media.delete(storage_key)
+        # The rejection ROW stays (it feeds the winger-activity rejection feed). The
+        # underlying bytes belong to the platform Media row, whose deletion is owned
+        # by the media domain (DELETE /media/{id}) — this domain no longer touches storage.
         return ActionExecutionResponse(
             message="Photo rejected",
             invalidate_queries=["photos"],
@@ -193,7 +187,7 @@ class RejectPhoto(BaseObjectAction[ProfilePhoto, EmptyActionData]):
 
 @photo_actions
 class DeletePhoto(BaseObjectAction[ProfilePhoto, EmptyActionData]):
-    action_key = "delete"  # type: ignore[assignment]
+    action_key = "delete"
     label = "Delete Photo"
     icon = ActionIcon.TRASH
     confirmation_message = "Delete this photo?"
@@ -217,15 +211,10 @@ class DeletePhoto(BaseObjectAction[ProfilePhoto, EmptyActionData]):
         if owner_id != deps.user.id and obj.suggester_id != deps.user.id:
             raise PhotoNotFoundError()
 
-        storage_key = obj.storage_url
         await transaction.delete(obj)
         await transaction.flush()
-        # Remove the S3 object after the row is gone.
-        # Log-and-swallow inside `media.delete`: a leaked object is harmless. `media`
-        # is always injected on the request path; the None-guard only covers unit
-        # tests that build ActionDeps without it.
-        if deps.media is not None:
-            await deps.media.delete(storage_key)
+        # Only the photo link is removed here; the platform Media row (the bytes) is
+        # deleted via the media domain's DELETE /media/{id}, which owns storage cleanup.
         return ActionExecutionResponse(
             message="Photo deleted",
             invalidate_queries=["photos"],
@@ -237,7 +226,7 @@ class DeletePhoto(BaseObjectAction[ProfilePhoto, EmptyActionData]):
 
 @photo_actions
 class ReorderPhoto(BaseObjectAction[ProfilePhoto, ReorderPhotoData]):
-    action_key = "reorder"  # type: ignore[assignment]
+    action_key = "reorder"
     label = "Reorder Photo"
     icon = ActionIcon.EDIT
     is_hidden = True  # mechanical drag-reorder, not a surfaced menu action

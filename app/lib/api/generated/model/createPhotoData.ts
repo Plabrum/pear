@@ -7,6 +7,6 @@
 
 export interface CreatePhotoData {
   datingProfileId: string;
-  storageUrl: string;
+  mediaId: string;
   displayOrder: number;
 }

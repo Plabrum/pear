@@ -51,20 +51,6 @@ variable "extra_env" {
   default = {}
 }
 
-# -- BetterStack / logtail (optional) ------------------------------------------
-# Centralized OTLP log shipping. Optional so `terraform validate`/`plan` works
-# without a token. Prod should set betterstack_otlp_source_token (single-box
-# logs are otherwise lost on instance replacement).
-variable "betterstack_otlp_ingesting_host" {
-  type    = string
-  default = ""
-}
-variable "betterstack_otlp_source_token" {
-  type      = string
-  sensitive = true
-  default   = ""
-}
-
 # -- EC2-specific --------------------------------------------------------------
 
 variable "instance_type" {

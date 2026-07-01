@@ -30,7 +30,7 @@ contact_actions = action_group_factory(
 
 @contact_actions
 class InviteWingperson(BaseTopLevelAction[InviteWingpersonData]):
-    action_key = "invite"  # type: ignore[assignment]
+    action_key = "invite"
     label = "Invite Wingperson"
     icon = ActionIcon.ADD
 
@@ -80,7 +80,7 @@ class InviteWingperson(BaseTopLevelAction[InviteWingpersonData]):
 
 @contact_actions
 class AcceptInvite(BaseObjectAction[Contact, EmptyActionData]):
-    action_key = "accept"  # type: ignore[assignment]
+    action_key = "accept"
     label = "Accept"
     icon = ActionIcon.CHECK
     target_state = WingpersonStatus.ACTIVE
@@ -119,7 +119,7 @@ class AcceptInvite(BaseObjectAction[Contact, EmptyActionData]):
 
 @contact_actions
 class DeclineInvite(BaseObjectAction[Contact, EmptyActionData]):
-    action_key = "decline"  # type: ignore[assignment]
+    action_key = "decline"
     label = "Decline"
     icon = ActionIcon.X
     target_state = WingpersonStatus.REMOVED
@@ -158,7 +158,7 @@ class DeclineInvite(BaseObjectAction[Contact, EmptyActionData]):
 
 @contact_actions
 class RemoveWingperson(BaseObjectAction[Contact, EmptyActionData]):
-    action_key = "remove"  # type: ignore[assignment]
+    action_key = "remove"
     label = "Remove"
     icon = ActionIcon.TRASH
     confirmation_message = "Remove this wingperson?"

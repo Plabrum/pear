@@ -86,15 +86,6 @@ async function adoptTokens(tokens: AuthTokens): Promise<AuthUser> {
 
 // --- Login methods ---
 
-export async function otpStart(phone: string): Promise<void> {
-  await authFetch<void>('/auth/otp/start', { phone });
-}
-
-export async function otpCheck(phone: string, code: string): Promise<AuthUser> {
-  const tokens = await authFetch<AuthTokens>('/auth/otp/check', { phone, code });
-  return adoptTokens(tokens);
-}
-
 export async function appleSignIn(identityToken: string, fullName?: string): Promise<AuthUser> {
   const tokens = await authFetch<AuthTokens>('/auth/apple', {
     identityToken,

@@ -20,7 +20,7 @@ class PresignedUpload:
     """A presigned PUT target the client uploads bytes to directly.
 
     `upload_url` — PUT here with the raw image bytes and matching `Content-Type`.
-    `key`        — the S3 object key; persist this in `storage_url` / `avatar_url`.
+    `key`        — the S3 object key persisted as the Media row's `file_key`.
     """
 
     upload_url: str
@@ -54,6 +54,16 @@ class BaseMediaClient(ABC):
     async def delete(self, key: str) -> None:
         """Delete an object. Log-and-swallow: a failed delete leaks one object,
         never a broken DB reference."""
+
+    @abstractmethod
+    async def download(self, key: str) -> bytes:
+        """Fetch the raw bytes of an object by `key`. Used by the image-processing
+        worker to read the original upload. Raises `MediaError` on failure."""
+
+    @abstractmethod
+    async def upload(self, key: str, data: bytes, *, content_type: str) -> None:
+        """Write raw bytes to `key` with the given content type. Used by the worker
+        to store the processed (re-encoded) image. Raises `MediaError` on failure."""
 
 
 class S3Client(BaseMediaClient):
@@ -105,6 +115,24 @@ class S3Client(BaseMediaClient):
         except Exception as exc:  # noqa: BLE001 — log-and-swallow
             logger.error("[media] delete failed: key=%s err=%s", key, exc)
 
+    async def download(self, key: str) -> bytes:
+        async with self._session.client("s3", region_name=self.region) as s3:  # type: ignore[attr-defined]
+            try:
+                obj = await s3.get_object(Bucket=self.bucket, Key=key)
+                async with obj["Body"] as body:
+                    return await body.read()
+            except Exception as exc:  # noqa: BLE001 — surface as our typed error
+                logger.error("[media] download failed: key=%s err=%s", key, exc)
+                raise MediaError("Could not download object") from exc
+
+    async def upload(self, key: str, data: bytes, *, content_type: str) -> None:
+        async with self._session.client("s3", region_name=self.region) as s3:  # type: ignore[attr-defined]
+            try:
+                await s3.put_object(Bucket=self.bucket, Key=key, Body=data, ContentType=content_type)
+            except Exception as exc:  # noqa: BLE001
+                logger.error("[media] upload failed: key=%s err=%s", key, exc)
+                raise MediaError("Could not upload object") from exc
+
 
 class LocalMediaClient(BaseMediaClient):
     """Local/test fake: deterministic fake URLs, no AWS.
@@ -121,6 +149,9 @@ class LocalMediaClient(BaseMediaClient):
         self._base = config.LOCAL_MEDIA_BASE_URL.rstrip("/")
         self._public_base = config.S3_PUBLIC_BASE_URL.rstrip("/") or f"{self._base}/public"
         self.deleted: list[str] = []
+        # In-memory object store so download/upload round-trip in tests with no S3.
+        # Keyed by object key -> (bytes, content_type).
+        self.store: dict[str, tuple[bytes, str]] = {}
 
     async def presign_upload(self, key: str, *, content_type: str = DEFAULT_CONTENT_TYPE) -> PresignedUpload:
         # A deterministic PUT target a fake/dev client can no-op against.
@@ -135,11 +166,21 @@ class LocalMediaClient(BaseMediaClient):
 
     async def delete(self, key: str) -> None:
         self.deleted.append(key)
+        self.store.pop(key, None)
         logger.info("[media] LOCAL delete (not real): key=%s", key)
+
+    async def download(self, key: str) -> bytes:
+        entry = self.store.get(key)
+        if entry is None:
+            raise MediaError(f"Could not download object (no local bytes for {key})")
+        return entry[0]
+
+    async def upload(self, key: str, data: bytes, *, content_type: str) -> None:
+        self.store[key] = (data, content_type)
 
 
 def build_media_client(config: Config) -> BaseMediaClient:
-    """Local fake in local/dev/testing; real S3 otherwise (mirrors build_otp_client)."""
+    """Local fake in local/dev/testing; real S3 otherwise (mirrors build_apple_verifier)."""
     if config.ENV in {"development", "local", "testing"}:
         return LocalMediaClient(config)
     return S3Client(config)

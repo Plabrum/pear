@@ -143,15 +143,12 @@ resource "aws_secretsmanager_secret_version" "app" {
   # Seed placeholders only. Real values are set out-of-band (console/CLI/CI) and
   # preserved by the ignore_changes lifecycle below — Terraform never overwrites them.
   secret_string = jsonencode({
-    SECRET_KEY                = "CHANGE-ME"
-    JWT_SIGNING_KEY           = "CHANGE-ME"
-    TWILIO_ACCOUNT_SID        = "CHANGE-ME"
-    TWILIO_AUTH_TOKEN         = "CHANGE-ME"
-    TWILIO_VERIFY_SERVICE_SID = "CHANGE-ME"
-    APPLE_CLIENT_ID           = "CHANGE-ME"
-    APNS_KEY                  = ""
-    APNS_KEY_ID               = ""
-    APNS_TEAM_ID              = ""
+    SECRET_KEY      = "CHANGE-ME"
+    JWT_SIGNING_KEY = "CHANGE-ME"
+    APPLE_CLIENT_ID = "CHANGE-ME"
+    APNS_KEY        = ""
+    APNS_KEY_ID     = ""
+    APNS_TEAM_ID    = ""
   })
 
   lifecycle {
@@ -433,8 +430,6 @@ module "api_service" {
     { name = "FRONTEND_ORIGIN", value = "https://app.${var.domain}" },
     { name = "SUCCESS_REDIRECT_URL", value = "https://app.${var.domain}" },
     { name = "API_BASE_URL", value = "https://${var.api_subdomain}.${var.domain}" },
-    { name = "BETTERSTACK_OTLP_INGESTING_HOST", value = var.betterstack_otlp_ingesting_host },
-    { name = "BETTERSTACK_OTLP_SOURCE_TOKEN", value = var.betterstack_otlp_source_token },
   ], [for k, v in var.extra_env : { name = k, value = v }])
 
   target_group_arn = aws_lb_target_group.api.arn
@@ -484,8 +479,6 @@ module "worker_service" {
     { name = "S3_INBOUND_EMAIL_BUCKET", value = module.inbound_emails.bucket_name },
     { name = "APP_SECRETS_ARN", value = aws_secretsmanager_secret.app.arn },
     { name = "DOMAIN", value = var.domain },
-    { name = "BETTERSTACK_OTLP_INGESTING_HOST", value = var.betterstack_otlp_ingesting_host },
-    { name = "BETTERSTACK_OTLP_SOURCE_TOKEN", value = var.betterstack_otlp_source_token },
   ], [for k, v in var.extra_env : { name = k, value = v }])
 
   tags = local.common_tags

@@ -1,4 +1,5 @@
 from datetime import date
+from uuid import UUID
 
 import sqlalchemy as sa
 from sqlalchemy.orm import Mapped, mapped_column
@@ -24,6 +25,11 @@ class Profile(BaseDBModel):
         default=UserRole.DATER,
         server_default=UserRole.DATER.name,
     )
-    avatar_url: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    # SQL: nullable references media(id) on delete set null -- the platform Media
+    # backing this user's avatar (resolve to a public processed URL via MediaService).
+    avatar_media_id: Mapped[UUID | None] = mapped_column(
+        sa.ForeignKey("media.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     # Expo push token; set after the user grants notification permission.
     push_token: Mapped[str | None] = mapped_column(sa.Text, nullable=True)

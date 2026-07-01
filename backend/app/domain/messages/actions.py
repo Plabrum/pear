@@ -39,7 +39,7 @@ def _viewer_in_match(match: Match, deps: ActionDeps) -> bool:
 
 @message_actions
 class SendMessage(BaseObjectAction[Match, SendMessageData]):
-    action_key = "send"  # type: ignore[assignment]
+    action_key = "send"
     label = "Send Message"
     icon = ActionIcon.SEND
 
@@ -90,7 +90,7 @@ class SendMessage(BaseObjectAction[Match, SendMessageData]):
 
 @message_actions
 class MarkMessagesRead(BaseObjectAction[Match, EmptyActionData]):
-    action_key = "mark_read"  # type: ignore[assignment]
+    action_key = "mark_read"
     label = "Mark Read"
     icon = ActionIcon.CHECK
 

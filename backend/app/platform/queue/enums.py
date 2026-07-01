@@ -8,6 +8,8 @@ class TaskName(StrEnum):
     REAP_PUSH_TOKEN = auto()
     # Fan-out / broadcast push to many recipients — keeps the request unblocked.
     SEND_PUSH = auto()
+    # Normalize an uploaded image to WebP (worker-driven) — runs in SYSTEM mode.
+    PROCESS_IMAGE = auto()
 
 
 class TaskRoleType(StrEnum):

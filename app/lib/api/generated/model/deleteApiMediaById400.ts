@@ -4,14 +4,14 @@
  * Litestar API
  * OpenAPI spec version: 1.0.0
  */
-import type { AuthOtpStartOtpStart400Extra } from './authOtpStartOtpStart400Extra';
+import type { DeleteApiMediaById400Extra } from './deleteApiMediaById400Extra';
 
 /**
  * Validation Exception
  */
-export type AuthOtpStartOtpStart400 = {
+export type DeleteApiMediaById400 = {
   status_code: number;
   detail: string;
   /** @nullable */
-  extra?: AuthOtpStartOtpStart400Extra;
+  extra?: DeleteApiMediaById400Extra;
 };

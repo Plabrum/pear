@@ -10,12 +10,13 @@ from app.domain.prompts.queries import (
 )
 from app.domain.prompts.schemas import ProfilePrompt, PromptTemplate
 from app.domain.prompts.transformers import (
+    prompt_bundle_media_ids,
     row_to_profile_prompt,
     row_to_prompt_template,
 )
 from app.platform.auth.guards import requires_session
 from app.platform.auth.principal import User
-from app.platform.media.client import BaseMediaClient
+from app.platform.media.service import MediaService
 
 ONBOARDING_PROMPT_COUNT = 5
 
@@ -42,9 +43,14 @@ class ProfilePromptsController(Controller):
     path = "/profile-prompts"
 
     @get("/me", operation_id="getApiProfilePromptsMe")
-    async def own_prompts(self, user: User, transaction: AsyncSession, media: BaseMediaClient) -> list[ProfilePrompt]:
+    async def own_prompts(
+        self, user: User, transaction: AsyncSession, media_service: MediaService
+    ) -> list[ProfilePrompt]:
         bundles = await fetch_own_profile_prompts(transaction, user.id)
-        return [row_to_profile_prompt(prompt, question, responses, media) for prompt, question, responses in bundles]
+        url_by_media = await media_service.resolve_urls_system(prompt_bundle_media_ids(bundles))
+        return [
+            row_to_profile_prompt(prompt, question, responses, url_by_media) for prompt, question, responses in bundles
+        ]
 
 
 prompts_router = Router(

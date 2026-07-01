@@ -22,6 +22,8 @@ from app.domain.photos.models import ProfilePhoto
 from app.domain.profiles.enums import Gender, UserRole
 from app.domain.profiles.models import Profile
 from app.domain.prompts.models import ProfilePrompt, PromptResponse, PromptTemplate
+from app.platform.media.enums import MediaState
+from app.platform.media.models import Media
 
 __all__ = [
     "ActingAs",
@@ -55,6 +57,8 @@ class DomainGraph:
     decision: Decision  # dater_a approved dater_b
     match: Match  # dater_a <-> dater_b
     message: Message  # sent by dater_a in the match
+    approved_media: Media  # READY media backing the approved photo
+    pending_media: Media  # READY media backing the pending (winger-suggested) photo
     approved_photo: ProfilePhoto
     pending_photo: ProfilePhoto
     profile_prompt: ProfilePrompt
@@ -91,6 +95,22 @@ async def _make_dating_profile(session: AsyncSession, *, user: Profile) -> Datin
     session.add(dp)
     await session.flush()
     return dp
+
+
+async def _make_media(session: AsyncSession, *, owner: Profile) -> Media:
+    """A READY media owned by `owner` (file_key + processed WebP), flushed for its id."""
+    file_key = f"{owner.id}/{faker.uuid4()}.jpg"
+    media = Media(
+        owner_id=owner.id,
+        file_key=file_key,
+        processed_key=f"{file_key.rsplit('.', 1)[0]}.webp",
+        mime_type="image/jpeg",
+        file_name="photo.jpg",
+        state=MediaState.READY,
+    )
+    session.add(media)
+    await session.flush()
+    return media
 
 
 async def build_domain_graph(session: AsyncSession) -> DomainGraph:
@@ -156,11 +176,14 @@ async def build_domain_graph(session: AsyncSession) -> DomainGraph:
     )
     session.add(message)
 
-    # ── Photos for dater_a: one approved, one pending ────────────────────────
+    # ── Media + photos for dater_a: one approved, one pending ────────────────
+    # dater_a owns the bytes; the winger only suggests the (already-owner) media.
+    approved_media = await _make_media(session, owner=dater_a)
+    pending_media = await _make_media(session, owner=dater_a)
     approved_photo = ProfilePhoto(
         dating_profile_id=dating_profile_a.id,
         suggester_id=None,  # self-uploaded
-        storage_url=faker.image_url(),
+        media_id=approved_media.id,
         display_order=0,
         approved_at=datetime.now(tz=UTC),
     )
@@ -168,7 +191,7 @@ async def build_domain_graph(session: AsyncSession) -> DomainGraph:
     pending_photo = ProfilePhoto(
         dating_profile_id=dating_profile_a.id,
         suggester_id=winger.id,
-        storage_url=faker.image_url(),
+        media_id=pending_media.id,
         display_order=1,
         approved_at=None,
     )
@@ -208,6 +231,8 @@ async def build_domain_graph(session: AsyncSession) -> DomainGraph:
         decision=decision,
         match=match,
         message=message,
+        approved_media=approved_media,
+        pending_media=pending_media,
         approved_photo=approved_photo,
         pending_photo=pending_photo,
         profile_prompt=profile_prompt,

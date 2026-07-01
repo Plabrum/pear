@@ -45,20 +45,7 @@ class LogoutIn(msgspec.Struct, rename="camel"):
     refresh_token: str
 
 
-# ── Login-method request shapes (OTP / Apple / magic link) ────────────────────
-
-
-class OtpStartIn(msgspec.Struct, rename="camel"):
-    """`POST /auth/otp/start` body: the E.164 phone to send a code to."""
-
-    phone: str
-
-
-class OtpCheckIn(msgspec.Struct, rename="camel"):
-    """`POST /auth/otp/check` body: the phone + the code the user entered."""
-
-    phone: str
-    code: str
+# ── Login-method request shapes (Apple / magic link) ──────────────────────────
 
 
 class AppleIn(msgspec.Struct, rename="camel"):

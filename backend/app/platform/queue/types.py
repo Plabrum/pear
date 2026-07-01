@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.config import Config
 from app.platform.comms.clients.email import BaseEmailClient
+from app.platform.media.client import BaseMediaClient
 from app.platform.push.client import BasePushClient
 
 
@@ -16,3 +17,4 @@ class AppContext(Context):
     queue: Required[Queue]
     email_client: Required[BaseEmailClient]
     push_client: Required[BasePushClient]
+    media_client: Required[BaseMediaClient]

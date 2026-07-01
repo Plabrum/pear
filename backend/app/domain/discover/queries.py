@@ -31,6 +31,7 @@ from app.domain.matches.models import Match
 from app.domain.photos.models import ProfilePhoto
 from app.domain.profiles.models import Profile
 from app.domain.wing_pool.transformers import WingPoolRow
+from app.platform.media.queries import servable_key_expr
 
 # ── Shared scalar expressions ─────────────────────────────────────────────────
 
@@ -50,7 +51,7 @@ def first_photo_expr() -> ColumnElement[Any]:
     Lowest display_order among the candidate's approved photos.
     """
     return (
-        select(ProfilePhoto.storage_url)
+        select(servable_key_expr(ProfilePhoto.media_id))
         .where(
             ProfilePhoto.dating_profile_id == DatingProfile.id,
             ProfilePhoto.approved_at.is_not(None),
@@ -66,13 +67,9 @@ def photos_array_expr() -> ColumnElement[Any]:
     """Correlated subquery: all approved photo URLs ordered by display_order
     (`coalesce(array_agg(... order by ...), '{}')`).
     """
+    ordered_keys = aggregate_order_by(servable_key_expr(ProfilePhoto.media_id), ProfilePhoto.display_order)
     return (
-        select(
-            func.coalesce(
-                func.array_agg(aggregate_order_by(ProfilePhoto.storage_url, ProfilePhoto.display_order)),
-                literal_column("'{}'"),
-            )
-        )
+        select(func.coalesce(func.array_agg(ordered_keys), literal_column("'{}'")))
         .where(
             ProfilePhoto.dating_profile_id == DatingProfile.id,
             ProfilePhoto.approved_at.is_not(None),

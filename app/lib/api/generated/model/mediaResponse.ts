@@ -5,7 +5,8 @@
  * OpenAPI spec version: 1.0.0
  */
 
-/**
- * @nullable
- */
-export type PostApiPhotosUploadUrl400Extra = { [key: string]: unknown } | unknown[] | null;
+export interface MediaResponse {
+  id: string;
+  state: string;
+  url: string;
+}

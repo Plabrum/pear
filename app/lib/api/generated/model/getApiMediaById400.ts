@@ -4,14 +4,14 @@
  * Litestar API
  * OpenAPI spec version: 1.0.0
  */
-import type { PostApiPhotosUploadUrl400Extra } from './postApiPhotosUploadUrl400Extra';
+import type { GetApiMediaById400Extra } from './getApiMediaById400Extra';
 
 /**
  * Validation Exception
  */
-export type PostApiPhotosUploadUrl400 = {
+export type GetApiMediaById400 = {
   status_code: number;
   detail: string;
   /** @nullable */
-  extra?: PostApiPhotosUploadUrl400Extra;
+  extra?: GetApiMediaById400Extra;
 };

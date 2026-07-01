@@ -4,13 +4,8 @@ output "instance_id" {
 }
 
 output "public_ip" {
-  description = "Instance public IP (ephemeral - prefer eip_public_ip)"
+  description = "Instance public IP (ephemeral - the api.<domain> A-record points at this)"
   value       = aws_instance.app.public_ip
-}
-
-output "eip_public_ip" {
-  description = "Elastic IP - stable address the api.<domain> A-record points at"
-  value       = aws_eip.app.public_ip
 }
 
 output "app_secrets_arn" {

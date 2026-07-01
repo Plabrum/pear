@@ -36,6 +36,7 @@ from app.platform.auth.middleware import JWTAuthMiddleware
 from app.platform.auth.routes import auth_router
 from app.platform.base.models import BaseDBModel
 from app.platform.base.soft_delete import install_soft_delete_filter
+from app.platform.media.routes import media_router
 from app.platform.queue.config import queue_config
 from app.platform.realtime.routes import realtime_ws
 from app.utils.deps import get_dependencies
@@ -59,12 +60,10 @@ __all__ = ["BaseDBModel", "create_app"]
 
 # Unauthenticated /auth/* routes (the login-method + refresh endpoints). These
 # must NOT be rejected by the ES256 middleware for lacking a bearer token. New
-# public paths are appended here (e.g. /auth/otp/start). Note /auth/me and
+# public paths are appended here (e.g. /auth/apple). Note /auth/me and
 # /auth/logout are intentionally ABSENT — they require a token.
 AUTH_PUBLIC_PATHS = [
     "^/auth/refresh$",
-    "^/auth/otp/start$",
-    "^/auth/otp/check$",
     "^/auth/apple$",
     "^/auth/magic-link/request$",
     "^/auth/magic-link/verify$",
@@ -178,6 +177,7 @@ def create_app(
             winger_activity_router,
             winger_tabs_router,
             reports_router,
+            media_router,
         ],
     )
 

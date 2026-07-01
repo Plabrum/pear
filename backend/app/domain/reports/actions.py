@@ -33,7 +33,7 @@ class FileReport(BaseTopLevelAction[CreateReportData]):
          profile leaves the reporter's swipe queue.
     """
 
-    action_key = "file"  # type: ignore[assignment]
+    action_key = "file"
     label = "Report Profile"
     icon = ActionIcon.BLOCK
 

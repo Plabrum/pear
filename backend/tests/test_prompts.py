@@ -44,7 +44,6 @@ from app.platform.state_machine.machine import StateMachineService
 from app.platform.state_machine.models import StateTransitionLog
 from app.platform.state_machine.roles import Role
 from tests.fixtures.graph import DomainGraph
-from tests.fixtures.media import local_media
 
 # `asyncio_mode = "auto"` (pyproject.toml) runs `async def test_*` without a marker.
 
@@ -82,7 +81,8 @@ async def test_onboarding_prompt_templates_limit(graph: DomainGraph, db_session:
 
 async def test_get_own_profile_prompts_bundle(graph: DomainGraph, db_session: AsyncSession) -> None:
     bundles = await fetch_own_profile_prompts(db_session, graph.dater_a.id)
-    dtos = [row_to_profile_prompt(p, q, r, local_media()) for p, q, r in bundles]
+    # The winger author has no avatar, so an empty resolved-URL map is correct.
+    dtos = [row_to_profile_prompt(p, q, r, {}) for p, q, r in bundles]
 
     # graph seeds 1 prompt with 1 (pending) response carrying its winger author.
     assert len(dtos) == 1

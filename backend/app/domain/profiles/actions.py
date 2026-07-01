@@ -31,7 +31,7 @@ _PROFILE_FIELD_MAP = {
     "gender": "gender",
     "role": "role",
     "pushToken": "push_token",
-    "avatarUrl": "avatar_url",
+    "avatarMediaId": "avatar_media_id",
 }
 
 _DATING_PROFILE_FIELD_MAP = {
@@ -74,7 +74,7 @@ dating_profile_actions = action_group_factory(
 
 @profile_actions
 class UpdateProfile(BaseObjectAction[Profile, UpdateProfileData]):
-    action_key = "update"  # type: ignore[assignment]
+    action_key = "update"
     label = "Edit Profile"
     icon = ActionIcon.EDIT
 
@@ -104,7 +104,7 @@ class UpdateProfile(BaseObjectAction[Profile, UpdateProfileData]):
 
 @dating_profile_actions
 class CreateDatingProfile(BaseTopLevelAction[CreateDatingProfileData]):
-    action_key = "create"  # type: ignore[assignment]
+    action_key = "create"
     label = "Create Dating Profile"
     icon = ActionIcon.ADD
 
@@ -149,7 +149,7 @@ class CreateDatingProfile(BaseTopLevelAction[CreateDatingProfileData]):
 
 @dating_profile_actions
 class UpdateDatingProfile(BaseObjectAction[DatingProfile, UpdateDatingProfileData]):
-    action_key = "update"  # type: ignore[assignment]
+    action_key = "update"
     label = "Edit Dating Profile"
     icon = ActionIcon.EDIT
 

@@ -5,7 +5,7 @@
  * OpenAPI spec version: 1.0.0
  */
 
-export interface AvatarUploadUrlData {
-  filename: string;
-  contentType?: string;
-}
+/**
+ * @nullable
+ */
+export type PostApiMediaUploadUrl400Extra = { [key: string]: unknown } | unknown[] | null;

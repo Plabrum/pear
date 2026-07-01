@@ -16,7 +16,7 @@ class AuthIdentity(BaseDBModel):
     __table_args__ = (sa.UniqueConstraint("provider", "provider_subject", name="uq_auth_identity_provider_subject"),)
 
     provider: Mapped[AuthProvider] = mapped_column(TextEnum(AuthProvider), nullable=False)
-    # phone -> E.164 number; apple -> Apple stable `sub`; email -> normalized email.
+    # apple -> Apple stable `sub`; email -> normalized email.
     provider_subject: Mapped[str] = mapped_column(sa.Text, nullable=False)
     profile_id: Mapped[UUID] = mapped_column(
         sa.ForeignKey("profiles.id", ondelete="CASCADE"),

@@ -24,7 +24,10 @@ class Profile(BaseSchema):
 
 
 class UpdateProfileData(BaseSchema):
-    """PATCH /profiles/me body. Every field omittable; `UNSET` => leave as-is."""
+    """PATCH /profiles/me body. Every field omittable; `UNSET` => leave as-is.
+
+    `avatarMediaId` references a platform Media the caller created+uploaded via the
+    media endpoints; the read paths resolve it to a public URL (`avatarUrl`)."""
 
     chosenName: str | UnsetType = UNSET
     dateOfBirth: str | None | UnsetType = UNSET
@@ -32,7 +35,7 @@ class UpdateProfileData(BaseSchema):
     gender: Gender | None | UnsetType = UNSET
     role: UserRole | UnsetType = UNSET
     pushToken: str | None | UnsetType = UNSET
-    avatarUrl: str | None | UnsetType = UNSET
+    avatarMediaId: UUID | None | UnsetType = UNSET
 
 
 # ── Dating profile (own) ─────────────────────────────────────────────────────

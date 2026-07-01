@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from abc import ABC
-from enum import Enum, StrEnum
+from enum import Enum
 from typing import Any, ClassVar
 from uuid import UUID
 
@@ -42,7 +42,7 @@ class BaseAction[O: BaseDBModel, D: Struct](ABC):
     Use BaseTopLevelAction for actions that don't require an existing object (e.g., create).
     """
 
-    action_key: ClassVar[StrEnum]
+    action_key: ClassVar[str]
     label: ClassVar[str]
     is_bulk_allowed: ClassVar[bool] = False
     priority: ClassVar[int] = 100

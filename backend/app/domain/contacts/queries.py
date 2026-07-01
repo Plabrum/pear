@@ -18,6 +18,7 @@ from app.domain.contacts.transformers import (
 from app.domain.dating_profiles.models import DatingProfile
 from app.domain.decisions.models import Decision
 from app.domain.profiles.models import Profile
+from app.platform.media.queries import public_key_expr
 
 
 async def fetch_push_token(db: AsyncSession, user_id: UUID) -> str | None:
@@ -34,7 +35,7 @@ async def fetch_active_wingpeople(db: AsyncSession, dater_id: UUID) -> list[Wing
                 Contact.winger_id,
                 winger.chosen_name,
                 winger.gender,
-                winger.avatar_url,
+                public_key_expr(winger.avatar_media_id).label("winger_avatar_url"),
             )
             .outerjoin(winger, winger.id == Contact.winger_id)
             .where(
@@ -127,7 +128,7 @@ async def fetch_winging_for(db: AsyncSession, winger_id: UUID) -> list[WingingFo
                 Contact.created_at,
                 Contact.user_id,
                 dater.chosen_name,
-                dater.avatar_url,
+                public_key_expr(dater.avatar_media_id).label("dater_avatar_url"),
                 DatingProfile.interests,
                 DatingProfile.bio,
             )

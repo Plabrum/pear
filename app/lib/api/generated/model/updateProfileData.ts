@@ -14,5 +14,5 @@ export interface UpdateProfileData {
   gender?: Gender | null;
   role?: UserRole;
   pushToken?: string | null;
-  avatarUrl?: string | null;
+  avatarMediaId?: string | null;
 }

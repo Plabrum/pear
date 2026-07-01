@@ -5,7 +5,7 @@
  * OpenAPI spec version: 1.0.0
  */
 
-/**
- * @nullable
- */
-export type AuthOtpStartOtpStart400Extra = { [key: string]: unknown } | unknown[] | null;
+export interface PresignedUploadRequest {
+  fileName: string;
+  contentType?: string;
+}

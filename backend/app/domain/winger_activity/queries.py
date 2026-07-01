@@ -15,6 +15,7 @@ from app.domain.matches.models import Match
 from app.domain.photos.models import ProfilePhoto
 from app.domain.profiles.models import Profile
 from app.domain.prompts.models import ProfilePrompt, PromptResponse, PromptTemplate
+from app.platform.media.queries import servable_key_expr
 
 
 @dataclass
@@ -131,7 +132,7 @@ async def fetch_photos_activity(db: AsyncSession, winger_id: UUID, limit: int) -
                 ProfilePhoto.id,
                 DatingProfile.user_id,
                 Profile.chosen_name,
-                ProfilePhoto.storage_url,
+                servable_key_expr(ProfilePhoto.media_id).label("storage_url"),
                 ProfilePhoto.approved_at,
                 ProfilePhoto.rejected_at,
                 ProfilePhoto.created_at,

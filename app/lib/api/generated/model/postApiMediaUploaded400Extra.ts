@@ -8,7 +8,4 @@
 /**
  * @nullable
  */
-export type PostApiProfilesMeAvatarUploadUrl400Extra =
-  | { [key: string]: unknown }
-  | unknown[]
-  | null;
+export type PostApiMediaUploaded400Extra = { [key: string]: unknown } | unknown[] | null;

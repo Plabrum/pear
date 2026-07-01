@@ -132,9 +132,3 @@ variable "extra_env" {
   type    = map(string)
   default = {}
 }
-
-variable "betterstack_otlp_ingesting_host" { type = string }
-variable "betterstack_otlp_source_token" {
-  type      = string
-  sensitive = true
-}

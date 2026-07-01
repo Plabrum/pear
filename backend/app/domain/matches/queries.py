@@ -14,6 +14,7 @@ from app.domain.messages.models import Message
 from app.domain.photos.models import ProfilePhoto
 from app.domain.profiles.models import Profile
 from app.domain.prompts.models import ProfilePrompt, PromptTemplate
+from app.platform.media.queries import servable_key_expr
 
 
 async def fetch_matches(db: AsyncSession, viewer_id: UUID) -> list[MatchRow]:
@@ -32,7 +33,7 @@ async def fetch_matches(db: AsyncSession, viewer_id: UUID) -> list[MatchRow]:
         else_=func.extract("year", func.age(Profile.date_of_birth)).cast(Integer),
     )
     first_photo_expr = (
-        select(ProfilePhoto.storage_url)
+        select(servable_key_expr(ProfilePhoto.media_id))
         .where(
             and_(
                 ProfilePhoto.dating_profile_id == DatingProfile.id,

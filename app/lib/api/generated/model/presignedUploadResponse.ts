@@ -5,8 +5,8 @@
  * OpenAPI spec version: 1.0.0
  */
 
-export interface PhotoUploadUrlData {
-  datingProfileId: string;
-  filename: string;
-  contentType?: string;
+export interface PresignedUploadResponse {
+  mediaId: string;
+  uploadUrl: string;
+  key: string;
 }

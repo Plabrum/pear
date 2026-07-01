@@ -4,25 +4,17 @@
  * Litestar API
  * OpenAPI spec version: 1.0.0
  */
-import { useMutation, useSuspenseQuery } from '@tanstack/react-query';
+import { useSuspenseQuery } from '@tanstack/react-query';
 import type {
   DataTag,
-  MutationFunction,
   QueryClient,
   QueryFunction,
   QueryKey,
-  UseMutationOptions,
-  UseMutationResult,
   UseSuspenseQueryOptions,
   UseSuspenseQueryResult,
 } from '@tanstack/react-query';
 
-import type {
-  Photo,
-  PhotoUploadUrlData,
-  PhotoUploadUrlResponse,
-  PostApiPhotosUploadUrl400,
-} from '../model';
+import type { Photo } from '../model';
 
 import { pearFetch } from '../../http';
 
@@ -135,87 +127,3 @@ export function useGetApiPhotosMeSuspense<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
-
-/**
- * @summary PhotoUploadUrl
- */
-export const getPostApiPhotosUploadUrlUrl = () => {
-  return `/api/photos/upload-url`;
-};
-
-export const postApiPhotosUploadUrl = async (
-  photoUploadUrlData: PhotoUploadUrlData,
-  options?: RequestInit
-): Promise<PhotoUploadUrlResponse> => {
-  return pearFetch<PhotoUploadUrlResponse>(getPostApiPhotosUploadUrlUrl(), {
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(photoUploadUrlData),
-  });
-};
-
-export const getPostApiPhotosUploadUrlMutationOptions = <
-  TError = PostApiPhotosUploadUrl400,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof postApiPhotosUploadUrl>>,
-    TError,
-    { data: PhotoUploadUrlData },
-    TContext
-  >;
-  request?: SecondParameter<typeof pearFetch>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof postApiPhotosUploadUrl>>,
-  TError,
-  { data: PhotoUploadUrlData },
-  TContext
-> => {
-  const mutationKey = ['postApiPhotosUploadUrl'];
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof postApiPhotosUploadUrl>>,
-    { data: PhotoUploadUrlData }
-  > = (props) => {
-    const { data } = props ?? {};
-
-    return postApiPhotosUploadUrl(data, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type PostApiPhotosUploadUrlMutationResult = NonNullable<
-  Awaited<ReturnType<typeof postApiPhotosUploadUrl>>
->;
-export type PostApiPhotosUploadUrlMutationBody = PhotoUploadUrlData;
-export type PostApiPhotosUploadUrlMutationError = PostApiPhotosUploadUrl400;
-
-/**
- * @summary PhotoUploadUrl
- */
-export const usePostApiPhotosUploadUrl = <TError = PostApiPhotosUploadUrl400, TContext = unknown>(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof postApiPhotosUploadUrl>>,
-      TError,
-      { data: PhotoUploadUrlData },
-      TContext
-    >;
-    request?: SecondParameter<typeof pearFetch>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof postApiPhotosUploadUrl>>,
-  TError,
-  { data: PhotoUploadUrlData },
-  TContext
-> => {
-  return useMutation(getPostApiPhotosUploadUrlMutationOptions(options), queryClient);
-};

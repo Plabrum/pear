@@ -75,8 +75,6 @@ SES_CONFIGURATION_SET=${ses_config_set}
 FRONTEND_ORIGIN=${frontend_origin}
 SUCCESS_REDIRECT_URL=${frontend_origin}
 API_BASE_URL=${api_base_url}
-BETTERSTACK_OTLP_INGESTING_HOST=${otlp_host}
-BETTERSTACK_OTLP_SOURCE_TOKEN=${otlp_token}
 %{ for k, v in extra_env ~}
 ${k}=${v}
 %{ endfor ~}

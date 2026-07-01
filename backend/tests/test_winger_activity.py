@@ -127,9 +127,10 @@ async def test_fetch_photos_activity(graph: DomainGraph, db_session: AsyncSessio
 
     dto = await transform_photo(row, _media)
     assert dto.daterId == graph.dater_a.id
-    # storageUrl is now a presigned GET URL wrapping the stored key.
+    # storageUrl is a presigned GET URL wrapping the media's servable key. The
+    # pending photo's media is READY, so its processed (WebP) key is servable.
     assert dto.storageUrl.startswith("http")
-    assert graph.pending_photo.storage_url in dto.storageUrl
+    assert graph.pending_media.processed_key in dto.storageUrl
     assert dto.status == "pending"
 
 

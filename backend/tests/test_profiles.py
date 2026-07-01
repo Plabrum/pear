@@ -31,10 +31,15 @@ from app.domain.profiles.transformers import (
     bundle_to_public_profile,
     compute_ripeness,
     dating_profile_to_own,
+    own_media_ids,
+    public_media_ids,
     row_to_profile,
 )
 from app.platform.actions.deps import ActionDeps
 from app.platform.auth.principal import User
+from app.platform.media.enums import MediaState
+from app.platform.media.models import Media
+from app.platform.media.service import MediaService
 from app.platform.state_machine.machine import StateMachineService
 from app.platform.state_machine.roles import Role
 from tests.fixtures.graph import DomainGraph
@@ -62,7 +67,7 @@ def _deps(session: AsyncSession, *, user_id, role: Role = Role.DATER) -> ActionD
 async def test_get_own_profile(graph: DomainGraph, db_session: AsyncSession) -> None:
     row = await fetch_profile(db_session, graph.dater_a.id)
     assert row is not None
-    dto = row_to_profile(row, local_media())
+    dto = row_to_profile(row, {})
 
     assert dto.id == graph.dater_a.id
     assert dto.chosenName == graph.dater_a.chosen_name
@@ -75,7 +80,8 @@ async def test_get_own_dating_profile_bundle(graph: DomainGraph, db_session: Asy
     bundle = await fetch_own_dating_profile(db_session, graph.dater_a.id)
     assert bundle is not None
     base, photos, prompts = bundle
-    dto = await dating_profile_to_own(base, photos, prompts, local_media())
+    url_by_media = await MediaService(db_session, local_media()).resolve_urls_system(own_media_ids(photos, prompts))
+    dto = dating_profile_to_own(base, photos, prompts, url_by_media)
 
     assert dto.userId == graph.dater_a.id
     assert dto.city == City.BOSTON
@@ -85,6 +91,10 @@ async def test_get_own_dating_profile_bundle(graph: DomainGraph, db_session: Asy
     assert [p.displayOrder for p in dto.photos] == [0, 1]
     approved, pending = dto.photos
     assert approved.approvedAt is not None and approved.suggester is None
+    # The approved photo resolved to its READY processed (WebP) media URL.
+    assert approved.storageUrl.startswith("http")
+    processed_key = graph.approved_media.processed_key
+    assert processed_key is not None and processed_key in approved.storageUrl
     assert pending.approvedAt is None and pending.suggesterId == graph.winger.id
     assert pending.suggester is not None
     assert pending.suggester.chosenName == graph.winger.chosen_name
@@ -108,7 +118,8 @@ async def test_get_public_profile(graph: DomainGraph, db_session: AsyncSession) 
     bundle = await fetch_public_profile(db_session, graph.dater_b.id)
     assert bundle is not None
     profile, base, photos, prompts = bundle
-    dto = await bundle_to_public_profile(profile, base, photos, prompts, local_media())
+    url_by_media = await MediaService(db_session, local_media()).resolve_urls_system(public_media_ids(profile, photos))
+    dto = bundle_to_public_profile(profile, base, photos, prompts, url_by_media)
 
     assert dto.id == graph.dater_b.id
     assert dto.chosenName == graph.dater_b.chosen_name
@@ -120,6 +131,51 @@ async def test_get_public_profile(graph: DomainGraph, db_session: AsyncSession) 
 
 async def test_get_public_profile_missing_returns_none(db_session: AsyncSession) -> None:
     assert await fetch_public_profile(db_session, uuid4()) is None
+
+
+async def test_public_profile_only_serves_approved_photos(graph: DomainGraph, db_session: AsyncSession) -> None:
+    # dater_a has 1 approved + 1 pending photo; a public read drops the pending one,
+    # so only the approved photo's media id resolves to a URL.
+    bundle = await fetch_public_profile(db_session, graph.dater_a.id)
+    assert bundle is not None
+    profile, base, photos, prompts = bundle
+
+    # The query already dropped the pending photo (approved-only).
+    assert all(photo.approved_at is not None for photo, _ in photos)
+
+    url_by_media = await MediaService(db_session, local_media()).resolve_urls_system(public_media_ids(profile, photos))
+    dto = bundle_to_public_profile(profile, base, photos, prompts, url_by_media)
+    assert dto.datingProfile is not None
+    # Exactly the one approved photo is visible, with a resolved URL.
+    assert len(dto.datingProfile.photos) == 1
+    assert dto.datingProfile.photos[0].approvedAt is not None
+    assert dto.datingProfile.photos[0].storageUrl.startswith("http")
+
+
+async def test_avatar_media_id_resolves_to_url_on_own_profile(graph: DomainGraph, db_session: AsyncSession) -> None:
+    # Point the profile's avatar at a READY media; the own-profile read resolves it
+    # to its processed (WebP) URL via the batched system-mode resolve.
+    avatar = Media(
+        owner_id=graph.dater_a.id,
+        file_key=f"{graph.dater_a.id}/a.jpg",
+        processed_key=f"{graph.dater_a.id}/a.webp",
+        mime_type="image/jpeg",
+        file_name="a.jpg",
+        state=MediaState.READY,
+    )
+    db_session.add(avatar)
+    await db_session.flush()
+
+    row = await fetch_profile(db_session, graph.dater_a.id)
+    assert row is not None
+    row.avatar_media_id = avatar.id
+    await db_session.flush()
+
+    url_by_media = await MediaService(db_session, local_media()).resolve_urls_system([avatar.id])
+    dto = row_to_profile(row, url_by_media)
+    assert dto.avatarUrl is not None
+    assert dto.avatarUrl.startswith("http")
+    assert avatar.processed_key is not None and avatar.processed_key in dto.avatarUrl
 
 
 def test_compute_ripeness_matches_hono_formula() -> None:
@@ -149,7 +205,27 @@ async def test_update_profile_mutates_row(graph: DomainGraph, db_session: AsyncS
     assert refreshed.chosen_name == "Renamed"
     assert refreshed.push_token == "ExpoToken123"
     # Unset fields are left untouched (PATCH semantics).
-    assert data.avatarUrl is UNSET
+    assert data.avatarMediaId is UNSET
+
+
+async def test_update_profile_sets_avatar_media_id(graph: DomainGraph, db_session: AsyncSession) -> None:
+    # The avatar update sets the FK to a platform Media the caller owns.
+    avatar = Media(
+        owner_id=graph.dater_a.id,
+        file_key=f"{graph.dater_a.id}/av.jpg",
+        mime_type="image/jpeg",
+        file_name="av.jpg",
+    )
+    db_session.add(avatar)
+    await db_session.flush()
+
+    deps = _deps(db_session, user_id=graph.dater_a.id)
+    data = UpdateProfileData(avatarMediaId=avatar.id)
+    await UpdateProfile.execute(graph.dater_a, data, db_session, deps)
+
+    refreshed = await fetch_profile(db_session, graph.dater_a.id)
+    assert refreshed is not None
+    assert refreshed.avatar_media_id == avatar.id
 
 
 async def test_update_dating_profile_mutates_row(graph: DomainGraph, db_session: AsyncSession) -> None:

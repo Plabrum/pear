@@ -10,10 +10,6 @@ terraform {
       source  = "hashicorp/random"
       version = "~> 3.0"
     }
-    logtail = {
-      source  = "BetterStackHQ/logtail"
-      version = "~> 0.8"
-    }
   }
 
   # Backend config is passed via -backend-config flags in CI (terraform.yml).
@@ -32,18 +28,6 @@ provider "aws" {
       ManagedBy   = "terraform"
     }
   }
-}
-
-# BetterStack/logtail is optional so `terraform validate`/`plan` works without a
-# token. Production should set var.logtail_api_token to enable OTLP logging.
-provider "logtail" {
-  api_token = var.logtail_api_token
-}
-
-resource "logtail_source" "api" {
-  count    = var.logtail_api_token != "" ? 1 : 0
-  name     = "${var.project_name}-${var.environment}"
-  platform = "open_telemetry"
 }
 
 # -- EC2 stack (deploy_target = "ec2") -----------------------------------------
@@ -67,9 +51,6 @@ module "ec2" {
   instance_type     = var.instance_type
   key_pair_name     = var.key_pair_name
   ssh_allowed_cidrs = var.ssh_allowed_cidrs
-
-  betterstack_otlp_ingesting_host = try(logtail_source.api[0].ingesting_host, "")
-  betterstack_otlp_source_token   = try(logtail_source.api[0].token, "")
 }
 
 # -- ECS stack (deploy_target = "ecs") -----------------------------------------
@@ -90,9 +71,6 @@ module "ecs" {
   image_tag   = var.image_tag
   db_password = var.db_password
   extra_env   = var.extra_env
-
-  betterstack_otlp_ingesting_host = try(logtail_source.api[0].ingesting_host, "")
-  betterstack_otlp_source_token   = try(logtail_source.api[0].token, "")
 }
 
 # NOTE: Pear is iOS-only - there is no web frontend, so no Vercel provider,

@@ -8,4 +8,4 @@
 /**
  * @nullable
  */
-export type AuthOtpCheckOtpCheck400Extra = { [key: string]: unknown } | unknown[] | null;
+export type GetApiMediaById400Extra = { [key: string]: unknown } | unknown[] | null;

@@ -12,7 +12,7 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from litestar import Request
 from litestar.di import Provide
 from litestar.testing import AsyncTestClient
-from sqlalchemy import func, select, text
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import TestConfig
@@ -21,7 +21,7 @@ from app.platform.auth.deps import _magic_link_store_for
 from app.platform.auth.enums import AuthProvider
 from app.platform.auth.magic_link import InMemoryMagicLinkStore
 from app.platform.auth.models import AuthIdentity, RefreshToken
-from app.platform.auth.tokens import TokenService, hash_refresh_token
+from app.platform.auth.tokens import hash_refresh_token
 from app.platform.comms.models.messages import Message
 from app.platform.queue.enums import TaskName
 
@@ -127,7 +127,7 @@ async def auth_app(
     # the connection is the NON-superuser `pear_app` role (no `SET ROLE`), and for
     # an authenticated request we set `app.user_id` + pin the escape OFF.
     #
-    # Unauthenticated login routes (otp/check, apple, magic-link) set no
+    # Unauthenticated login routes (apple, magic-link) set no
     # `app.user_id`; their first-login `profiles` INSERT succeeds because
     # `AuthService.find_or_create_identity` turns on the honored
     # `app.is_system_mode` escape itself — a genuine bypass, NOT a superuser
@@ -168,86 +168,29 @@ async def auth_app(
 # ── Small request helpers ──────────────────────────────────────────────────────
 
 
-async def _otp_login(client: AsyncTestClient, phone: str, code: str | None = None) -> Any:
-    code = code if code is not None else client.config.DEV_OTP_CODE  # type: ignore[attr-defined]
-    return await client.post("/auth/otp/check", json={"phone": phone, "code": code})
+def _magic_store(client: AsyncTestClient) -> InMemoryMagicLinkStore:
+    """Reach into the per-config memoized in-memory store to read the minted token."""
+    store = _magic_link_store_for(client.config)  # type: ignore[attr-defined]
+    assert isinstance(store, InMemoryMagicLinkStore)
+    return store
+
+
+def _token_for_email(store: InMemoryMagicLinkStore, email: str) -> str:
+    for token, (bound_email, _exp) in store._tokens.items():  # type: ignore[attr-defined]
+        if bound_email == email:
+            return token
+    raise AssertionError(f"no magic-link token minted for {email}")
+
+
+async def _magic_login(client: AsyncTestClient, email: str) -> Any:
+    """Request + verify a magic link, returning the verify response (issues a session)."""
+    await client.post("/auth/magic-link/request", json={"email": email})
+    token = _token_for_email(_magic_store(client), email)
+    return await client.post("/auth/magic-link/verify", json={"token": token})
 
 
 def _auth_header(access_token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {access_token}"}
-
-
-# ── OTP ────────────────────────────────────────────────────────────────────────
-
-
-async def test_otp_start_returns_204(auth_app: AsyncTestClient) -> None:
-    resp = await auth_app.post("/auth/otp/start", json={"phone": "+15551230001"})
-    assert resp.status_code == 204
-
-
-async def test_otp_check_happy_path_creates_profile_and_identity(auth_app: AsyncTestClient) -> None:
-    phone = "+15551230002"
-    resp = await _otp_login(auth_app, phone)
-    assert resp.status_code == 201, resp.text
-
-    body = resp.json()
-    assert body["accessToken"] and body["refreshToken"]
-    assert body["user"]["id"]
-    # A bootstrap profile carries the model's NOT-NULL server default role ('dater');
-    # onboarding may later switch it to 'winger'.
-    assert body["user"]["role"] == "dater"
-
-    # The access token is a real ES256 JWT whose sub == the new profile id.
-    claims = TokenService(db=None, config=auth_app.config).verify_access_token(body["accessToken"])  # type: ignore[arg-type,attr-defined]
-    assert claims["sub"] == body["user"]["id"]
-
-    db: AsyncSession = auth_app.db_session  # type: ignore[attr-defined]
-    # A phone identity row was bootstrapped with the E.164 subject.
-    identity = (
-        await db.execute(
-            select(AuthIdentity).where(
-                AuthIdentity.provider == AuthProvider.PHONE,
-                AuthIdentity.provider_subject == phone,
-            )
-        )
-    ).scalar_one()
-    assert str(identity.profile_id) == body["user"]["id"]
-
-    # A refresh token row was persisted as a SHA-256 hash (never the raw value).
-    refresh_hash = hash_refresh_token(body["refreshToken"])
-    row = (await db.execute(select(RefreshToken).where(RefreshToken.token_hash == refresh_hash))).scalar_one()
-    assert row.revoked is False
-
-
-async def test_otp_check_is_idempotent_for_same_phone(auth_app: AsyncTestClient) -> None:
-    phone = "+15551230003"
-    first = (await _otp_login(auth_app, phone)).json()
-    second = (await _otp_login(auth_app, phone)).json()
-    # Same phone -> same profile (find-or-create), distinct refresh tokens.
-    assert first["user"]["id"] == second["user"]["id"]
-    assert first["refreshToken"] != second["refreshToken"]
-
-
-async def test_otp_check_wrong_code_rejected(auth_app: AsyncTestClient) -> None:
-    resp = await _otp_login(auth_app, "+15551230004", code="111111")
-    assert resp.status_code == 401
-    db: AsyncSession = auth_app.db_session  # type: ignore[attr-defined]
-    # No identity created on a failed verification.
-    count = (
-        await db.execute(
-            select(func.count()).select_from(AuthIdentity).where(AuthIdentity.provider_subject == "+15551230004")
-        )
-    ).scalar_one()
-    assert count == 0
-
-
-async def test_otp_start_rate_limited_after_budget(auth_app: AsyncTestClient) -> None:
-    phone = "+15551230005"
-    # Default in-memory limiter budget is 5 per window.
-    statuses = [(await auth_app.post("/auth/otp/start", json={"phone": phone})).status_code for _ in range(5)]
-    assert statuses == [204, 204, 204, 204, 204]
-    over = await auth_app.post("/auth/otp/start", json={"phone": phone})
-    assert over.status_code == 429
 
 
 # ── Apple ──────────────────────────────────────────────────────────────────────
@@ -332,20 +275,6 @@ async def test_apple_tampered_signature_rejected(auth_app: AsyncTestClient, appl
 # ── Magic link ─────────────────────────────────────────────────────────────────
 
 
-def _magic_store(client: AsyncTestClient) -> InMemoryMagicLinkStore:
-    """Reach into the per-config memoized in-memory store to read the minted token."""
-    store = _magic_link_store_for(client.config)  # type: ignore[attr-defined]
-    assert isinstance(store, InMemoryMagicLinkStore)
-    return store
-
-
-def _token_for_email(store: InMemoryMagicLinkStore, email: str) -> str:
-    for token, (bound_email, _exp) in store._tokens.items():  # type: ignore[attr-defined]
-        if bound_email == email:
-            return token
-    raise AssertionError(f"no magic-link token minted for {email}")
-
-
 async def test_magic_link_request_enqueues_one_email_and_204(auth_app: AsyncTestClient) -> None:
     email = "dater-ml@example.com"
     resp = await auth_app.post("/auth/magic-link/request", json={"email": email})
@@ -428,7 +357,7 @@ async def test_magic_link_verify_redirect_hops_into_app_scheme(auth_app: AsyncTe
 
 
 async def test_refresh_rotates_pair_and_revokes_old(auth_app: AsyncTestClient) -> None:
-    login = (await _otp_login(auth_app, "+15551230010")).json()
+    login = (await _magic_login(auth_app, "refresh-rotate@example.com")).json()
     old_refresh = login["refreshToken"]
 
     rotated = await auth_app.post("/auth/refresh", json={"refreshToken": old_refresh})
@@ -457,7 +386,7 @@ async def test_refresh_rotates_pair_and_revokes_old(auth_app: AsyncTestClient) -
 
 
 async def test_refresh_reuse_detection_revokes_chain(auth_app: AsyncTestClient) -> None:
-    login = (await _otp_login(auth_app, "+15551230011")).json()
+    login = (await _magic_login(auth_app, "refresh-reuse@example.com")).json()
     refresh_1 = login["refreshToken"]
 
     # Rotate once: refresh_1 -> refresh_2 (refresh_1 now revoked).
@@ -488,7 +417,7 @@ async def test_refresh_unknown_token_rejected(auth_app: AsyncTestClient) -> None
 
 
 async def test_me_with_valid_token_returns_user(auth_app: AsyncTestClient) -> None:
-    login = (await _otp_login(auth_app, "+15551230020")).json()
+    login = (await _magic_login(auth_app, "me-valid@example.com")).json()
     resp = await auth_app.get("/auth/me", headers=_auth_header(login["accessToken"]))
     assert resp.status_code == 200, resp.text
     body = resp.json()
@@ -521,14 +450,14 @@ async def test_me_with_expired_access_token_rejected(auth_app: AsyncTestClient) 
 
 
 async def test_me_with_tampered_access_token_rejected(auth_app: AsyncTestClient) -> None:
-    login = (await _otp_login(auth_app, "+15551230021")).json()
+    login = (await _magic_login(auth_app, "me-tampered@example.com")).json()
     tampered = login["accessToken"][:-4] + ("aaaa" if not login["accessToken"].endswith("aaaa") else "bbbb")
     resp = await auth_app.get("/auth/me", headers=_auth_header(tampered))
     assert resp.status_code in (401, 403)
 
 
 async def test_logout_revokes_refresh_token(auth_app: AsyncTestClient) -> None:
-    login = (await _otp_login(auth_app, "+15551230022")).json()
+    login = (await _magic_login(auth_app, "logout-revoke@example.com")).json()
 
     resp = await auth_app.post(
         "/auth/logout",
@@ -551,6 +480,6 @@ async def test_logout_revokes_refresh_token(auth_app: AsyncTestClient) -> None:
 
 
 async def test_logout_requires_access_token(auth_app: AsyncTestClient) -> None:
-    login = (await _otp_login(auth_app, "+15551230023")).json()
+    login = (await _magic_login(auth_app, "logout-requires-token@example.com")).json()
     resp = await auth_app.post("/auth/logout", json={"refreshToken": login["refreshToken"]})
     assert resp.status_code in (401, 403)
