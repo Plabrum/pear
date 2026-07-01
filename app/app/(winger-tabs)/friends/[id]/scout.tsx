@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 
 import { useSwipeDeck } from '@/hooks/use-swipe-deck';
 import { View, Text, Pressable, ScrollView, SafeAreaView } from '@/lib/tw';
@@ -8,18 +9,34 @@ import { PhotoRect } from '@/components/ui/PhotoRect';
 import { Pill } from '@/components/ui/Pill';
 import { Sprout } from '@/components/ui/Sprout';
 import { Sheet } from '@/components/ui/Sheet';
+import { ForwardSheet } from '@/components/ui/ForwardSheet';
 import { KitField, TextareaControl } from '@/lib/forms/fields';
 import { useGetApiProfilesUserIdSuspense } from '@/lib/api/generated/profiles/profiles';
+import { useGetApiWingpeopleSuspense } from '@/lib/api/generated/contacts/contacts';
 import type { SwipeProfile } from '@/lib/api/generated/model';
 import ScreenSuspense from '@/components/ui/ScreenSuspense';
 import { cardButtonShadow } from '@/lib/styles';
+import { colors } from '@/constants/theme';
 
 // ── WingCardView ──────────────────────────────────────────────────────────────
 
-function WingCardView({ card }: { card: SwipeProfile }) {
+function WingCardView({ card, daterId }: { card: SwipeProfile; daterId: string }) {
+  const { data: wingpeopleData } = useGetApiWingpeopleSuspense();
+  const [forwardOpen, setForwardOpen] = useState(false);
+
   return (
     <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-      <PhotoRect uri={card.firstPhoto} ratio={4 / 5} />
+      <View>
+        <PhotoRect uri={card.firstPhoto} ratio={4 / 5} />
+        {wingpeopleData.wingingFor.length > 0 && (
+          <Pressable
+            onPress={() => setForwardOpen(true)}
+            className="absolute top-3 right-3 w-9 h-9 rounded-full justify-center items-center bg-black/40"
+          >
+            <Ionicons name="arrow-redo-outline" size={16} color={colors.white} />
+          </Pressable>
+        )}
+      </View>
       <View className="p-4">
         <Text className="text-3xl font-serif text-fg font-bold">
           {card.chosenName}, {card.age}
@@ -36,6 +53,16 @@ function WingCardView({ card }: { card: SwipeProfile }) {
           <Text className="text-sm text-fg-muted leading-[22px]">{card.bio}</Text>
         )}
       </View>
+      <ForwardSheet
+        visible={forwardOpen}
+        recipientId={card.userId}
+        recipientProfileId={card.profileId}
+        recipientName={card.chosenName}
+        recipientGender={card.gender}
+        wingingFor={wingpeopleData.wingingFor}
+        excludeDaterId={daterId}
+        onClose={() => setForwardOpen(false)}
+      />
     </ScrollView>
   );
 }
@@ -143,7 +170,7 @@ function WingSwipeContent() {
 
       <View className="flex-1">
         {card != null ? (
-          <WingCardView card={card} />
+          <WingCardView card={card} daterId={daterId} />
         ) : (
           <EmptyState daterName={firstName || 'them'} />
         )}

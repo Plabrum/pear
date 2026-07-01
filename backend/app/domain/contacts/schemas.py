@@ -27,6 +27,7 @@ class WingingForDater(BaseSchema):
     avatarUrl: str | None
     interests: list[Interest] | None
     bio: str | None
+    interestedGender: list[Gender] | None
 
 
 # ── Roster rows ──────────────────────────────────────────────────────────────

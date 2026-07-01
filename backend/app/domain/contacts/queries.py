@@ -210,6 +210,7 @@ async def fetch_winging_for(db: AsyncSession, winger_id: Sqid) -> list[WingingFo
                 public_key_expr(dater.avatar_media_id).label("dater_avatar_url"),
                 DatingProfile.interests,
                 DatingProfile.bio,
+                DatingProfile.interested_gender,
             )
             .outerjoin(dater, dater.id == Contact.user_id)
             .outerjoin(DatingProfile, DatingProfile.user_id == Contact.user_id)
@@ -231,8 +232,9 @@ async def fetch_winging_for(db: AsyncSession, winger_id: Sqid) -> list[WingingFo
             dater_avatar_url=avatar,
             dater_interests=list(interests) if interests is not None else None,
             dater_bio=bio,
+            dater_interested_gender=list(interested_gender) if interested_gender is not None else None,
         )
-        for cid, created_at, dater_id, name, avatar, interests, bio in rows
+        for cid, created_at, dater_id, name, avatar, interests, bio, interested_gender in rows
     ]
 
 

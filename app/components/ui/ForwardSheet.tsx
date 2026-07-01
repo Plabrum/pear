@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import type { WingingForRow } from '@/lib/api/generated/model';
+import type { Gender, WingingForRow } from '@/lib/api/generated/model';
 import { useActionExecutor } from '@/hooks/actions/use-action-executor';
 import { useActionFormRenderer } from '@/hooks/actions/use-action-form-renderer';
 import type { ActionDTO } from '@/lib/actions/types';
@@ -30,6 +30,10 @@ type Props = {
   // Dating-profile id of the profile being forwarded — the suggest action target.
   recipientProfileId: string;
   recipientName?: string;
+  // Gender of the profile being forwarded — narrows targets to daters whose
+  // stated preference includes it. A dater with no/empty preference is open
+  // to any gender and is never filtered out.
+  recipientGender?: Gender | null;
   wingingFor: WingingForRow[];
   excludeDaterId?: string;
   onClose: () => void;
@@ -40,6 +44,7 @@ export function ForwardSheet({
   recipientId,
   recipientProfileId,
   recipientName,
+  recipientGender,
   wingingFor,
   excludeDaterId,
   onClose,
@@ -56,9 +61,12 @@ export function ForwardSheet({
       : undefined
   );
 
-  const targets = wingingFor.filter(
-    (r) => r.dater?.id !== excludeDaterId && r.dater?.id !== recipientId
-  );
+  const targets = wingingFor.filter((r) => {
+    if (r.dater?.id === excludeDaterId || r.dater?.id === recipientId) return false;
+    const interestedGender = r.dater?.interestedGender;
+    if (!recipientGender || !interestedGender || interestedGender.length === 0) return true;
+    return interestedGender.includes(recipientGender);
+  });
 
   async function handleNoteSend(note: string | null) {
     if (!pendingDater) return;

@@ -4,17 +4,30 @@
  * Litestar API
  * OpenAPI spec version: 1.0.0
  */
-import { useSuspenseQuery } from '@tanstack/react-query';
+import { useMutation, useSuspenseQuery } from '@tanstack/react-query';
 import type {
   DataTag,
+  MutationFunction,
   QueryClient,
   QueryFunction,
   QueryKey,
+  UseMutationOptions,
+  UseMutationResult,
   UseSuspenseQueryOptions,
   UseSuspenseQueryResult,
 } from '@tanstack/react-query';
 
-import type { HealthHealth200 } from '../model';
+import type {
+  HealthHealth200,
+  NativeBuildFingerprintResponse,
+  PublishUpdateRequest,
+  PublishUpdateResponse,
+  SetNativeBuildFingerprintRequest,
+  UpdatesNativeBuildFingerprintGetNativeBuildFingerprint400,
+  UpdatesNativeBuildFingerprintGetNativeBuildFingerprintParams,
+  UpdatesNativeBuildFingerprintSetNativeBuildFingerprint400,
+  UpdatesPublishPublishUpdate400,
+} from '../model';
 
 import { pearFetch } from '../../http';
 
@@ -123,3 +136,456 @@ export function useHealthHealthSuspense<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary GetManifest
+ */
+export const getUpdatesManifestGetManifestUrl = () => {
+  return `/updates/manifest`;
+};
+
+export const updatesManifestGetManifest = async (options?: RequestInit): Promise<string> => {
+  return pearFetch<string>(getUpdatesManifestGetManifestUrl(), {
+    ...options,
+    method: 'GET',
+  });
+};
+
+export const getUpdatesManifestGetManifestQueryKey = () => {
+  return [`/updates/manifest`] as const;
+};
+
+export const getUpdatesManifestGetManifestSuspenseQueryOptions = <
+  TData = Awaited<ReturnType<typeof updatesManifestGetManifest>>,
+  TError = unknown,
+>(options?: {
+  query?: Partial<
+    UseSuspenseQueryOptions<Awaited<ReturnType<typeof updatesManifestGetManifest>>, TError, TData>
+  >;
+  request?: SecondParameter<typeof pearFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getUpdatesManifestGetManifestQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof updatesManifestGetManifest>>> = ({
+    signal,
+  }) => updatesManifestGetManifest({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseSuspenseQueryOptions<
+    Awaited<ReturnType<typeof updatesManifestGetManifest>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type UpdatesManifestGetManifestSuspenseQueryResult = NonNullable<
+  Awaited<ReturnType<typeof updatesManifestGetManifest>>
+>;
+export type UpdatesManifestGetManifestSuspenseQueryError = unknown;
+
+export function useUpdatesManifestGetManifestSuspense<
+  TData = Awaited<ReturnType<typeof updatesManifestGetManifest>>,
+  TError = unknown,
+>(
+  options: {
+    query: Partial<
+      UseSuspenseQueryOptions<Awaited<ReturnType<typeof updatesManifestGetManifest>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof pearFetch>;
+  },
+  queryClient?: QueryClient
+): UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useUpdatesManifestGetManifestSuspense<
+  TData = Awaited<ReturnType<typeof updatesManifestGetManifest>>,
+  TError = unknown,
+>(
+  options?: {
+    query?: Partial<
+      UseSuspenseQueryOptions<Awaited<ReturnType<typeof updatesManifestGetManifest>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof pearFetch>;
+  },
+  queryClient?: QueryClient
+): UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useUpdatesManifestGetManifestSuspense<
+  TData = Awaited<ReturnType<typeof updatesManifestGetManifest>>,
+  TError = unknown,
+>(
+  options?: {
+    query?: Partial<
+      UseSuspenseQueryOptions<Awaited<ReturnType<typeof updatesManifestGetManifest>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof pearFetch>;
+  },
+  queryClient?: QueryClient
+): UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary GetManifest
+ */
+
+export function useUpdatesManifestGetManifestSuspense<
+  TData = Awaited<ReturnType<typeof updatesManifestGetManifest>>,
+  TError = unknown,
+>(
+  options?: {
+    query?: Partial<
+      UseSuspenseQueryOptions<Awaited<ReturnType<typeof updatesManifestGetManifest>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof pearFetch>;
+  },
+  queryClient?: QueryClient
+): UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getUpdatesManifestGetManifestSuspenseQueryOptions(options);
+
+  const query = useSuspenseQuery(queryOptions, queryClient) as UseSuspenseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary PublishUpdate
+ */
+export const getUpdatesPublishPublishUpdateUrl = () => {
+  return `/updates/publish`;
+};
+
+export const updatesPublishPublishUpdate = async (
+  publishUpdateRequest: PublishUpdateRequest,
+  options?: RequestInit
+): Promise<PublishUpdateResponse> => {
+  return pearFetch<PublishUpdateResponse>(getUpdatesPublishPublishUpdateUrl(), {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(publishUpdateRequest),
+  });
+};
+
+export const getUpdatesPublishPublishUpdateMutationOptions = <
+  TError = UpdatesPublishPublishUpdate400,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updatesPublishPublishUpdate>>,
+    TError,
+    { data: PublishUpdateRequest },
+    TContext
+  >;
+  request?: SecondParameter<typeof pearFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updatesPublishPublishUpdate>>,
+  TError,
+  { data: PublishUpdateRequest },
+  TContext
+> => {
+  const mutationKey = ['updatesPublishPublishUpdate'];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updatesPublishPublishUpdate>>,
+    { data: PublishUpdateRequest }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updatesPublishPublishUpdate(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdatesPublishPublishUpdateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updatesPublishPublishUpdate>>
+>;
+export type UpdatesPublishPublishUpdateMutationBody = PublishUpdateRequest;
+export type UpdatesPublishPublishUpdateMutationError = UpdatesPublishPublishUpdate400;
+
+/**
+ * @summary PublishUpdate
+ */
+export const useUpdatesPublishPublishUpdate = <
+  TError = UpdatesPublishPublishUpdate400,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof updatesPublishPublishUpdate>>,
+      TError,
+      { data: PublishUpdateRequest },
+      TContext
+    >;
+    request?: SecondParameter<typeof pearFetch>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof updatesPublishPublishUpdate>>,
+  TError,
+  { data: PublishUpdateRequest },
+  TContext
+> => {
+  return useMutation(getUpdatesPublishPublishUpdateMutationOptions(options), queryClient);
+};
+/**
+ * @summary GetNativeBuildFingerprint
+ */
+export const getUpdatesNativeBuildFingerprintGetNativeBuildFingerprintUrl = (
+  params: UpdatesNativeBuildFingerprintGetNativeBuildFingerprintParams
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/updates/native-build-fingerprint?${stringifiedParams}`
+    : `/updates/native-build-fingerprint`;
+};
+
+export const updatesNativeBuildFingerprintGetNativeBuildFingerprint = async (
+  params: UpdatesNativeBuildFingerprintGetNativeBuildFingerprintParams,
+  options?: RequestInit
+): Promise<NativeBuildFingerprintResponse> => {
+  return pearFetch<NativeBuildFingerprintResponse>(
+    getUpdatesNativeBuildFingerprintGetNativeBuildFingerprintUrl(params),
+    {
+      ...options,
+      method: 'GET',
+    }
+  );
+};
+
+export const getUpdatesNativeBuildFingerprintGetNativeBuildFingerprintQueryKey = (
+  params?: UpdatesNativeBuildFingerprintGetNativeBuildFingerprintParams
+) => {
+  return [`/updates/native-build-fingerprint`, ...(params ? [params] : [])] as const;
+};
+
+export const getUpdatesNativeBuildFingerprintGetNativeBuildFingerprintSuspenseQueryOptions = <
+  TData = Awaited<ReturnType<typeof updatesNativeBuildFingerprintGetNativeBuildFingerprint>>,
+  TError = UpdatesNativeBuildFingerprintGetNativeBuildFingerprint400,
+>(
+  params: UpdatesNativeBuildFingerprintGetNativeBuildFingerprintParams,
+  options?: {
+    query?: Partial<
+      UseSuspenseQueryOptions<
+        Awaited<ReturnType<typeof updatesNativeBuildFingerprintGetNativeBuildFingerprint>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof pearFetch>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getUpdatesNativeBuildFingerprintGetNativeBuildFingerprintQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof updatesNativeBuildFingerprintGetNativeBuildFingerprint>>
+  > = ({ signal }) =>
+    updatesNativeBuildFingerprintGetNativeBuildFingerprint(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseSuspenseQueryOptions<
+    Awaited<ReturnType<typeof updatesNativeBuildFingerprintGetNativeBuildFingerprint>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type UpdatesNativeBuildFingerprintGetNativeBuildFingerprintSuspenseQueryResult = NonNullable<
+  Awaited<ReturnType<typeof updatesNativeBuildFingerprintGetNativeBuildFingerprint>>
+>;
+export type UpdatesNativeBuildFingerprintGetNativeBuildFingerprintSuspenseQueryError =
+  UpdatesNativeBuildFingerprintGetNativeBuildFingerprint400;
+
+export function useUpdatesNativeBuildFingerprintGetNativeBuildFingerprintSuspense<
+  TData = Awaited<ReturnType<typeof updatesNativeBuildFingerprintGetNativeBuildFingerprint>>,
+  TError = UpdatesNativeBuildFingerprintGetNativeBuildFingerprint400,
+>(
+  params: UpdatesNativeBuildFingerprintGetNativeBuildFingerprintParams,
+  options: {
+    query: Partial<
+      UseSuspenseQueryOptions<
+        Awaited<ReturnType<typeof updatesNativeBuildFingerprintGetNativeBuildFingerprint>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof pearFetch>;
+  },
+  queryClient?: QueryClient
+): UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useUpdatesNativeBuildFingerprintGetNativeBuildFingerprintSuspense<
+  TData = Awaited<ReturnType<typeof updatesNativeBuildFingerprintGetNativeBuildFingerprint>>,
+  TError = UpdatesNativeBuildFingerprintGetNativeBuildFingerprint400,
+>(
+  params: UpdatesNativeBuildFingerprintGetNativeBuildFingerprintParams,
+  options?: {
+    query?: Partial<
+      UseSuspenseQueryOptions<
+        Awaited<ReturnType<typeof updatesNativeBuildFingerprintGetNativeBuildFingerprint>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof pearFetch>;
+  },
+  queryClient?: QueryClient
+): UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useUpdatesNativeBuildFingerprintGetNativeBuildFingerprintSuspense<
+  TData = Awaited<ReturnType<typeof updatesNativeBuildFingerprintGetNativeBuildFingerprint>>,
+  TError = UpdatesNativeBuildFingerprintGetNativeBuildFingerprint400,
+>(
+  params: UpdatesNativeBuildFingerprintGetNativeBuildFingerprintParams,
+  options?: {
+    query?: Partial<
+      UseSuspenseQueryOptions<
+        Awaited<ReturnType<typeof updatesNativeBuildFingerprintGetNativeBuildFingerprint>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof pearFetch>;
+  },
+  queryClient?: QueryClient
+): UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary GetNativeBuildFingerprint
+ */
+
+export function useUpdatesNativeBuildFingerprintGetNativeBuildFingerprintSuspense<
+  TData = Awaited<ReturnType<typeof updatesNativeBuildFingerprintGetNativeBuildFingerprint>>,
+  TError = UpdatesNativeBuildFingerprintGetNativeBuildFingerprint400,
+>(
+  params: UpdatesNativeBuildFingerprintGetNativeBuildFingerprintParams,
+  options?: {
+    query?: Partial<
+      UseSuspenseQueryOptions<
+        Awaited<ReturnType<typeof updatesNativeBuildFingerprintGetNativeBuildFingerprint>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof pearFetch>;
+  },
+  queryClient?: QueryClient
+): UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions =
+    getUpdatesNativeBuildFingerprintGetNativeBuildFingerprintSuspenseQueryOptions(params, options);
+
+  const query = useSuspenseQuery(queryOptions, queryClient) as UseSuspenseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary SetNativeBuildFingerprint
+ */
+export const getUpdatesNativeBuildFingerprintSetNativeBuildFingerprintUrl = () => {
+  return `/updates/native-build-fingerprint`;
+};
+
+export const updatesNativeBuildFingerprintSetNativeBuildFingerprint = async (
+  setNativeBuildFingerprintRequest: SetNativeBuildFingerprintRequest,
+  options?: RequestInit
+): Promise<NativeBuildFingerprintResponse> => {
+  return pearFetch<NativeBuildFingerprintResponse>(
+    getUpdatesNativeBuildFingerprintSetNativeBuildFingerprintUrl(),
+    {
+      ...options,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...options?.headers },
+      body: JSON.stringify(setNativeBuildFingerprintRequest),
+    }
+  );
+};
+
+export const getUpdatesNativeBuildFingerprintSetNativeBuildFingerprintMutationOptions = <
+  TError = UpdatesNativeBuildFingerprintSetNativeBuildFingerprint400,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updatesNativeBuildFingerprintSetNativeBuildFingerprint>>,
+    TError,
+    { data: SetNativeBuildFingerprintRequest },
+    TContext
+  >;
+  request?: SecondParameter<typeof pearFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updatesNativeBuildFingerprintSetNativeBuildFingerprint>>,
+  TError,
+  { data: SetNativeBuildFingerprintRequest },
+  TContext
+> => {
+  const mutationKey = ['updatesNativeBuildFingerprintSetNativeBuildFingerprint'];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updatesNativeBuildFingerprintSetNativeBuildFingerprint>>,
+    { data: SetNativeBuildFingerprintRequest }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updatesNativeBuildFingerprintSetNativeBuildFingerprint(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdatesNativeBuildFingerprintSetNativeBuildFingerprintMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updatesNativeBuildFingerprintSetNativeBuildFingerprint>>
+>;
+export type UpdatesNativeBuildFingerprintSetNativeBuildFingerprintMutationBody =
+  SetNativeBuildFingerprintRequest;
+export type UpdatesNativeBuildFingerprintSetNativeBuildFingerprintMutationError =
+  UpdatesNativeBuildFingerprintSetNativeBuildFingerprint400;
+
+/**
+ * @summary SetNativeBuildFingerprint
+ */
+export const useUpdatesNativeBuildFingerprintSetNativeBuildFingerprint = <
+  TError = UpdatesNativeBuildFingerprintSetNativeBuildFingerprint400,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof updatesNativeBuildFingerprintSetNativeBuildFingerprint>>,
+      TError,
+      { data: SetNativeBuildFingerprintRequest },
+      TContext
+    >;
+    request?: SecondParameter<typeof pearFetch>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof updatesNativeBuildFingerprintSetNativeBuildFingerprint>>,
+  TError,
+  { data: SetNativeBuildFingerprintRequest },
+  TContext
+> => {
+  return useMutation(
+    getUpdatesNativeBuildFingerprintSetNativeBuildFingerprintMutationOptions(options),
+    queryClient
+  );
+};
