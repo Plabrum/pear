@@ -8,6 +8,8 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.domain.contacts.enums import WingpersonStatus
+from app.domain.contacts.models import Contact
 from app.domain.dating_profiles.actions import (
     DatingProfileActionKey,
     DeclineForDater,
@@ -28,8 +30,8 @@ from app.domain.dating_profiles.schemas import DeclineForDaterData, ReportAction
 from app.domain.dating_profiles.transformers import row_to_swipe_profile
 from app.domain.decisions.enums import DecisionState
 from app.domain.decisions.models import Decision
-from app.domain.decisions.queries import find_mutual_match
-from app.domain.profiles.enums import Gender
+from app.domain.decisions.queries import find_mutual_match, insert_wing_suggestion
+from app.domain.profiles.enums import Gender, UserRole
 from app.domain.reports.models import ProfileReport
 from app.platform.actions.base import ActionGroup, EmptyActionData
 from app.platform.actions.deps import ActionDeps
@@ -38,6 +40,7 @@ from app.platform.actions.schemas import ActionDTO
 from app.platform.auth.principal import User
 from app.platform.state_machine.machine import StateMachineService
 from app.platform.state_machine.roles import Role
+from tests.factories import ProfileFactory
 from tests.fixtures.graph import DomainGraph
 from tests.fixtures.media import local_media
 
@@ -132,9 +135,10 @@ async def test_swipe_pool_orders_suggestions_first(graph: DomainGraph, db_sessio
     # ahead of the un-suggested dater_c, with its note + suggester surfaced.
     first = rows[0]
     assert first.user_id == graph.dater_b.id
-    assert first.suggested_by == graph.winger.id
-    assert first.suggester_name == graph.winger.chosen_name
-    assert first.wing_note == graph.suggestion.note
+    assert len(first.suggestions) == 1
+    assert first.suggestions[0].winger_id == graph.winger.id
+    assert first.suggestions[0].winger_name == graph.winger.chosen_name
+    assert first.suggestions[0].note == graph.suggestion.note
 
 
 async def test_swipe_row_maps_to_camel_case(graph: DomainGraph, db_session: AsyncSession) -> None:
@@ -150,9 +154,93 @@ async def test_swipe_row_maps_to_camel_case(graph: DomainGraph, db_session: Asyn
     assert dto.city == City.BOSTON
     assert dto.datingStatus == DatingStatus.OPEN
     assert dto.gender is Gender.FEMALE
-    assert dto.suggestedBy == graph.winger.id
-    assert dto.suggesterName == graph.winger.chosen_name
-    assert dto.wingNote == graph.suggestion.note
+    assert len(dto.suggestions) == 1
+    assert dto.suggestions[0].wingerId == graph.winger.id
+    assert dto.suggestions[0].wingerName == graph.winger.chosen_name
+    assert dto.suggestions[0].note == graph.suggestion.note
+
+
+async def test_swipe_pool_surfaces_multiple_wingers_suggesting_same_candidate(
+    graph: DomainGraph, db_session: AsyncSession
+) -> None:
+    """Two different active wingers each suggesting dater_c to dater_a must both
+    surface — the `unique_actor_recipient_suggestion` partial index allows one row
+    per (dater, recipient, winger), not one row per (dater, recipient)."""
+    await _normalize_ages(graph, db_session)
+
+    second_winger = await ProfileFactory.create_async(db_session, state=UserRole.WINGER, gender=Gender.NON_BINARY)
+    db_session.add(
+        Contact(
+            user_id=graph.dater_a.id,
+            phone_number=second_winger.phone_number or "+15555550099",
+            winger_id=second_winger.id,
+            state=WingpersonStatus.ACTIVE,
+        )
+    )
+    await db_session.flush()
+
+    inserted_first = await insert_wing_suggestion(
+        db_session, graph.dater_a.id, graph.dater_c.id, graph.winger.id, "You'd love them", DecisionState.PENDING
+    )
+    inserted_second = await insert_wing_suggestion(
+        db_session, graph.dater_a.id, graph.dater_c.id, second_winger.id, None, DecisionState.PENDING
+    )
+    assert inserted_first is True
+    assert inserted_second is True
+
+    rows = await fetch_swipe_pool(db_session, viewer_id=graph.dater_a.id, page_size=20, page_offset=0)
+    candidate = next(r for r in rows if r.user_id == graph.dater_c.id)
+
+    winger_ids = {s.winger_id for s in candidate.suggestions}
+    assert winger_ids == {graph.winger.id, second_winger.id}
+    notes = {s.winger_id: s.note for s in candidate.suggestions}
+    assert notes[graph.winger.id] == "You'd love them"
+    assert notes[second_winger.id] is None
+
+
+async def test_like_resolves_every_pending_suggestion_for_the_pair(
+    graph: DomainGraph, db_session: AsyncSession
+) -> None:
+    """A dater's own swipe must resolve ALL wingers' pending suggestions for that
+    recipient, not just the first one found — `apply_dater_decision` used to
+    `.scalar_one_or_none()` a single row, which would now raise once multiple
+    wingers can each suggest the same candidate."""
+    second_winger = await ProfileFactory.create_async(db_session, state=UserRole.WINGER, gender=Gender.NON_BINARY)
+    db_session.add(
+        Contact(
+            user_id=graph.dater_a.id,
+            phone_number=second_winger.phone_number or "+15555550098",
+            winger_id=second_winger.id,
+            state=WingpersonStatus.ACTIVE,
+        )
+    )
+    await db_session.flush()
+
+    await insert_wing_suggestion(
+        db_session, graph.dater_a.id, graph.dater_c.id, graph.winger.id, None, DecisionState.PENDING
+    )
+    await insert_wing_suggestion(
+        db_session, graph.dater_a.id, graph.dater_c.id, second_winger.id, None, DecisionState.PENDING
+    )
+
+    deps = _deps(db_session, user_id=graph.dater_a.id)
+    await Like.execute(graph.dating_profile_c, EmptyActionData(), db_session, deps.user, deps)
+
+    rows = (
+        (
+            await db_session.execute(
+                select(Decision).where(
+                    Decision.actor_id == graph.dater_a.id,
+                    Decision.recipient_id == graph.dater_c.id,
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(rows) == 2
+    assert {row.state for row in rows} == {DecisionState.APPROVED}
+    assert {row.suggested_by for row in rows} == {graph.winger.id, second_winger.id}
 
 
 # ── action hydration on the swipe read ───────────────────────────────────────

@@ -9,6 +9,7 @@ import type { City } from './city';
 import type { DatingStatus } from './datingStatus';
 import type { Gender } from './gender';
 import type { Interest } from './interest';
+import type { WingSuggestion } from './wingSuggestion';
 
 export interface SwipeProfile {
   /** SQID-encoded identifier */
@@ -24,8 +25,6 @@ export interface SwipeProfile {
   interests: Interest[];
   photos: string[];
   firstPhoto: string | null;
-  wingNote: string | null;
-  suggestedBy: string | null;
-  suggesterName: string | null;
+  suggestions: WingSuggestion[];
   actions?: ActionDTO[];
 }

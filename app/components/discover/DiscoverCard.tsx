@@ -23,7 +23,7 @@ import { cardButtonShadow } from '@/lib/styles';
 
 import { SWIPE_THRESHOLD, SCREEN_WIDTH } from './constants';
 import { PassStamp, LikeStamp } from './Stamps';
-import { WingCredential } from './WingCredential';
+import { WingPickSection } from './WingPickSection';
 
 // Report is an object action on the swiped DatingProfile; the form (registry)
 // collects the reason, the deck hook records it against `card.profileId`.
@@ -289,8 +289,8 @@ export function DiscoverCard({
               contentContainerStyle={{ padding: 16, paddingBottom: 84, gap: 10 }}
               showsVerticalScrollIndicator={false}
             >
-              {card.wingNote != null && card.suggesterName != null && (
-                <WingCredential suggesterName={card.suggesterName} note={card.wingNote} />
+              {card.suggestions.length > 0 && (
+                <WingPickSection suggestions={card.suggestions} chosenName={card.chosenName} />
               )}
               {card.bio != null && (
                 <Text className="text-ink-mid" style={{ fontSize: 14, lineHeight: 20 }}>

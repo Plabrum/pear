@@ -45,6 +45,25 @@ class Decision(
     note: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
 
     __table_args__ = (
-        sa.UniqueConstraint("actor_id", "recipient_id", name="unique_actor_recipient"),
+        # A real dater decision (suggested_by IS NULL) is unique per (actor,
+        # recipient) — one swipe outcome per pair. A winger *suggestion*
+        # (suggested_by IS NOT NULL) is unique per (actor, recipient, suggested_by)
+        # instead, so multiple wingers can each suggest the same profile to the
+        # same dater without colliding on the plain decision constraint.
+        sa.Index(
+            "unique_actor_recipient_decision",
+            "actor_id",
+            "recipient_id",
+            unique=True,
+            postgresql_where=sa.text("suggested_by IS NULL"),
+        ),
+        sa.Index(
+            "unique_actor_recipient_suggestion",
+            "actor_id",
+            "recipient_id",
+            "suggested_by",
+            unique=True,
+            postgresql_where=sa.text("suggested_by IS NOT NULL"),
+        ),
         sa.CheckConstraint("actor_id <> recipient_id", name="no_self_decision"),
     )

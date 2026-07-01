@@ -7,14 +7,23 @@ from app.platform.base.schemas import BaseSchema
 from app.utils.sqids import Sqid
 
 
+class WingSuggestion(BaseSchema):
+    """One winger's pending hand-pick of this profile for the viewing dater."""
+
+    wingerId: Sqid
+    wingerName: str | None
+    note: str | None
+
+
 class SwipeProfile(Actionable):
     """The single projection for the collapsed swipe read.
 
     Replaces the former DiscoverProfile / LikesYouProfile / WingProfile. The wire
     field names are preserved so the client read shapes stay recognizable: `photos`
     is the full approved-photo array (discover), `firstPhoto` is the first of them
-    (likes-you / wing-pool), and the `wingNote` / `suggestedBy` / `suggesterName`
-    trio carries the pending winger-suggestion (null in the winger context).
+    (likes-you / wing-pool), and `suggestions` carries every pending winger
+    suggestion of this profile for the viewing dater (empty in the winger context —
+    multiple wingers may independently hand-pick the same profile).
     """
 
     profileId: Sqid
@@ -28,9 +37,7 @@ class SwipeProfile(Actionable):
     interests: list[Interest]
     photos: list[str]
     firstPhoto: str | None
-    wingNote: str | None
-    suggestedBy: Sqid | None
-    suggesterName: str | None
+    suggestions: list[WingSuggestion]
 
 
 class LikesYouCountResponse(BaseSchema):

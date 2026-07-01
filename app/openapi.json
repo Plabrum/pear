@@ -4696,37 +4696,11 @@
               }
             ]
           },
-          "wingNote": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "suggestedBy": {
-            "oneOf": [
-              {
-                "type": "string",
-                "description": "SQID-encoded identifier",
-                "example": "kmxpqdrv"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "suggesterName": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
+          "suggestions": {
+            "items": {
+              "$ref": "#/components/schemas/WingSuggestion"
+            },
+            "type": "array"
           },
           "actions": {
             "items": {
@@ -4747,10 +4721,8 @@
           "interests",
           "photos",
           "profileId",
-          "suggestedBy",
-          "suggesterName",
-          "userId",
-          "wingNote"
+          "suggestions",
+          "userId"
         ],
         "title": "SwipeProfile"
       },
@@ -5007,6 +4979,38 @@
         "type": "string",
         "enum": ["dater", "winger"],
         "title": "UserRole"
+      },
+      "WingSuggestion": {
+        "properties": {
+          "wingerId": {
+            "type": "string",
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
+          },
+          "wingerName": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "note": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": ["note", "wingerId", "wingerName"],
+        "title": "WingSuggestion"
       },
       "WingerSummary": {
         "properties": {

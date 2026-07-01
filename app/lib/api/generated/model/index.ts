@@ -188,3 +188,4 @@ export * from './wingingForTab';
 export * from './wingpeopleResponse';
 export * from './wingpeopleResponseWeeklyCounts';
 export * from './wingperson';
+export * from './wingSuggestion';

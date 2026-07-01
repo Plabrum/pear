@@ -4,13 +4,20 @@ from dataclasses import dataclass
 
 from app.domain.dating_profiles.enums import City, DatingStatus, Interest
 from app.domain.dating_profiles.models import DatingProfile
-from app.domain.dating_profiles.schemas import SwipeProfile
+from app.domain.dating_profiles.schemas import SwipeProfile, WingSuggestion
 from app.domain.profiles.enums import Gender
 from app.platform.actions.base import ActionGroup
 from app.platform.actions.deps import ActionDeps
 from app.platform.actions.hydrate import actions_for
 from app.platform.media.client import BaseMediaClient
 from app.utils.sqids import Sqid
+
+
+@dataclass
+class WingSuggestionRow:
+    winger_id: Sqid
+    winger_name: str | None
+    note: str | None
 
 
 @dataclass
@@ -25,9 +32,7 @@ class SwipeRow:
     dating_status: DatingStatus
     interests: list[Interest]
     photos: list[str]  # S3 keys (approved only) — presigned at transform time
-    wing_note: str | None
-    suggested_by: Sqid | None
-    suggester_name: str | None
+    suggestions: list[WingSuggestionRow]
 
 
 async def row_to_swipe_profile(
@@ -52,9 +57,9 @@ async def row_to_swipe_profile(
         photos=photos,
         # `firstPhoto` mirrors the former likes-you / wing-pool single-photo field.
         firstPhoto=photos[0] if photos else None,
-        wingNote=row.wing_note,
-        suggestedBy=row.suggested_by,
-        suggesterName=row.suggester_name,
+        suggestions=[
+            WingSuggestion(wingerId=s.winger_id, wingerName=s.winger_name, note=s.note) for s in row.suggestions
+        ],
     )
     # The swipe read is a pure projection — no DatingProfile ORM row is in hand. The
     # swipe group's `is_available` reads ONLY scalar identity columns (obj.user_id) +
