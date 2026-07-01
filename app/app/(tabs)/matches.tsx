@@ -7,15 +7,17 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { LinearGradient } from 'expo-linear-gradient';
 
-import { View, Text, Pressable, ScrollView, TextInput, SafeAreaView } from '@/lib/tw';
-import { cn } from '@/lib/cn';
+import { View, Text, Pressable, ScrollView, SafeAreaView } from '@/lib/tw';
 import ScreenSuspense from '@/components/ui/ScreenSuspense';
 import {
   useGetApiMatchesMatchIdSheetSuspense,
+  getGetApiMatchesMatchIdSheetQueryKey,
   useGetApiMatchesSuspense,
 } from '@/lib/api/generated/matches/matches';
 import type { MatchSummary } from '@/lib/api/generated/model';
-import { addPromptResponse } from '@/lib/api/actions';
+import { useActionExecutor } from '@/hooks/actions/use-action-executor';
+import { useActionFormRenderer } from '@/hooks/actions/use-action-form-renderer';
+import type { ActionDTO } from '@/lib/actions/types';
 import { LargeHeader } from '@/components/ui/LargeHeader';
 import { GradientBlock } from '@/components/ui/GradientBlock';
 import { FaceAvatar } from '@/components/ui/FaceAvatar';
@@ -26,20 +28,16 @@ import { cardButtonShadow } from '@/lib/styles';
 const LEAF = '#5A8C3A';
 const LEAF_SOFT = '#E5EFD8';
 const INK = '#1F1B16';
-const INK_SUBTLE = '#8B8170';
 const PAPER = '#FBF8F1';
+
+// The matched person's reply to a prompt — a top-level create on prompt_response_actions.
+const ADD_RESPONSE: ActionDTO = {
+  action: 'prompt_response_actions__create',
+  label: 'Reply',
+  action_group_type: 'prompt_response_actions',
+};
 const CREAM = '#F5F1E8';
 const LINE = 'rgba(31,27,22,0.10)';
-
-// ── Types ─────────────────────────────────────────────────────────────────────
-
-type PromptState = {
-  open: boolean;
-  text: string;
-  sending: boolean;
-  sent: boolean;
-  error: string | null;
-};
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 
@@ -163,22 +161,11 @@ function MatchCard({ match, onPress }: MatchCardProps) {
 type PromptCardProps = {
   question: string | null;
   answer: string;
-  state: PromptState;
-  recipientName: string;
+  sent: boolean;
   onOpen: () => void;
-  onChangeText: (text: string) => void;
-  onSend: () => void;
 };
 
-function PromptCard({
-  question,
-  answer,
-  state,
-  recipientName,
-  onOpen,
-  onChangeText,
-  onSend,
-}: PromptCardProps) {
+function PromptCard({ question, answer, sent, onOpen }: PromptCardProps) {
   return (
     <View
       style={{
@@ -216,56 +203,12 @@ function PromptCard({
       </Text>
 
       <View style={{ marginTop: 10 }}>
-        {state.sent ? (
+        {sent ? (
           <View className="flex-row items-center gap-1.5">
             <Ionicons name="checkmark" size={14} color={LEAF} />
             <Text className="text-primary" style={{ fontSize: 12.5, fontWeight: '600' }}>
               Reply sent
             </Text>
-          </View>
-        ) : state.open ? (
-          <View className="gap-2">
-            <TextInput
-              className="bg-canvas text-ink"
-              style={{
-                borderRadius: 12,
-                padding: 12,
-                fontSize: 14,
-                minHeight: 72,
-                textAlignVertical: 'top',
-              }}
-              value={state.text}
-              onChangeText={onChangeText}
-              placeholder={`Write a comment for ${recipientName}…`}
-              placeholderTextColor={INK_SUBTLE}
-              multiline
-              maxLength={300}
-              editable={!state.sending}
-            />
-            {state.error != null && (
-              <Text className="text-destructive" style={{ fontSize: 12 }}>
-                {state.error}
-              </Text>
-            )}
-            <Pressable
-              onPress={onSend}
-              disabled={!state.text.trim() || state.sending}
-              className={cn('self-start', (!state.text.trim() || state.sending) && 'opacity-50')}
-              style={{
-                backgroundColor: LEAF,
-                paddingHorizontal: 14,
-                paddingVertical: 8,
-                borderRadius: 14,
-              }}
-            >
-              {state.sending ? (
-                <PulseSpinner color={PAPER} />
-              ) : (
-                <Text className="text-surface" style={{ fontWeight: '600', fontSize: 13 }}>
-                  Send
-                </Text>
-              )}
-            </Pressable>
           </View>
         ) : (
           <Pressable onPress={onOpen} hitSlop={6}>
@@ -282,38 +225,23 @@ function PromptCard({
 // ── SheetBody (lazy wing note + prompts) ──────────────────────────────────────
 
 function SheetBody({ match }: { match: MatchSummary }) {
-  const { other } = match;
-  const recipientName = other.chosenName ?? 'them';
   const { data } = useGetApiMatchesMatchIdSheetSuspense(match.matchId);
   const { wingNote, prompts } = data;
-  const [promptStates, setPromptStates] = useState<Record<string, PromptState>>({});
+  const [sentPrompts, setSentPrompts] = useState<ReadonlySet<string>>(() => new Set());
+  const [respondingTo, setRespondingTo] = useState<{ id: string; question: string | null } | null>(
+    null
+  );
 
-  function setPromptField(promptId: string, patch: Partial<PromptState>) {
-    setPromptStates((prev) => ({
-      ...prev,
-      [promptId]: {
-        ...{ open: false, text: '', sending: false, sent: false, error: null },
-        ...prev[promptId],
-        ...patch,
-      },
-    }));
-  }
-
-  async function sendReply(promptId: string) {
-    const state = promptStates[promptId];
-    if (!state?.text.trim()) return;
-
-    setPromptField(promptId, { sending: true, error: null });
-    try {
-      await addPromptResponse({
-        profilePromptId: promptId,
-        message: state.text.trim(),
-      });
-      setPromptField(promptId, { sending: false, sent: true });
-    } catch {
-      setPromptField(promptId, { sending: false, error: 'Failed to send. Try again.' });
-    }
-  }
+  // The prompt-response create tags (/prompt-responses, /profile-prompts) don't
+  // cover this match's sheet, so refresh it explicitly via onInvalidate.
+  const executor = useActionExecutor({
+    actionGroup: 'prompt_response_actions',
+    onInvalidate: (qc) => {
+      void qc.invalidateQueries({ queryKey: getGetApiMatchesMatchIdSheetQueryKey(match.matchId) });
+    },
+  });
+  // The prompt-response form is pulled from the action registry; objectData is the prompt.
+  const renderResponseForm = useActionFormRenderer(respondingTo ?? undefined);
 
   return (
     <View style={{ paddingHorizontal: 20, gap: 16, paddingTop: 16 }}>
@@ -348,27 +276,36 @@ function SheetBody({ match }: { match: MatchSummary }) {
         </View>
       )}
 
-      {prompts.map((prompt) => {
-        const state = promptStates[prompt.id] ?? {
-          open: false,
-          text: '',
-          sending: false,
-          sent: false,
-          error: null,
-        };
-        return (
-          <PromptCard
-            key={prompt.id}
-            question={prompt.template?.question ?? null}
-            answer={prompt.answer}
-            state={state}
-            recipientName={recipientName}
-            onOpen={() => setPromptField(prompt.id, { open: true })}
-            onChangeText={(t) => setPromptField(prompt.id, { text: t })}
-            onSend={() => sendReply(prompt.id)}
-          />
-        );
-      })}
+      {prompts.map((prompt) => (
+        <PromptCard
+          key={prompt.id}
+          question={prompt.template?.question ?? null}
+          answer={prompt.answer}
+          sent={sentPrompts.has(prompt.id)}
+          onOpen={() =>
+            setRespondingTo({ id: prompt.id, question: prompt.template?.question ?? null })
+          }
+        />
+      ))}
+
+      {respondingTo &&
+        renderResponseForm({
+          action: ADD_RESPONSE,
+          onSubmit: (body) => {
+            const promptId = respondingTo.id;
+            // silent: the optimistic "Reply sent" tag is our feedback; executor still
+            // invalidates the sheet + error-toasts.
+            void executor
+              .executeAction(ADD_RESPONSE, body, { silent: true })
+              .then(() => setSentPrompts((prev) => new Set(prev).add(promptId)))
+              .catch(() => {});
+            setRespondingTo(null);
+          },
+          onClose: () => setRespondingTo(null),
+          isSubmitting: executor.isExecuting,
+          isOpen: true,
+          actionLabel: ADD_RESPONSE.label,
+        })}
     </View>
   );
 }

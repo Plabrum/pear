@@ -4,14 +4,19 @@
  * Litestar API
  * OpenAPI spec version: 1.0.0
  */
+import type { ActionDTO } from './actionDTO';
 import type { PromptsSchemasPromptResponseAuthor } from './promptsSchemasPromptResponseAuthor';
 
 export interface PromptResponse {
+  /** SQID-encoded identifier */
   id: string;
+  /** SQID-encoded identifier */
   profilePromptId: string;
   message: string;
   isApproved: boolean;
+  /** SQID-encoded identifier */
   userId: string;
   createdAt: string;
   author: PromptsSchemasPromptResponseAuthor | null;
+  actions?: ActionDTO[];
 }

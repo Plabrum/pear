@@ -4,11 +4,14 @@
  * Litestar API
  * OpenAPI spec version: 1.0.0
  */
+import type { ActionDTO } from './actionDTO';
 import type { PublicDatingProfile } from './publicDatingProfile';
 
 export interface PublicProfile {
+  /** SQID-encoded identifier */
   id: string;
   chosenName: string | null;
   avatarUrl: string | null;
   datingProfile: PublicDatingProfile | null;
+  actions?: ActionDTO[];
 }

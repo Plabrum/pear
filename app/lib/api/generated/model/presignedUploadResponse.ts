@@ -6,6 +6,7 @@
  */
 
 export interface PresignedUploadResponse {
+  /** SQID-encoded identifier */
   mediaId: string;
   uploadUrl: string;
   key: string;

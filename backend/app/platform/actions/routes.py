@@ -1,5 +1,3 @@
-from uuid import UUID
-
 from litestar import Router, get, post
 
 from app.platform.actions.deps import ActionDeps
@@ -12,6 +10,7 @@ from app.platform.actions.schemas import (
 )
 from app.platform.auth.guards import requires_session
 from app.utils.discovery import discover_and_import
+from app.utils.sqids import Sqid
 
 # Import every domain's `actions.py` so the action classes register themselves
 # into the singleton ActionRegistry before we build the request union below.
@@ -31,10 +30,10 @@ async def list_actions(
     return ActionListResponse(actions=available_actions)
 
 
-@get("/{action_group:str}/{object_id:uuid}")
+@get("/{action_group:str}/{object_id:str}")
 async def list_object_actions(
     action_group: ActionGroupType,
-    object_id: UUID,
+    object_id: Sqid,
     action_registry: ActionRegistry,
     action_deps: ActionDeps,
 ) -> ActionListResponse:
@@ -66,10 +65,10 @@ async def execute_action(
     )
 
 
-@post("/{action_group:str}/{object_id:uuid}")
+@post("/{action_group:str}/{object_id:str}")
 async def execute_object_action(
     action_group: ActionGroupType,
-    object_id: UUID,
+    object_id: Sqid,
     data: Action,  # type: ignore [valid-type]
     action_registry: ActionRegistry,
     action_deps: ActionDeps,

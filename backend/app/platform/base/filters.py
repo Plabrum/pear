@@ -8,6 +8,7 @@ from msgspec import Struct
 from sqlalchemy import Select
 
 from app.platform.base.models import BaseDBModel
+from app.utils.sqids import SqidType, sqid_decode
 
 
 class FilterType(StrEnum):
@@ -78,6 +79,22 @@ def _resolve_column(
     return getattr(model, column_name, None)
 
 
+def _is_sqid_column(col) -> bool:  # noqa: ANN001
+    """Check if a mapped column uses SqidType."""
+    prop = getattr(col, "property", None)
+    if prop is None:
+        return False
+    for c in prop.columns:
+        if isinstance(c.type, SqidType):
+            return True
+    return False
+
+
+def _coerce_sqid(value: str) -> int:
+    """Decode a sqid-encoded string to its integer value."""
+    return sqid_decode(value)
+
+
 def apply_filter(
     query: Select,
     model: type[BaseDBModel],
@@ -88,9 +105,11 @@ def apply_filter(
     if col is None:
         return query
 
+    is_sqid = _is_sqid_column(col)
+
     match f:
         case TextFilter(operation="equals", value=v):
-            return query.where(col == v)
+            return query.where(col == (_coerce_sqid(v) if is_sqid else v))
         case TextFilter(operation="contains", value=v):
             return query.where(col.ilike(f"%{v}%"))
         case TextFilter(operation="starts_with", value=v):
@@ -112,7 +131,7 @@ def apply_filter(
         case BooleanFilter(value=v):
             return query.where(col.is_(v))
         case EnumFilter(values=vals):
-            return query.where(col.in_(vals))
+            return query.where(col.in_([_coerce_sqid(v) for v in vals] if is_sqid else vals))
         case NullFilter(is_null=True):
             return query.where(col.is_(None))
         case NullFilter(is_null=False):

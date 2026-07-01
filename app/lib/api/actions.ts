@@ -35,6 +35,7 @@ import type {
   CreateProfilePromptData,
   CreatePromptResponseData,
   SuggestActionData,
+  DeclineForDaterData,
   ReportActionData,
   InviteWingpersonData,
   ReorderPhotoData,
@@ -120,8 +121,8 @@ export function pass(datingProfileId: string): Promise<ActionExecutionResponse> 
 }
 
 /**
- * A winger suggests this profile for a dater. `daterId` is required; `decision:
- * null` = normal suggestion; `note` is an optional hand-pick note.
+ * A winger proposes this profile to one of their daters — a pending suggestion the
+ * dater must act on. `daterId` is required; `note` is an optional hand-pick note.
  */
 export function suggest(
   datingProfileId: string,
@@ -131,6 +132,21 @@ export function suggest(
     'dating_profile_swipe_actions',
     datingProfileId,
     { action: 'dating_profile_swipe_actions__suggest', data }
+  );
+}
+
+/**
+ * A winger passes on this profile on the dater's behalf — records a decline so it
+ * leaves the dater's pool; the dater is not notified. `daterId` is required.
+ */
+export function declineForDater(
+  datingProfileId: string,
+  data: DeclineForDaterData
+): Promise<ActionExecutionResponse> {
+  return apiActionsActionGroupObjectIdExecuteObjectAction(
+    'dating_profile_swipe_actions',
+    datingProfileId,
+    { action: 'dating_profile_swipe_actions__decline', data }
   );
 }
 

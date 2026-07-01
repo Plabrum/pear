@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import datetime
-from uuid import UUID
 
 from app.domain.photos.models import ProfilePhoto
 from app.domain.photos.queries import PhotoRow, SuggestedPhotoRow
@@ -11,7 +10,11 @@ from app.domain.photos.schemas import (
     SuggestedPhoto,
     SuggestedPhotoStatus,
 )
+from app.platform.actions.base import ActionGroup
+from app.platform.actions.deps import ActionDeps
+from app.platform.actions.hydrate import actions_for
 from app.platform.media.client import BaseMediaClient
+from app.utils.sqids import Sqid
 
 
 def _iso(value: datetime | None) -> str | None:
@@ -39,9 +42,20 @@ def photo_to_dto(photo: ProfilePhoto, suggester_name: str | None, url: str | Non
     )
 
 
-def photos_to_dtos(rows: list[PhotoRow], url_by_media: dict[UUID, str]) -> list[Photo]:
-    """Map a batch of photo rows to DTOs, each carrying its resolved media URL."""
-    return [photo_to_dto(photo, name, url_by_media.get(photo.media_id)) for photo, name in rows]
+def photos_to_dtos(
+    rows: list[PhotoRow],
+    url_by_media: dict[Sqid, str],
+    group: ActionGroup,
+    deps: ActionDeps,
+) -> list[Photo]:
+    """Map a batch of photo rows to DTOs, each carrying its resolved media URL and
+    the actions available on it (approve/reject/delete — `reorder` is hidden)."""
+    dtos: list[Photo] = []
+    for photo, name in rows:
+        dto = photo_to_dto(photo, name, url_by_media.get(photo.media_id))
+        dto.actions = actions_for(group, deps, photo)
+        dtos.append(dto)
+    return dtos
 
 
 def _suggested_status(row: SuggestedPhotoRow) -> SuggestedPhotoStatus:

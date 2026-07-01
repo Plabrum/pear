@@ -32,6 +32,7 @@ import type {
   CreatePhotoAction,
   CreateProfilePromptAction,
   CreatePromptResponseAction,
+  DeclineForDaterAction,
   DeclineInviteAction,
   DeletePhotoAction,
   DeleteProfilePromptAction,
@@ -207,12 +208,13 @@ export const getApiActionsActionGroupExecuteActionUrl = (actionGroup: ActionGrou
 
 export const apiActionsActionGroupExecuteAction = async (
   actionGroup: ActionGroupType,
-  sendMessageActionMarkMessagesReadActionLikeActionPassActionSuggestActionReportActionInviteWingpersonActionAcceptInviteActionDeclineInviteActionRemoveWingpersonActionCreateProfilePromptActionDeleteProfilePromptActionCreatePromptResponseActionApprovePromptResponseActionDeletePromptResponseActionUpdateProfileActionCreateDatingProfileActionUpdateDatingProfileActionCreatePhotoActionApprovePhotoActionRejectPhotoActionDeletePhotoActionReorderPhotoAction:
+  sendMessageActionMarkMessagesReadActionLikeActionPassActionSuggestActionDeclineForDaterActionReportActionInviteWingpersonActionAcceptInviteActionDeclineInviteActionRemoveWingpersonActionCreateProfilePromptActionDeleteProfilePromptActionCreatePromptResponseActionApprovePromptResponseActionDeletePromptResponseActionUpdateProfileActionCreateDatingProfileActionUpdateDatingProfileActionCreatePhotoActionApprovePhotoActionRejectPhotoActionDeletePhotoActionReorderPhotoAction:
     | SendMessageAction
     | MarkMessagesReadAction
     | LikeAction
     | PassAction
     | SuggestAction
+    | DeclineForDaterAction
     | ReportAction
     | InviteWingpersonAction
     | AcceptInviteAction
@@ -238,7 +240,7 @@ export const apiActionsActionGroupExecuteAction = async (
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     body: JSON.stringify(
-      sendMessageActionMarkMessagesReadActionLikeActionPassActionSuggestActionReportActionInviteWingpersonActionAcceptInviteActionDeclineInviteActionRemoveWingpersonActionCreateProfilePromptActionDeleteProfilePromptActionCreatePromptResponseActionApprovePromptResponseActionDeletePromptResponseActionUpdateProfileActionCreateDatingProfileActionUpdateDatingProfileActionCreatePhotoActionApprovePhotoActionRejectPhotoActionDeletePhotoActionReorderPhotoAction
+      sendMessageActionMarkMessagesReadActionLikeActionPassActionSuggestActionDeclineForDaterActionReportActionInviteWingpersonActionAcceptInviteActionDeclineInviteActionRemoveWingpersonActionCreateProfilePromptActionDeleteProfilePromptActionCreatePromptResponseActionApprovePromptResponseActionDeletePromptResponseActionUpdateProfileActionCreateDatingProfileActionUpdateDatingProfileActionCreatePhotoActionApprovePhotoActionRejectPhotoActionDeletePhotoActionReorderPhotoAction
     ),
   });
 };
@@ -258,6 +260,7 @@ export const getApiActionsActionGroupExecuteActionMutationOptions = <
         | LikeAction
         | PassAction
         | SuggestAction
+        | DeclineForDaterAction
         | ReportAction
         | InviteWingpersonAction
         | AcceptInviteAction
@@ -291,6 +294,7 @@ export const getApiActionsActionGroupExecuteActionMutationOptions = <
       | LikeAction
       | PassAction
       | SuggestAction
+      | DeclineForDaterAction
       | ReportAction
       | InviteWingpersonAction
       | AcceptInviteAction
@@ -329,6 +333,7 @@ export const getApiActionsActionGroupExecuteActionMutationOptions = <
         | LikeAction
         | PassAction
         | SuggestAction
+        | DeclineForDaterAction
         | ReportAction
         | InviteWingpersonAction
         | AcceptInviteAction
@@ -366,6 +371,7 @@ export type ApiActionsActionGroupExecuteActionMutationBody =
   | LikeAction
   | PassAction
   | SuggestAction
+  | DeclineForDaterAction
   | ReportAction
   | InviteWingpersonAction
   | AcceptInviteAction
@@ -405,6 +411,7 @@ export const useApiActionsActionGroupExecuteAction = <
           | LikeAction
           | PassAction
           | SuggestAction
+          | DeclineForDaterAction
           | ReportAction
           | InviteWingpersonAction
           | AcceptInviteAction
@@ -440,6 +447,7 @@ export const useApiActionsActionGroupExecuteAction = <
       | LikeAction
       | PassAction
       | SuggestAction
+      | DeclineForDaterAction
       | ReportAction
       | InviteWingpersonAction
       | AcceptInviteAction
@@ -641,12 +649,13 @@ export const getApiActionsActionGroupObjectIdExecuteObjectActionUrl = (
 export const apiActionsActionGroupObjectIdExecuteObjectAction = async (
   actionGroup: ActionGroupType,
   objectId: string,
-  sendMessageActionMarkMessagesReadActionLikeActionPassActionSuggestActionReportActionInviteWingpersonActionAcceptInviteActionDeclineInviteActionRemoveWingpersonActionCreateProfilePromptActionDeleteProfilePromptActionCreatePromptResponseActionApprovePromptResponseActionDeletePromptResponseActionUpdateProfileActionCreateDatingProfileActionUpdateDatingProfileActionCreatePhotoActionApprovePhotoActionRejectPhotoActionDeletePhotoActionReorderPhotoAction:
+  sendMessageActionMarkMessagesReadActionLikeActionPassActionSuggestActionDeclineForDaterActionReportActionInviteWingpersonActionAcceptInviteActionDeclineInviteActionRemoveWingpersonActionCreateProfilePromptActionDeleteProfilePromptActionCreatePromptResponseActionApprovePromptResponseActionDeletePromptResponseActionUpdateProfileActionCreateDatingProfileActionUpdateDatingProfileActionCreatePhotoActionApprovePhotoActionRejectPhotoActionDeletePhotoActionReorderPhotoAction:
     | SendMessageAction
     | MarkMessagesReadAction
     | LikeAction
     | PassAction
     | SuggestAction
+    | DeclineForDaterAction
     | ReportAction
     | InviteWingpersonAction
     | AcceptInviteAction
@@ -674,7 +683,7 @@ export const apiActionsActionGroupObjectIdExecuteObjectAction = async (
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...options?.headers },
       body: JSON.stringify(
-        sendMessageActionMarkMessagesReadActionLikeActionPassActionSuggestActionReportActionInviteWingpersonActionAcceptInviteActionDeclineInviteActionRemoveWingpersonActionCreateProfilePromptActionDeleteProfilePromptActionCreatePromptResponseActionApprovePromptResponseActionDeletePromptResponseActionUpdateProfileActionCreateDatingProfileActionUpdateDatingProfileActionCreatePhotoActionApprovePhotoActionRejectPhotoActionDeletePhotoActionReorderPhotoAction
+        sendMessageActionMarkMessagesReadActionLikeActionPassActionSuggestActionDeclineForDaterActionReportActionInviteWingpersonActionAcceptInviteActionDeclineInviteActionRemoveWingpersonActionCreateProfilePromptActionDeleteProfilePromptActionCreatePromptResponseActionApprovePromptResponseActionDeletePromptResponseActionUpdateProfileActionCreateDatingProfileActionUpdateDatingProfileActionCreatePhotoActionApprovePhotoActionRejectPhotoActionDeletePhotoActionReorderPhotoAction
       ),
     }
   );
@@ -696,6 +705,7 @@ export const getApiActionsActionGroupObjectIdExecuteObjectActionMutationOptions 
         | LikeAction
         | PassAction
         | SuggestAction
+        | DeclineForDaterAction
         | ReportAction
         | InviteWingpersonAction
         | AcceptInviteAction
@@ -730,6 +740,7 @@ export const getApiActionsActionGroupObjectIdExecuteObjectActionMutationOptions 
       | LikeAction
       | PassAction
       | SuggestAction
+      | DeclineForDaterAction
       | ReportAction
       | InviteWingpersonAction
       | AcceptInviteAction
@@ -769,6 +780,7 @@ export const getApiActionsActionGroupObjectIdExecuteObjectActionMutationOptions 
         | LikeAction
         | PassAction
         | SuggestAction
+        | DeclineForDaterAction
         | ReportAction
         | InviteWingpersonAction
         | AcceptInviteAction
@@ -811,6 +823,7 @@ export type ApiActionsActionGroupObjectIdExecuteObjectActionMutationBody =
   | LikeAction
   | PassAction
   | SuggestAction
+  | DeclineForDaterAction
   | ReportAction
   | InviteWingpersonAction
   | AcceptInviteAction
@@ -852,6 +865,7 @@ export const useApiActionsActionGroupObjectIdExecuteObjectAction = <
           | LikeAction
           | PassAction
           | SuggestAction
+          | DeclineForDaterAction
           | ReportAction
           | InviteWingpersonAction
           | AcceptInviteAction
@@ -888,6 +902,7 @@ export const useApiActionsActionGroupObjectIdExecuteObjectAction = <
       | LikeAction
       | PassAction
       | SuggestAction
+      | DeclineForDaterAction
       | ReportAction
       | InviteWingpersonAction
       | AcceptInviteAction

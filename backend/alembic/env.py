@@ -52,12 +52,39 @@ def get_existing_policies():
     return [p for p in RLS_POLICY_REGISTRY if p.on_entity.split(".")[-1] in existing_tables]
 
 
+# Functions whose bodies reference a table can only be materialized once that table
+# exists. alembic_utils creates each registered entity in a sandbox to diff it, so
+# registering `is_active_wingperson` (which selects from `public.contacts`) against a
+# DB without `contacts` fails. Skip such a function until its dependency table exists,
+# mirroring `get_existing_policies`. `_FUNCTION_TABLE_DEPS` maps a function signature
+# prefix to the table it needs.
+_FUNCTION_TABLE_DEPS = {"is_active_wingperson": "contacts"}
+
+
+def get_existing_functions():
+    """Filter RLS_FUNCTION_REGISTRY to functions whose dependency tables exist."""
+    try:
+        engine = create_engine(database_url)
+        inspector = inspect(engine)
+        existing_tables = set(inspector.get_table_names())
+        engine.dispose()
+    except Exception:
+        return RLS_FUNCTION_REGISTRY
+
+    kept = []
+    for fn in RLS_FUNCTION_REGISTRY:
+        dep = next((t for prefix, t in _FUNCTION_TABLE_DEPS.items() if fn.signature.startswith(prefix)), None)
+        if dep is None or dep in existing_tables:
+            kept.append(fn)
+    return kept
+
+
 # Register the RLS helper functions BEFORE the policies. alembic_utils
 # materializes each registered entity in a sandbox to diff it, so the functions
 # (`current_user_id`, `is_active_wingperson`) must exist before the policies that
 # call them are created. `current_user_id` is listed first in the registry, and
 # `is_active_wingperson` depends on it, so list-order is correct.
-register_entities(RLS_FUNCTION_REGISTRY, entity_types=[PGFunctionType])
+register_entities(get_existing_functions(), entity_types=[PGFunctionType])
 register_entities(get_existing_policies(), entity_types=[PGPolicyType])
 comparators.dispatch_for("table")(compare_rls)
 
@@ -74,6 +101,9 @@ def render_item(type_: str, obj: object, autogen_context: object) -> str | bool:
     if type_ == "type":
         class_name = obj.__class__.__name__
         if isinstance(obj, TypeDecorator):
+            if class_name == "SqidType":
+                autogen_context.imports.add("from app.utils.sqids import SqidType")  # type: ignore[union-attr]
+                return "SqidType()"
             if class_name == "TextEnum":
                 autogen_context.imports.add("from app.utils.textenum import TextEnum")  # type: ignore[union-attr]
                 enum_cls = obj.enum_class  # type: ignore[attr-defined]

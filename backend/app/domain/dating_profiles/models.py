@@ -1,5 +1,3 @@
-from uuid import UUID
-
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
@@ -7,6 +5,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.domain.dating_profiles.enums import City, DatingStatus, Interest, Religion
 from app.domain.profiles.enums import Gender
 from app.platform.base.models import BaseDBModel
+from app.utils.sqids import Sqid, SqidType
 from app.utils.textenum import TextEnum
 
 
@@ -14,7 +13,8 @@ class DatingProfile(BaseDBModel):
     __tablename__ = "dating_profiles"
 
     # one dating profile per user — SQL: not null unique references profiles(id)
-    user_id: Mapped[UUID] = mapped_column(
+    user_id: Mapped[Sqid] = mapped_column(
+        SqidType,
         sa.ForeignKey("profiles.id", ondelete="CASCADE"),
         nullable=False,
         unique=True,

@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react';
 import type { SwipeProfile } from '@/lib/api/generated/model';
 import { getApiDatingProfilesSwipe } from '@/lib/api/generated/dating-profiles/dating-profiles';
-import { suggest } from '@/lib/api/actions';
+import { useActionExecutor } from '@/hooks/actions/use-action-executor';
+import { shortKey } from '@/lib/actions/types';
 
 const PAGE_SIZE = 20;
 
@@ -11,6 +12,16 @@ export function useWingSwipe(daterId: string, initialPool: SwipeProfile[]) {
 
   const offsetRef = useRef(initialPool.length);
   const loadingMoreRef = useRef(false);
+
+  // Winger swipe writes flow through the action executor, driven by each card's
+  // server actions[] (suggest / decline). `formContext` injects the daterId into
+  // every body (both actions need it); `silent` keeps the deck's quiet-success UX
+  // while the executor still handles invalidation (swipe pool, decisions, winger
+  // tabs) + error toasts.
+  const executor = useActionExecutor({
+    actionGroup: 'dating_profile_swipe_actions',
+    formContext: { daterId },
+  });
 
   async function loadMore() {
     if (loadingMoreRef.current) return;
@@ -30,15 +41,20 @@ export function useWingSwipe(daterId: string, initialPool: SwipeProfile[]) {
   async function suggestCard(note: string | null): Promise<void> {
     const card = pool[index];
     if (!card) return;
+    const action = (card.actions ?? []).find((a) => shortKey(a.action) === 'suggest');
 
     // Optimistic advance; trigger prefetch when nearing the end
     const newIndex = index + 1;
     setIndex(newIndex);
     if (newIndex >= pool.length - 3) loadMore();
 
+    if (!action) return;
     try {
-      // Suggest targets the DatingProfile (profileId); daterId names who it's for.
-      await suggest(card.profileId, { daterId, note, decision: null });
+      // Suggest targets the DatingProfile (profileId); daterId comes from formContext.
+      await executor.executeAction(action, { action: action.action, data: { note } }, {
+        objectId: card.profileId,
+        silent: true,
+      });
     } catch {
       // Roll back on failure
       setIndex((prev) => prev - 1);
@@ -48,16 +64,17 @@ export function useWingSwipe(daterId: string, initialPool: SwipeProfile[]) {
   async function decline(): Promise<void> {
     const card = pool[index];
     if (!card) return;
+    const action = (card.actions ?? []).find((a) => shortKey(a.action) === 'decline');
 
-    // Optimistic advance (fire-and-forget — no rollback needed); trigger prefetch when nearing end
+    // Optimistic advance (fire-and-forget — no rollback); trigger prefetch near end
     const newIndex = index + 1;
     setIndex(newIndex);
     if (newIndex >= pool.length - 3) loadMore();
 
-    try {
-      await suggest(card.profileId, { daterId, decision: 'declined' });
-    } catch {
-      // Match legacy behavior: declines are fire-and-forget, no rollback.
+    if (action) {
+      void executor
+        .executeAction(action, undefined, { objectId: card.profileId, silent: true })
+        .catch(() => {});
     }
   }
 

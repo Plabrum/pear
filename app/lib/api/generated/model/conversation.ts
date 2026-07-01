@@ -4,13 +4,16 @@
  * Litestar API
  * OpenAPI spec version: 1.0.0
  */
+import type { ActionDTO } from './actionDTO';
 import type { ConversationLastMessage } from './conversationLastMessage';
 import type { ConversationOther } from './conversationOther';
 
 export interface Conversation {
+  /** SQID-encoded identifier */
   matchId: string;
   createdAt: string;
   other: ConversationOther;
   lastMessage: ConversationLastMessage | null;
   unreadCount: number;
+  actions?: ActionDTO[];
 }

@@ -6,7 +6,9 @@
  */
 
 export interface CreatePhotoData {
+  /** SQID-encoded identifier */
   datingProfileId: string;
+  /** SQID-encoded identifier */
   mediaId: string;
   displayOrder: number;
 }

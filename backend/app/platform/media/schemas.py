@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from uuid import UUID
-
 from app.platform.base.schemas import BaseSchema
+from app.utils.sqids import Sqid
 
 # ── Input ────────────────────────────────────────────────────────────────────
 
@@ -24,7 +23,7 @@ class PresignedUploadResponse(BaseSchema):
     POST /media/{mediaId}/uploaded to kick off processing. `key` is the original
     upload key (the same value persisted as the Media's `file_key`)."""
 
-    mediaId: UUID
+    mediaId: Sqid
     uploadUrl: str
     key: str
 
@@ -33,6 +32,6 @@ class MediaResponse(BaseSchema):
     """A resolved media object — `url` is the best available (READY processed key,
     else the original) presigned/public URL for the current `state`."""
 
-    id: UUID
+    id: Sqid
     state: str
     url: str

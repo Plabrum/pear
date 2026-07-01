@@ -19,6 +19,7 @@ from app.platform.actions.base import (
 from app.platform.actions.deps import ActionDeps
 from app.platform.actions.enums import ActionGroupType, ActionIcon
 from app.platform.actions.schemas import ActionExecutionResponse
+from app.platform.auth.principal import User
 from app.platform.state_machine.roles import Role
 
 
@@ -31,7 +32,7 @@ class ContactActionKey(StrEnum):
 
 contact_actions = action_group_factory(
     ActionGroupType.CONTACT_ACTIONS,
-    default_invalidation="contacts",
+    default_invalidation="/wingpeople",
     model_type=Contact,
 )
 
@@ -50,6 +51,7 @@ class InviteWingperson(BaseTopLevelAction[InviteWingpersonData]):
         cls,
         data: InviteWingpersonData,
         transaction: AsyncSession,
+        user: User,
         deps: ActionDeps,
     ) -> ActionExecutionResponse:
         # If a profile already exists with that phone number, link winger_id
@@ -62,7 +64,7 @@ class InviteWingperson(BaseTopLevelAction[InviteWingpersonData]):
         winger_id = await find_profile_id_by_phone(transaction, data.phoneNumber)
 
         contact = Contact(
-            user_id=deps.user.id,
+            user_id=user.id,
             phone_number=data.phoneNumber,
             winger_id=winger_id,
             wingperson_status=WingpersonStatus.INVITED,
@@ -81,7 +83,7 @@ class InviteWingperson(BaseTopLevelAction[InviteWingpersonData]):
 
         return ActionExecutionResponse(
             message="Invitation sent",
-            invalidate_queries=["contacts"],
+            invalidate_queries=["/wingpeople", "/winger-tabs"],
             created_id=contact.id,
         )
 
@@ -97,12 +99,10 @@ class AcceptInvite(BaseObjectAction[Contact, EmptyActionData]):
     target_state = WingpersonStatus.ACTIVE
 
     @classmethod
-    def is_available(cls, obj: Contact, deps: ActionDeps) -> bool:
+    def is_available(cls, obj: Contact, user: User, deps: ActionDeps) -> bool:
         # Only the linked winger may accept, and only while still invited.
         return (
-            obj.winger_id == deps.user.id
-            and deps.user.role is Role.WINGER
-            and obj.wingperson_status == WingpersonStatus.INVITED
+            obj.winger_id == user.id and user.role is Role.WINGER and obj.wingperson_status == WingpersonStatus.INVITED
         )
 
     @classmethod
@@ -111,17 +111,18 @@ class AcceptInvite(BaseObjectAction[Contact, EmptyActionData]):
         obj: Contact,
         data: EmptyActionData,
         transaction: AsyncSession,
+        user: User,
         deps: ActionDeps,
     ) -> ActionExecutionResponse:
         await deps.state_machine_service.transition(
             contact_machine,
             obj,
             WingpersonStatus.ACTIVE,
-            actor=deps.user,
+            actor=user,
         )
         return ActionExecutionResponse(
             message="Invitation accepted",
-            invalidate_queries=["contacts"],
+            invalidate_queries=["/wingpeople", "/winger-tabs"],
         )
 
 
@@ -136,12 +137,10 @@ class DeclineInvite(BaseObjectAction[Contact, EmptyActionData]):
     target_state = WingpersonStatus.REMOVED
 
     @classmethod
-    def is_available(cls, obj: Contact, deps: ActionDeps) -> bool:
+    def is_available(cls, obj: Contact, user: User, deps: ActionDeps) -> bool:
         # Only the linked winger may decline, and only while still invited.
         return (
-            obj.winger_id == deps.user.id
-            and deps.user.role is Role.WINGER
-            and obj.wingperson_status == WingpersonStatus.INVITED
+            obj.winger_id == user.id and user.role is Role.WINGER and obj.wingperson_status == WingpersonStatus.INVITED
         )
 
     @classmethod
@@ -150,17 +149,18 @@ class DeclineInvite(BaseObjectAction[Contact, EmptyActionData]):
         obj: Contact,
         data: EmptyActionData,
         transaction: AsyncSession,
+        user: User,
         deps: ActionDeps,
     ) -> ActionExecutionResponse:
         await deps.state_machine_service.transition(
             contact_machine,
             obj,
             WingpersonStatus.REMOVED,
-            actor=deps.user,
+            actor=user,
         )
         return ActionExecutionResponse(
             message="Invitation declined",
-            invalidate_queries=["contacts"],
+            invalidate_queries=["/wingpeople", "/winger-tabs"],
         )
 
 
@@ -176,12 +176,12 @@ class RemoveWingperson(BaseObjectAction[Contact, EmptyActionData]):
     target_state = WingpersonStatus.REMOVED
 
     @classmethod
-    def is_available(cls, obj: Contact, deps: ActionDeps) -> bool:
+    def is_available(cls, obj: Contact, user: User, deps: ActionDeps) -> bool:
         # The dater who owns the contact may remove it while it is invited (cancel)
         # or active (remove) — but not once it is already removed (terminal).
         return (
-            obj.user_id == deps.user.id
-            and deps.user.role is Role.DATER
+            obj.user_id == user.id
+            and user.role is Role.DATER
             and obj.wingperson_status in (WingpersonStatus.INVITED, WingpersonStatus.ACTIVE)
         )
 
@@ -191,15 +191,16 @@ class RemoveWingperson(BaseObjectAction[Contact, EmptyActionData]):
         obj: Contact,
         data: EmptyActionData,
         transaction: AsyncSession,
+        user: User,
         deps: ActionDeps,
     ) -> ActionExecutionResponse:
         await deps.state_machine_service.transition(
             contact_machine,
             obj,
             WingpersonStatus.REMOVED,
-            actor=deps.user,
+            actor=user,
         )
         return ActionExecutionResponse(
             message="Wingperson removed",
-            invalidate_queries=["contacts"],
+            invalidate_queries=["/wingpeople", "/winger-tabs"],
         )

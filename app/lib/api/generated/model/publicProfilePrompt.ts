@@ -7,6 +7,7 @@
 import type { PromptTemplateRef } from './promptTemplateRef';
 
 export interface PublicProfilePrompt {
+  /** SQID-encoded identifier */
   id: string;
   answer: string;
   createdAt: string;

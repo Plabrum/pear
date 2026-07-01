@@ -7,7 +7,9 @@
 import type { AuthoredPromptResponseStatus } from './authoredPromptResponseStatus';
 
 export interface AuthoredPromptResponse {
+  /** SQID-encoded identifier */
   id: string;
+  /** SQID-encoded identifier */
   daterId: string;
   daterName: string;
   promptQuestion: string;

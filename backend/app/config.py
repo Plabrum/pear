@@ -1,37 +1,12 @@
 import os
 from dataclasses import dataclass
 
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import ec
 from dotenv import load_dotenv
 
 load_dotenv(".env.local")
 load_dotenv("../.env.local")
 load_dotenv(".env")
 load_dotenv("../.env")
-
-
-def generate_es256_keypair() -> tuple[str, str]:
-    """Generate an ephemeral P-256 (ES256) keypair, returned as (private, public) PEM.
-
-    Used by `TestConfig` so the auth suite can sign + verify real tokens without a
-    persisted secret.
-    """
-    private_key = ec.generate_private_key(ec.SECP256R1())
-    private_pem = private_key.private_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PrivateFormat.PKCS8,
-        encryption_algorithm=serialization.NoEncryption(),
-    ).decode()
-    public_pem = (
-        private_key.public_key()
-        .public_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PublicFormat.SubjectPublicKeyInfo,
-        )
-        .decode()
-    )
-    return private_pem, public_pem
 
 
 @dataclass
@@ -89,18 +64,10 @@ class Config:
     SES_CONFIGURATION_SET: str = os.getenv("SES_CONFIGURATION_SET", "")
     EMAIL_FROM: str = os.getenv("EMAIL_FROM", "noreply@pear.local")
 
-    # ─── JWT (we issue our own tokens) ─────────────────────────────────────────
-    # ES256 keypair (PEM). Signing key (private) from Secrets Manager; public key
-    # verifies. In tests `TestConfig` generates an ephemeral keypair so no real
-    # secret is needed (see `TestConfig.__post_init__`).
-    JWT_SIGNING_KEY: str = os.getenv("JWT_SIGNING_KEY", "")
-    JWT_PUBLIC_KEY: str = os.getenv("JWT_PUBLIC_KEY", "")
-    # Access token lifetime (~15m) and the `iss`/`aud` we stamp + verify.
-    ACCESS_TOKEN_TTL_SECONDS: int = int(os.getenv("ACCESS_TOKEN_TTL_SECONDS", "900"))
-    JWT_ISSUER: str = os.getenv("JWT_ISSUER", "pear")
-    JWT_AUDIENCE: str = os.getenv("JWT_AUDIENCE", "pear-app")
-    # Refresh token lifetime (opaque, rotating, server-side stored). Default 30d.
-    REFRESH_TOKEN_TTL_SECONDS: int = int(os.getenv("REFRESH_TOKEN_TTL_SECONDS", str(60 * 60 * 24 * 30)))
+    # ─── Cookie session ────────────────────────────────────────────────────────
+    # Server-side session lifetime (the signed cookie's max-age + the Redis store
+    # TTL). Default 14 days — long enough that the app rarely re-prompts for login.
+    SESSION_MAX_AGE_SECONDS: int = int(os.getenv("SESSION_MAX_AGE_SECONDS", str(60 * 60 * 24 * 14)))
 
     # ─── Apple Sign-In ─────────────────────────────────────────────────────────
     # Service/app id — the `aud` we validate on Apple identity tokens.
@@ -119,8 +86,6 @@ class Config:
     APP_DEEP_LINK_SCHEME: str = os.getenv("APP_DEEP_LINK_SCHEME", "pear")
     # Magic-link token TTL (one-time, single-use). Default 15m.
     MAGIC_LINK_TTL_SECONDS: int = int(os.getenv("MAGIC_LINK_TTL_SECONDS", str(60 * 15)))
-    # Dev bypass: this email logs in instantly without sending mail (empty = off).
-    DEV_MAGIC_LINK_EMAIL: str = os.getenv("DEV_MAGIC_LINK_EMAIL", "")
 
     # ─── APNs (direct push) ────────────────────────────────────────────────────
     # Token-based auth (.p8 key). One key covers the whole team and never expires;
@@ -149,6 +114,16 @@ class Config:
     @property
     def IS_DEV(self) -> bool:
         return self.ENV == "development"
+
+    @property
+    def SESSION_COOKIE_SECURE(self) -> bool:
+        """Whether the session cookie is marked Secure (HTTPS-only).
+
+        Secure everywhere except local development (`not IS_DEV`), where the app
+        talks to the API over plain HTTP. The test suite overrides this to False so
+        the test client (plain-HTTP transport) sends the cookie back.
+        """
+        return not self.IS_DEV
 
     # ─── Database roles (non-superuser model) ──────────────────────────────────
     # Two distinct roles, two distinct URLs:
@@ -193,21 +168,16 @@ class Config:
 
 @dataclass
 class TestConfig(Config):
-    """Test environment — points at the test database on port 5435.
-
-    Generates an ephemeral ES256 keypair on construction (unless one is supplied
-    via env) so the auth suite signs/verifies real tokens without a real secret.
-    """
+    """Test environment — points at the test database on port 5435."""
 
     __test__ = False  # Prevent pytest from collecting this as a test class
 
     ENV: str = "testing"
 
-    def __post_init__(self) -> None:
-        if not self.JWT_SIGNING_KEY or not self.JWT_PUBLIC_KEY:
-            private_pem, public_pem = generate_es256_keypair()
-            self.JWT_SIGNING_KEY = private_pem
-            self.JWT_PUBLIC_KEY = public_pem
+    @property
+    def SESSION_COOKIE_SECURE(self) -> bool:
+        # The test client speaks plain HTTP; a Secure cookie would not be sent back.
+        return False
 
     @property
     def ASYNC_DATABASE_URL(self) -> str:

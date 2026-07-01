@@ -3,15 +3,12 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from uuid import UUID
 
 from litestar import WebSocket, websocket
 from litestar.channels import ChannelsPlugin
 from msgspec import json as _msgjson
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import Config, config
-from app.platform.auth.tokens import TokenError, TokenService
 from app.platform.realtime.channels import (
     TypingPairChannel,
     authorize_channel,
@@ -45,47 +42,28 @@ def _frame_text(frame: object) -> str:
     return _encode(frame).decode()
 
 
-def _extract_token(socket: WebSocket) -> str | None:
-    """Pull the access token from `?token=` (preferred) or an Authorization header."""
-    token = socket.query_params.get("token")
-    if token:
-        return token
-    auth_header = socket.headers.get("Authorization", "")
-    scheme, _, header_token = auth_header.partition(" ")
-    if scheme.lower() == "bearer" and header_token:
-        return header_token
-    return None
+def _session_user_id(socket: WebSocket) -> int | None:
+    """Read the authenticated principal's id from the session cookie on the handshake.
 
-
-def _verify(socket: WebSocket) -> UUID | None:
-    """Verify the handshake token and return the verified user id, or None."""
-    token = _extract_token(socket)
-    if not token:
-        return None
-    active_config: Config = getattr(socket.app.state, "config", None) or config
-    service = TokenService(db=None, config=active_config)  # type: ignore[arg-type]
-    try:
-        claims = service.verify_access_token(token)
-    except TokenError:
-        return None
-    sub = claims.get("sub")
-    try:
-        return UUID(str(sub)) if sub else None
-    except (ValueError, AttributeError):
-        return None
+    SessionAuth runs on the upgrade (the `/ws` route is NOT excluded), so the
+    rehydrated `User` principal is on `socket.user` / `socket.scope["user"]`. We
+    take its id (an int — Sqid is an int subclass); no `?token=` fallback.
+    """
+    principal = socket.scope.get("user")
+    user_id = getattr(principal, "id", None)
+    return user_id if isinstance(user_id, int) else None
 
 
 @websocket("/ws")
 async def realtime_ws(
     socket: WebSocket,
     channels: ChannelsPlugin,
-    # The raw (NOT request-scoped) DB session: the ws route is excluded from the auth
-    # middleware, so `scope["user"]` is unset and the `transaction` dep would leave
-    # `app.user_id` unset (RLS fails closed). We instead wrap each authorize check in
-    # its own short-lived `rls_transaction` scoped to the verified ws user.
+    # The raw (NOT request-scoped) DB session: the ws handler runs for the life of the
+    # socket, so we wrap each authorize check in its own short-lived `rls_transaction`
+    # scoped to the authenticated ws user rather than holding one tx open.
     db_session: AsyncSession,
 ) -> None:
-    user_id = _verify(socket)
+    user_id = _session_user_id(socket)
     if user_id is None:
         await socket.accept()
         await socket.close(code=WS_CLOSE_UNAUTHENTICATED, reason="Unauthenticated")
@@ -119,7 +97,7 @@ async def realtime_ws(
             await _send(_frame_text(SubscribedFrame(channel=channel)))  # idempotent ack
             return
         # RLS-equivalent gate, evaluated under an RLS-scoped tx set to this user.
-        async with rls_transaction(db_session, user_id=str(user_id)) as tx:
+        async with rls_transaction(db_session, user_id=user_id) as tx:
             allowed = await authorize_channel(tx, user_id, channel)
         if not allowed:
             await _send(_frame_text(ErrorFrame(channel=channel, message="Forbidden")))
@@ -187,7 +165,7 @@ async def realtime_ws(
             _announce_presence(realtime, user_id, online=False)
 
 
-def _announce_presence(realtime: RealtimeService, user_id: UUID, *, online: bool) -> None:
+def _announce_presence(realtime: RealtimeService, user_id: int, *, online: bool) -> None:
     """Broadcast a presence change for `user_id` to the list channel + every peer's
     pair channel.
 

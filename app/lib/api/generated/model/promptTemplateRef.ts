@@ -6,6 +6,7 @@
  */
 
 export interface PromptTemplateRef {
+  /** SQID-encoded identifier */
   id: string;
   question: string;
 }

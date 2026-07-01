@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from uuid import UUID
-
 from litestar import Controller, Router, get
 from litestar.params import Parameter
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,9 +12,13 @@ from app.domain.dating_profiles.queries import (
 )
 from app.domain.dating_profiles.schemas import LikesYouCountResponse, SwipeProfile
 from app.domain.dating_profiles.transformers import row_to_swipe_profile
+from app.platform.actions.deps import ActionDeps
+from app.platform.actions.enums import ActionGroupType
+from app.platform.actions.hydrate import resolve_group
 from app.platform.auth.guards import requires_session
 from app.platform.auth.principal import User
 from app.platform.media.client import BaseMediaClient
+from app.utils.sqids import Sqid
 
 
 class DatingProfilesSwipeController(Controller):
@@ -40,12 +42,13 @@ class DatingProfilesSwipeController(Controller):
         user: User,
         transaction: AsyncSession,
         media: BaseMediaClient,
+        action_deps: ActionDeps,
         page_size: int = Parameter(query="pageSize", default=20, ge=1, le=100),
         page_offset: int = Parameter(query="pageOffset", default=0, ge=0),
         likes_you_only: bool | None = Parameter(query="likesYouOnly", default=None, required=False),
         winger_only: bool | None = Parameter(query="wingerOnly", default=None, required=False),
-        filter_winger_id: UUID | None = Parameter(query="filterWingerId", default=None, required=False),
-        dater_id: UUID | None = Parameter(query="daterId", default=None, required=False),
+        filter_winger_id: Sqid | None = Parameter(query="filterWingerId", default=None, required=False),
+        dater_id: Sqid | None = Parameter(query="daterId", default=None, required=False),
     ) -> list[SwipeProfile]:
         # The winger context (daterId) is gated to an active wingperson, mirroring
         # the former wing-pool 403. RLS additionally scopes the underlying rows.
@@ -62,7 +65,10 @@ class DatingProfilesSwipeController(Controller):
             filter_winger_id=filter_winger_id,
             filter_dater_id=dater_id,
         )
-        return [await row_to_swipe_profile(r, media) for r in rows]
+        # Resolve the swipe action group ONCE per request (outside the row loop); each
+        # row's actions are gated against a transient scalar-only stub in the transformer.
+        swipe_group = resolve_group(ActionGroupType.DATING_PROFILE_SWIPE_ACTIONS)
+        return [await row_to_swipe_profile(r, media, swipe_group, action_deps) for r in rows]
 
     @get("/count", operation_id="getApiDatingProfilesSwipeCount")
     async def get_likes_you_count(self, user: User, transaction: AsyncSession) -> LikesYouCountResponse:

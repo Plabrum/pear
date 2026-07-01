@@ -1,28 +1,28 @@
 from __future__ import annotations
 
-from uuid import UUID
-
 from app.domain.dating_profiles.enums import Interest
 from app.domain.profiles.enums import Gender
+from app.platform.actions.schemas import ActionableList
 from app.platform.base.schemas import BaseSchema
+from app.utils.sqids import Sqid
 
 # ── Nested summaries ─────────────────────────────────────────────────────────
 
 
 class WingerSummary(BaseSchema):
-    id: UUID
+    id: Sqid
     chosenName: str | None
     gender: Gender | None
     avatarUrl: str | None
 
 
 class DaterSummary(BaseSchema):
-    id: UUID
+    id: Sqid
     chosenName: str | None
 
 
 class WingingForDater(BaseSchema):
-    id: UUID
+    id: Sqid
     chosenName: str | None
     avatarUrl: str | None
     interests: list[Interest] | None
@@ -32,26 +32,26 @@ class WingingForDater(BaseSchema):
 # ── Roster rows ──────────────────────────────────────────────────────────────
 
 
-class Wingperson(BaseSchema):
-    id: UUID
+class Wingperson(ActionableList):
+    id: Sqid
     createdAt: str
     winger: WingerSummary | None
 
 
-class IncomingInvitation(BaseSchema):
-    id: UUID
+class IncomingInvitation(ActionableList):
+    id: Sqid
     createdAt: str
     dater: DaterSummary | None
 
 
 class WingingForRow(BaseSchema):
-    id: UUID
+    id: Sqid
     createdAt: str
     dater: WingingForDater | None
 
 
-class SentInvitation(BaseSchema):
-    id: UUID
+class SentInvitation(ActionableList):
+    id: Sqid
     createdAt: str
     phoneNumber: str
     winger: DaterSummary | None
@@ -75,7 +75,7 @@ class WingpeopleResponse(BaseSchema):
 class WingingForTab(BaseSchema):
     """The minimal `{id, name}` projection backing the winger-side dater tabs."""
 
-    id: UUID
+    id: Sqid
     name: str
 
 
@@ -89,9 +89,3 @@ class InviteWingpersonData(BaseSchema):
     """POST /wingpeople/invite body."""
 
     phoneNumber: str
-
-
-class InviteWingpersonResponse(BaseSchema):
-    id: UUID
-    phoneNumber: str
-    wingerId: UUID | None

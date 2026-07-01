@@ -26,23 +26,6 @@ def get_dependencies() -> dict[str, Any]:
     return dict(_registry)
 
 
-def _quote_literal(value: str) -> str:
-    """Single-quote a string for inlining into a SET LOCAL statement."""
-    return "'" + value.replace("'", "''") + "'"
-
-
-async def set_request_user(session: AsyncSession, user_id: object) -> None:
-    """Scope the session to a user by pinning the per-tx `app.user_id` GUC.
-
-    The sanctioned way to set `app.user_id` from request-path code: pins it to
-    `user_id` (stringified UUID) so `public.current_user_id()` reports that user
-    and RLS evaluates under their scope. `SET LOCAL` is transaction-scoped, so it
-    cannot leak across pooled connections. Raw `SET LOCAL` execution lives only
-    here in the infra layer; callers use this helper.
-    """
-    await session.execute(text(f"SET LOCAL app.user_id = {_quote_literal(str(user_id))}"))
-
-
 @dep("transaction")
 async def provide_transaction(db_session: AsyncSession, request: Request) -> AsyncGenerator[AsyncSession]:
     """Provide a request-scoped DB transaction with RLS session variables set.
@@ -55,11 +38,11 @@ async def provide_transaction(db_session: AsyncSession, request: Request) -> Asy
     non-superuser, non-owner role from the moment the connection is opened, and
     FORCE RLS applies natively. We only set the per-request GUCs:
 
-    * `app.user_id` — the verified-token `sub` (a UUID), put on
-      `request.scope["user"]` by the ES256 auth middleware *after* verifying the
-      token's signature/exp/iss/aud. `public.current_user_id()` reads it.
-      Unauthenticated requests set none, so RLS fails closed (policies comparing
-      against `current_user_id()` deny).
+    * `app.user_id` — the authenticated principal's id (an int), put on
+      `request.scope["user"]` by SessionAuth's `retrieve_user_handler` after it
+      rehydrates the principal from the cookie session. `public.current_user_id()`
+      reads it. Unauthenticated requests set none, so RLS fails closed (policies
+      comparing against `current_user_id()` deny).
     * `app.is_system_mode = false` — defensively pinned off for ordinary requests.
       Only the `AuthService` first-login bootstrap and system/worker jobs ever set
       it true. `SET LOCAL` is transaction-scoped, so it cannot leak across pooled
@@ -69,14 +52,14 @@ async def provide_transaction(db_session: AsyncSession, request: Request) -> Asy
         # Trusted-operation escape is OFF for ordinary requests (tx-scoped).
         await db_session.execute(text("SET LOCAL app.is_system_mode = false"))
         if request.scope.get("user") is not None:
-            # `request.user.id` is the verified-token `sub` (a UUID).
-            user_id = str(request.user.id)
-            await db_session.execute(text(f"SET LOCAL app.user_id = {_quote_literal(user_id)}"))
+            # `request.user.id` is the authenticated principal's id (an int).
+            user_id = int(request.user.id)
+            await db_session.execute(text(f"SET LOCAL app.user_id = {user_id}"))
         yield db_session
 
 
 @asynccontextmanager
-async def rls_transaction(db_session: AsyncSession, *, user_id: str) -> AsyncGenerator[AsyncSession]:
+async def rls_transaction(db_session: AsyncSession, *, user_id: int) -> AsyncGenerator[AsyncSession]:
     """Short-lived RLS-scoped transaction for long-running handlers (e.g. WebSockets).
 
     The request-scoped `transaction` dep wraps the entire request in a single
@@ -90,5 +73,5 @@ async def rls_transaction(db_session: AsyncSession, *, user_id: str) -> AsyncGen
     """
     async with db_session.begin():
         await db_session.execute(text("SET LOCAL app.is_system_mode = false"))
-        await db_session.execute(text(f"SET LOCAL app.user_id = {_quote_literal(user_id)}"))
+        await db_session.execute(text(f"SET LOCAL app.user_id = {int(user_id)}"))
         yield db_session

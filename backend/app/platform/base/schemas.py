@@ -1,8 +1,7 @@
-from uuid import UUID
-
 from msgspec import Struct
 
 from app.platform.base.filters import FilterDefinition, SortDefinition
+from app.utils.sqids import Sqid
 
 
 class BaseSchema(Struct):
@@ -14,7 +13,7 @@ class BaseSchema(Struct):
 class EntityRef(BaseSchema):
     """Reference to another resource — id, display label, and detail href."""
 
-    id: UUID
+    id: Sqid
     label: str
     href: str
 

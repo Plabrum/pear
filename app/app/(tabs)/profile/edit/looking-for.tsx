@@ -12,16 +12,13 @@ import {
   getGetApiDatingProfilesMeQueryKey,
 } from '@/lib/api/generated/profiles/profiles';
 import { updateDatingProfile } from '@/lib/api/actions';
-import type { UpdateDatingProfileData } from '@/lib/api/generated/model';
-import type { Database } from '@/types/database';
+import type { UpdateDatingProfileData, Religion } from '@/lib/api/generated/model';
 import { GENDERS, RELIGIONS } from '@/constants/enums';
 import { View, Text, ScrollView, SafeAreaView, Pressable, TextInput, Modal } from '@/lib/tw';
 import { cn } from '@/lib/cn';
 import { colors } from '@/constants/theme';
 import { NavHeader } from '@/components/ui/NavHeader';
 import ScreenSuspense from '@/components/ui/ScreenSuspense';
-
-type Religion = Database['public']['Enums']['religion'];
 
 const RELIGIOUS_PREFS: { value: Religion | null; label: string }[] = [
   { value: null, label: 'No preference' },
@@ -92,7 +89,7 @@ function LookingForScreenInner() {
       ageFrom: String(datingProfile?.ageFrom ?? 18),
       ageTo: datingProfile?.ageTo ? String(datingProfile.ageTo) : '',
       religion: datingProfile?.religion ?? RELIGIONS[0],
-      religiousPref: (datingProfile?.religiousPreference as Religion | null) ?? null,
+      religiousPref: datingProfile?.religiousPreference ?? null,
     },
   });
 

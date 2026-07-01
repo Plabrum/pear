@@ -1,15 +1,16 @@
 from __future__ import annotations
 
 from typing import Literal
-from uuid import UUID
 
+from app.platform.actions.schemas import ActionableList
 from app.platform.base.schemas import BaseSchema
+from app.utils.sqids import Sqid
 
 # ── Templates ──────────────────────────────────────────────────────────────────
 
 
 class PromptTemplate(BaseSchema):
-    id: UUID
+    id: Sqid
     question: str
 
 
@@ -17,17 +18,17 @@ class PromptTemplate(BaseSchema):
 
 
 class PromptResponseAuthor(BaseSchema):
-    id: UUID
+    id: Sqid
     chosenName: str | None
     avatarUrl: str | None
 
 
-class PromptResponse(BaseSchema):
-    id: UUID
-    profilePromptId: UUID
+class PromptResponse(ActionableList):
+    id: Sqid
+    profilePromptId: Sqid
     message: str
     isApproved: bool
-    userId: UUID
+    userId: Sqid
     createdAt: str
     author: PromptResponseAuthor | None
 
@@ -40,8 +41,8 @@ AuthoredResponseStatus = Literal["accepted", "pending", "not_accepted"]
 class AuthoredPromptResponse(BaseSchema):
     """A prompt response the caller wrote, with the dater + question + verdict."""
 
-    id: UUID
-    daterId: UUID
+    id: Sqid
+    daterId: Sqid
     daterName: str
     promptQuestion: str
     message: str
@@ -56,9 +57,9 @@ AuthoredPromptResponsesResponse = list[AuthoredPromptResponse]
 # ── Profile prompts (a dater's chosen prompt + answer) ───────────────────────────
 
 
-class ProfilePrompt(BaseSchema):
-    id: UUID
-    datingProfileId: UUID
+class ProfilePrompt(ActionableList):
+    id: Sqid
+    datingProfileId: Sqid
     answer: str
     createdAt: str
     template: PromptTemplate
@@ -71,12 +72,12 @@ class ProfilePrompt(BaseSchema):
 class CreateProfilePromptData(BaseSchema):
     """POST /profile-prompts body."""
 
-    promptTemplateId: UUID
+    promptTemplateId: Sqid
     answer: str
 
 
 class CreatePromptResponseData(BaseSchema):
     """POST /prompt-responses body."""
 
-    profilePromptId: UUID
+    profilePromptId: Sqid
     message: str

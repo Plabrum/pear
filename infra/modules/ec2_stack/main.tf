@@ -61,8 +61,7 @@ resource "aws_secretsmanager_secret_version" "app" {
   # Pear's app secrets. All placeholders - populate real values out of band after
   # first apply. Auth is magic-link + Apple; Pear self-hosts auth and push.
   secret_string = jsonencode({
-    SECRET_KEY      = "CHANGE-ME" # Litestar session / signing secret
-    JWT_SIGNING_KEY = "CHANGE-ME" # ES256 private key - we issue our own tokens
+    SECRET_KEY      = "CHANGE-ME" # Litestar session signing secret (signs the session cookie)
     APPLE_CLIENT_ID = "CHANGE-ME" # Apple Sign-In `aud`
     APNS_KEY        = ""          # APNs auth key (.p8 contents) - push
     APNS_KEY_ID     = ""          # APNs key ID - push

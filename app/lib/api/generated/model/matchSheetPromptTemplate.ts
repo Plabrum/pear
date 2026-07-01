@@ -6,6 +6,7 @@
  */
 
 export interface MatchSheetPromptTemplate {
+  /** SQID-encoded identifier */
   id: string;
   question: string;
 }

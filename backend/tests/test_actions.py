@@ -1,8 +1,8 @@
-from unittest.mock import AsyncMock, MagicMock
-from uuid import uuid4
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from litestar.exceptions import PermissionDeniedException
+from sqlalchemy.exc import ProgrammingError
 
 from app.platform.actions.base import EmptyActionData
 from app.platform.actions.deps import ActionDeps
@@ -12,6 +12,7 @@ from app.platform.actions.schemas import build_action_union
 from app.platform.auth.principal import User
 from app.platform.state_machine.machine import StateMachineService
 from app.platform.state_machine.roles import Role
+from tests.fixtures.ids import fake_id
 from tests.fixtures.sample_domain.actions import ActivateWidget, sample_widget_actions
 from tests.fixtures.sample_domain.models import SampleStatus
 
@@ -20,7 +21,7 @@ class FakeWidget:
     __tablename__ = "sample_widgets"
 
     def __init__(self, state: SampleStatus = SampleStatus.DRAFT) -> None:
-        self.id = uuid4()
+        self.id = fake_id()
         self.state = state
         self.name = "test"
 
@@ -31,7 +32,7 @@ def _make_deps(*, role: Role = Role.DATER) -> ActionDeps:
     session.flush = AsyncMock()
     return ActionDeps(
         transaction=session,
-        user=User(id=uuid4(), role=role),
+        user=User(id=fake_id(), role=role),
         request=MagicMock(),
         config=MagicMock(),
         push=MagicMock(),
@@ -63,8 +64,8 @@ def test_sample_action_is_registered() -> None:
 
 def test_is_available_gates_on_draft_state() -> None:
     deps = _make_deps()
-    assert ActivateWidget.is_available(FakeWidget(SampleStatus.DRAFT), deps) is True
-    assert ActivateWidget.is_available(FakeWidget(SampleStatus.ACTIVE), deps) is False
+    assert ActivateWidget.is_available(FakeWidget(SampleStatus.DRAFT), deps.user, deps) is True
+    assert ActivateWidget.is_available(FakeWidget(SampleStatus.ACTIVE), deps.user, deps) is False
 
 
 def test_available_actions_listed_only_for_draft() -> None:
@@ -98,6 +99,41 @@ async def test_trigger_blocked_when_not_available() -> None:
     with pytest.raises(PermissionDeniedException):
         await sample_widget_actions.trigger(data=_activate_request(), deps=deps, object_id=widget.id)
     assert widget.state == SampleStatus.ACTIVE
+
+
+async def test_trigger_translates_rls_denial_to_403() -> None:
+    """A write rejected by an RLS WITH CHECK policy (SQLSTATE 42501) surfaces as a 403.
+
+    The non-superuser `pear_app` role under FORCE RLS raises `insufficient_privilege`
+    when a caller writes outside their scope. The dispatcher must turn that into a
+    PermissionDeniedException rather than leaking a 500.
+    """
+    deps = _make_deps(role=Role.DATER)
+    widget = FakeWidget(SampleStatus.DRAFT)
+    sample_widget_actions.get_object = AsyncMock(return_value=widget)  # type: ignore[method-assign]
+
+    orig = MagicMock()
+    orig.sqlstate = "42501"
+    rls_denial = ProgrammingError("INSERT ...", {}, orig)
+
+    with patch.object(ActivateWidget, "execute", AsyncMock(side_effect=rls_denial)):
+        with pytest.raises(PermissionDeniedException):
+            await sample_widget_actions.trigger(data=_activate_request(), deps=deps, object_id=widget.id)
+
+
+async def test_trigger_does_not_swallow_non_rls_db_errors() -> None:
+    """A DB error that is NOT an RLS denial propagates unchanged (stays a 500)."""
+    deps = _make_deps(role=Role.DATER)
+    widget = FakeWidget(SampleStatus.DRAFT)
+    sample_widget_actions.get_object = AsyncMock(return_value=widget)  # type: ignore[method-assign]
+
+    orig = MagicMock()
+    orig.sqlstate = "23505"  # unique_violation — a genuine integrity error, not authz
+    other_error = ProgrammingError("INSERT ...", {}, orig)
+
+    with patch.object(ActivateWidget, "execute", AsyncMock(side_effect=other_error)):
+        with pytest.raises(ProgrammingError):
+            await sample_widget_actions.trigger(data=_activate_request(), deps=deps, object_id=widget.id)
 
 
 def test_sample_action_in_openapi_union() -> None:

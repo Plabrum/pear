@@ -4,10 +4,9 @@
  * Litestar API
  * OpenAPI spec version: 1.0.0
  */
-import type { DecisionType } from './decisionType';
 
 export interface SuggestActionData {
+  /** SQID-encoded identifier */
   daterId: string;
-  decision?: DecisionType | null;
   note?: string | null;
 }

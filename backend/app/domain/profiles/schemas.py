@@ -1,19 +1,19 @@
 from __future__ import annotations
 
-from uuid import UUID
-
 import msgspec
 from msgspec import UNSET, UnsetType
 
 from app.domain.dating_profiles.enums import City, DatingStatus, Interest, Religion
 from app.domain.profiles.enums import Gender, UserRole
+from app.platform.actions.schemas import Actionable, ActionableDetail
 from app.platform.base.schemas import BaseSchema
+from app.utils.sqids import Sqid
 
 # ── Base profile ─────────────────────────────────────────────────────────────
 
 
-class Profile(BaseSchema):
-    id: UUID
+class Profile(ActionableDetail):
+    id: Sqid
     chosenName: str | None
     avatarUrl: str | None
     phoneNumber: str | None
@@ -35,34 +35,34 @@ class UpdateProfileData(BaseSchema):
     gender: Gender | None | UnsetType = UNSET
     role: UserRole | UnsetType = UNSET
     pushToken: str | None | UnsetType = UNSET
-    avatarMediaId: UUID | None | UnsetType = UNSET
+    avatarMediaId: Sqid | None | UnsetType = UNSET
 
 
 # ── Dating profile (own) ─────────────────────────────────────────────────────
 
 
 class PromptResponseAuthor(BaseSchema):
-    id: UUID
+    id: Sqid
     chosenName: str | None
     avatarUrl: str | None
 
 
-class OwnPromptResponse(BaseSchema):
-    id: UUID
+class OwnPromptResponse(Actionable):
+    id: Sqid
     message: str
     isApproved: bool
-    userId: UUID
+    userId: Sqid
     createdAt: str
     author: PromptResponseAuthor | None
 
 
 class PromptTemplateRef(BaseSchema):
-    id: UUID
+    id: Sqid
     question: str
 
 
-class OwnProfilePrompt(BaseSchema):
-    id: UUID
+class OwnProfilePrompt(Actionable):
+    id: Sqid
     answer: str
     createdAt: str
     template: PromptTemplateRef
@@ -70,22 +70,22 @@ class OwnProfilePrompt(BaseSchema):
 
 
 class PhotoSuggester(BaseSchema):
-    id: UUID
+    id: Sqid
     chosenName: str | None
 
 
-class OwnProfilePhoto(BaseSchema):
-    id: UUID
+class OwnProfilePhoto(Actionable):
+    id: Sqid
     storageUrl: str
     displayOrder: int
     approvedAt: str | None
-    suggesterId: UUID | None
+    suggesterId: Sqid | None
     suggester: PhotoSuggester | None
 
 
-class OwnDatingProfile(BaseSchema):
-    id: UUID
-    userId: UUID
+class OwnDatingProfile(ActionableDetail):
+    id: Sqid
+    userId: Sqid
     bio: str | None
     city: City
     interestedGender: list[Gender]
@@ -121,10 +121,6 @@ class CreateDatingProfileData(BaseSchema):
     datingStatus: DatingStatus | UnsetType = UNSET
 
 
-class CreateDatingProfileResponse(BaseSchema):
-    id: UUID
-
-
 class UpdateDatingProfileData(BaseSchema):
     """PATCH /dating-profiles/me body. Every field omittable; `UNSET` => leave as-is."""
 
@@ -144,22 +140,22 @@ class UpdateDatingProfileData(BaseSchema):
 
 
 class PublicProfilePhoto(BaseSchema):
-    id: UUID
+    id: Sqid
     storageUrl: str
     displayOrder: int
     approvedAt: str | None
-    suggesterId: UUID | None
+    suggesterId: Sqid | None
 
 
 class PublicProfilePrompt(BaseSchema):
-    id: UUID
+    id: Sqid
     answer: str
     createdAt: str
     template: PromptTemplateRef
 
 
-class PublicDatingProfile(BaseSchema):
-    id: UUID
+class PublicDatingProfile(Actionable):
+    id: Sqid
     bio: str | None
     city: City
     interests: list[Interest]
@@ -168,8 +164,8 @@ class PublicDatingProfile(BaseSchema):
     prompts: list[PublicProfilePrompt]
 
 
-class PublicProfile(BaseSchema):
-    id: UUID
+class PublicProfile(ActionableDetail):
+    id: Sqid
     chosenName: str | None
     avatarUrl: str | None
     datingProfile: PublicDatingProfile | None

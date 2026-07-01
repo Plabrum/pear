@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from uuid import UUID
-
 from sqlalchemy import Integer, and_, asc, case, desc, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
@@ -15,9 +13,10 @@ from app.domain.photos.models import ProfilePhoto
 from app.domain.profiles.models import Profile
 from app.domain.prompts.models import ProfilePrompt, PromptTemplate
 from app.platform.media.queries import servable_key_expr
+from app.utils.sqids import Sqid
 
 
-async def fetch_matches(db: AsyncSession, viewer_id: UUID) -> list[MatchRow]:
+async def fetch_matches(db: AsyncSession, viewer_id: Sqid) -> list[MatchRow]:
     """All matches for the viewer, newest first, with the other user's summary.
 
     The aggregate folds in the other profile + their dating profile (city/bio/
@@ -54,6 +53,10 @@ async def fetch_matches(db: AsyncSession, viewer_id: UUID) -> list[MatchRow]:
                 Match.created_at,
                 has_messages_expr,
                 other_id_expr,
+                # Both participant ids carry through so the transformer can build a
+                # transient Match stub for the MESSAGE_ACTIONS gate (no second query).
+                Match.user_a_id,
+                Match.user_b_id,
                 Profile.chosen_name,
                 Profile.date_of_birth,
                 age_expr,
@@ -75,6 +78,8 @@ async def fetch_matches(db: AsyncSession, viewer_id: UUID) -> list[MatchRow]:
             created_at=created_at,
             has_messages=bool(has_messages),
             other_user_id=other_user_id,
+            user_a_id=user_a_id,
+            user_b_id=user_b_id,
             chosen_name=chosen_name,
             date_of_birth=date_of_birth,
             age=int(age) if age is not None else None,
@@ -88,6 +93,8 @@ async def fetch_matches(db: AsyncSession, viewer_id: UUID) -> list[MatchRow]:
             created_at,
             has_messages,
             other_user_id,
+            user_a_id,
+            user_b_id,
             chosen_name,
             date_of_birth,
             age,
@@ -99,7 +106,7 @@ async def fetch_matches(db: AsyncSession, viewer_id: UUID) -> list[MatchRow]:
     ]
 
 
-async def fetch_match_other_user_id(db: AsyncSession, viewer_id: UUID, match_id: UUID) -> UUID | None:
+async def fetch_match_other_user_id(db: AsyncSession, viewer_id: Sqid, match_id: Sqid) -> Sqid | None:
     """The other participant's id for a match the viewer is party to, else None.
 
     RLS already hides non-participant matches, but the explicit participant `where`
@@ -124,7 +131,7 @@ async def fetch_match_other_user_id(db: AsyncSession, viewer_id: UUID, match_id:
     return row
 
 
-async def fetch_wing_note_for_match(db: AsyncSession, viewer_id: UUID, other_user_id: UUID) -> WingNoteRow | None:
+async def fetch_wing_note_for_match(db: AsyncSession, viewer_id: Sqid, other_user_id: Sqid) -> WingNoteRow | None:
     """The wingperson note attached to the viewer's decision on the other user.
 
     The decision row where the viewer is the actor, the other user the recipient,
@@ -161,7 +168,7 @@ async def fetch_wing_note_for_match(db: AsyncSession, viewer_id: UUID, other_use
     )
 
 
-async def fetch_prompts_for_user(db: AsyncSession, user_id: UUID) -> list[MatchPromptRow]:
+async def fetch_prompts_for_user(db: AsyncSession, user_id: Sqid) -> list[MatchPromptRow]:
     """The other user's profile prompts (answer + template question), oldest first."""
     rows = (
         await db.execute(

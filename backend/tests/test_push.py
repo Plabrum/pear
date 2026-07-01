@@ -6,10 +6,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import jwt
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import ec
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import generate_es256_keypair
 from app.domain.dating_profiles.actions import Like
 from app.domain.decisions.enums import DecisionType
 from app.domain.decisions.models import Decision
@@ -36,10 +37,20 @@ _KEY_ID = "ABC123KEYID"
 _TEAM_ID = "TEAM123456"
 
 
+def _es256_private_pem() -> str:
+    """An ephemeral P-256 private key PEM — stands in for the APNs .p8 contents."""
+    key = ec.generate_private_key(ec.SECP256R1())
+    return key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    ).decode()
+
+
 def _signer() -> APNsJWTSigner:
     # A real (ephemeral) P-256 PEM stands in for the .p8 contents — same EC key
     # material, so PyJWT signs + verifies it exactly as it would a real APNs key.
-    private_pem, _ = generate_es256_keypair()
+    private_pem = _es256_private_pem()
     return APNsJWTSigner(key=private_pem, key_id=_KEY_ID, team_id=_TEAM_ID)
 
 
@@ -81,7 +92,7 @@ def _apns_client() -> APNsPushClient:
     cfg = MagicMock()
     cfg.APNS_HOST = "api.sandbox.push.apple.com"
     cfg.APNS_TOPIC = "com.plabrum.wingmate"
-    private_pem, _ = generate_es256_keypair()
+    private_pem = _es256_private_pem()
     cfg.APNS_KEY = private_pem
     cfg.APNS_KEY_ID = _KEY_ID
     cfg.APNS_TEAM_ID = _TEAM_ID
@@ -197,7 +208,7 @@ def test_build_push_client_local_when_no_apns_key() -> None:
 def test_build_push_client_apns_in_prod_with_key() -> None:
     cfg = MagicMock()
     cfg.ENV = "production"
-    private_pem, _ = generate_es256_keypair()
+    private_pem = _es256_private_pem()
     cfg.APNS_KEY = private_pem
     cfg.APNS_KEY_ID = _KEY_ID
     cfg.APNS_TEAM_ID = _TEAM_ID
@@ -292,7 +303,7 @@ async def test_match_action_fires_push(graph: DomainGraph, db_session: AsyncSess
     client = MagicMock()
     client.send = AsyncMock(return_value=PushSendResult(delivered=True))
     with patch("app.domain.decisions.tasks.build_push_client", return_value=client):
-        await Like.execute(graph.dating_profile_c, EmptyActionData(), db_session, deps)
+        await Like.execute(graph.dating_profile_c, EmptyActionData(), db_session, deps.user, deps)
 
     send = cast(AsyncMock, client.send)
     # A match formed -> a push fired to each tokened participant.

@@ -4,7 +4,6 @@ import logging
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, ClassVar
-from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,6 +14,7 @@ from app.platform.events.service import emit_event
 from app.platform.state_machine.exceptions import InvalidTransitionError
 from app.platform.state_machine.models import StateTransitionLog
 from app.platform.state_machine.roles import Actor, Role
+from app.utils.sqids import Sqid
 
 logger = logging.getLogger(__name__)
 
@@ -174,7 +174,7 @@ class StateMachineService:
         current_state: State[Any, Any],
         to: Any,
         *,
-        actor_id: UUID | None,
+        actor_id: Sqid | None,
         context: dict[str, Any] | None,
     ) -> None:
         """Shared execution: on_exit -> set state -> log -> on_enter -> emit event."""
@@ -209,7 +209,7 @@ class StateMachineService:
     async def _emit_state_changed(
         self,
         obj: Any,
-        actor_id: UUID | None,
+        actor_id: Sqid | None,
         from_value: str,
         to_value: str,
         context: dict[str, Any] | None,

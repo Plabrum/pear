@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from uuid import UUID
-
 from litestar import Controller, Router, get
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,8 +11,12 @@ from app.domain.messages.queries import (
 )
 from app.domain.messages.schemas import ConversationsResponse, MessagesResponse
 from app.domain.messages.transformers import row_to_conversation, row_to_message
+from app.platform.actions.deps import ActionDeps
+from app.platform.actions.enums import ActionGroupType
+from app.platform.actions.hydrate import resolve_group
 from app.platform.auth.guards import requires_session
 from app.platform.auth.principal import User
+from app.utils.sqids import Sqid
 
 
 class MessagesController(Controller):
@@ -22,10 +24,10 @@ class MessagesController(Controller):
 
     path = ""
 
-    @get("/matches/{matchId:uuid}/messages", operation_id="getApiMatchesMatchIdMessages")
+    @get("/matches/{matchId:str}/messages", operation_id="getApiMatchesMatchIdMessages")
     async def list_messages(
         self,
-        matchId: UUID,
+        matchId: Sqid,
         user: User,
         transaction: AsyncSession,
         limit: int = 50,
@@ -43,9 +45,12 @@ class MessagesController(Controller):
         return [row_to_message(r) for r in rows]
 
     @get("/conversations", operation_id="getApiConversations")
-    async def list_conversations(self, user: User, transaction: AsyncSession) -> ConversationsResponse:
+    async def list_conversations(
+        self, user: User, transaction: AsyncSession, action_deps: ActionDeps
+    ) -> ConversationsResponse:
         rows = await fetch_conversations(transaction, user.id)
-        return [row_to_conversation(r) for r in rows]
+        message_group = resolve_group(ActionGroupType.MESSAGE_ACTIONS)
+        return [row_to_conversation(r, user.id, message_group, action_deps) for r in rows]
 
 
 messages_router = Router(

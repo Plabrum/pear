@@ -4,10 +4,13 @@
  * Litestar API
  * OpenAPI spec version: 1.0.0
  */
+import type { ActionDTO } from './actionDTO';
 import type { WingerSummary } from './wingerSummary';
 
 export interface Wingperson {
+  /** SQID-encoded identifier */
   id: string;
   createdAt: string;
   winger: WingerSummary | null;
+  actions?: ActionDTO[];
 }

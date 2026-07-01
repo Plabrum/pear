@@ -56,7 +56,7 @@ wingmate/
 │   │   ├── ws-client.ts        # Litestar Channels websocket (realtime)
 │   │   ├── forms/index.tsx     # Button, TextInput, form primitives
 │   │   └── api/
-│   │       ├── http.ts         # pearFetch — attaches JWT, refreshes on 401, throws on !ok
+│   │       ├── http.ts         # pearFetch — sends session cookie (credentials:'include'), throws on !ok
 │   │       ├── actions.ts      # Typed write client → POST /api/actions/{group}[/{id}]
 │   │       └── generated/      # Orval read hooks (committed)
 │   ├── hooks/ assets/ constants/  # constants/theme.ts = hex escape-hatch values
@@ -192,20 +192,23 @@ Two `useEffect`s allowed in `AuthenticatedNavigator`: deep-link invite check fro
 
 ## Auth Patterns
 
-Auth is **self-hosted**. The backend exposes `/auth/*` endpoints:
-phone **OTP** (Twilio), **Apple Sign-In** verification, and email **magic-link**. It
-issues our own ES256 JWTs (short-lived access) + rotating opaque refresh tokens.
+Auth is **self-hosted**. The backend exposes two `/auth/*` login methods:
+**Apple Sign-In** verification and email **magic-link**. There is no phone/OTP path.
 
-On the client, `app/lib/auth-client.ts` owns token lifecycle: the **refresh token** is
-persisted in `expo-secure-store`, the **access token** is kept in memory, and a 401
-transparently triggers a refresh-and-retry. The hook shapes are:
+The session is a **server-side Redis session transported by an httpOnly cookie**
+(Litestar `SessionAuth` + `ServerSideSessionConfig` + `RedisStore`, `samesite="lax"`) —
+**not** a JWT or refresh token. Login (`/auth/apple`, `/auth/magic-link/verify`) sets the
+session cookie via `Set-Cookie`; every subsequent request carries it. The only JWT in the
+system is the *external* Apple identity token we verify in `clients/apple.py`.
+
+On the client, `app/lib/auth-client.ts` is a thin cookie-bearing fetch
+(`credentials: 'include'`) — no token storage, no `Authorization` header, no
+refresh-on-401. It exposes `signInWithApple()`, `requestMagicLink(email)`,
+`verifyMagicLink(token)`, `me()`, `restoreSession()`, `logout()`. The hook shapes are:
 
 ```ts
 const { session, loading } = useSession(); // routing layer — session may be null
 const { userId, session, signOut } = useAuth(); // authenticated screens — throws if no session
-
-await sendOTP(phone);
-await verifyOTP(phone, token);
 ```
 
 ---
@@ -214,7 +217,7 @@ await verifyOTP(phone, token);
 
 **Reads** go through Orval-generated `useGetApi*Suspense` hooks. `lib/api/http.ts`
 returns the parsed body directly — no `{ data, status }` wrapper, no status checks at
-callsites; it attaches the JWT and throws on a non-2xx.
+callsites; it sends the session cookie (`credentials: 'include'`) and throws on a non-2xx.
 
 **Writes** go through the typed action client `lib/api/actions.ts`, which hits
 `POST /api/actions/{group}[/{object_id}]` with a tagged-union body
@@ -258,8 +261,9 @@ Run after: new/changed Litestar routes or schemas, and new actions. Idempotent.
 `backend/` is a single Litestar app (`app/factory.py` builds it; `app/index.py` is the
 ASGI entry). Runs as `api` + `worker` (SAQ) containers; co-located `postgres`/`redis`/`caddy`.
 
-- **Auth.** `JWTAuthMiddleware` verifies our ES256 access token and establishes the actor.
-  `/auth/*` (OTP/Apple/magic-link) and `/ws` live at the root; everything else under `/api`.
+- **Auth.** Litestar `SessionAuth` reads the httpOnly session cookie, loads the session
+  from Redis, and rehydrates the actor via `retrieve_user_handler`.
+  `/auth/*` (Apple/magic-link) and `/ws` live at the root; everything else under `/api`.
 - **Per-request DB + RLS.** Each request runs in a transaction on a connection opened as
   the **non-superuser `pear_app`** role, with `SET LOCAL app.user_id` (the actor). Because
   `pear_app` owns nothing, **FORCE RLS** is the genuine authorization floor — handler-side
@@ -272,10 +276,11 @@ ASGI entry). Runs as `api` + `worker` (SAQ) containers; co-located `postgres`/`r
 - **Side effects** (push via direct **APNs**, email via **SES**, realtime broadcasts) fire
   from inside actions / queued SAQ tasks. No standalone functions.
 - **Config & secrets.** `backend/app/config.py` reads env (`ENV`, `ASYNC_DATABASE_URL`
-  vs `ADMIN_DB_URL`, `DB_APP_USER`/`DB_APP_PASSWORD`, `JWT_SIGNING_KEY`, `TWILIO_*`,
-  `APPLE_CLIENT_ID`, `APNS_*`, `S3_*`, `SES_*`). In prod these come from Secrets Manager
+  vs `ADMIN_DB_URL`, `DB_APP_USER`/`DB_APP_PASSWORD`, `SECRET_KEY` (session signing),
+  `SESSION_MAX_AGE_SECONDS`, `REDIS_URL`, `APPLE_CLIENT_ID`, `MAGIC_LINK_TTL_SECONDS`,
+  `APNS_*`, `S3_*`, `SES_*`). In prod these come from Secrets Manager
   (merged into `/opt/pear/.env` by `deploy.sh`); local/testing select `Local*` clients
-  (push/email/OTP/S3 no-op or log).
+  (push/email/S3 no-op or log).
 
 ---
 
@@ -355,7 +360,7 @@ Key enums: `role`: `dater|winger` · `dating_status`: `open|break|winging` · `w
 
 - **Composition:** Orchestrators decide what to render; logic lives close to where it's used.
 - **Control flow:** `switch` on discriminated unions. Explicit `return` on every branch.
-- **No `useEffect`:** Move async work into transition handlers. Exceptions: the auth-client session/token-refresh subscription, push token registration, AsyncStorage deep-link check (mount-only, genuine external events).
+- **No `useEffect`:** Move async work into transition handlers. Exceptions: the auth-provider mount effect (restore session on launch + handle the magic-link deep link), push token registration, AsyncStorage deep-link check (mount-only, genuine external events).
 - **Error propagation:** No try/catch across callback boundaries. Return errors as values. User-facing errors via `toast.error()`.
 - **Forms:** react-hook-form everywhere — `Controller`, `handleSubmit`, `isSubmitting`, `isValid`, `mode: 'onChange'`.
 - **Queries:** Transforms belong in the query function. Unwrapping boilerplate belongs in the query wrapper, not callsites. No magic string cache keys.
@@ -397,7 +402,7 @@ cd app && npm run deploy:build   # EAS production build
 ```
 
 **Env.** `backend/.env.local` (or repo-root `.env.local`) carries the backend secrets
-(`DB_*`, `JWT_SIGNING_KEY`, `TWILIO_*`, `APPLE_*`, `APNS_*`, `S3_*`); local dev falls back
+(`DB_*`, `SECRET_KEY`, `REDIS_URL`, `APPLE_*`, `APNS_*`, `S3_*`, `SES_*`); local dev falls back
 to safe defaults (port 5432, `Local*` clients). The app needs
 `EXPO_PUBLIC_API_URL=https://api.<domain>` (or `http://localhost:8000` locally) — it is
 the only backend coordinate the client needs.

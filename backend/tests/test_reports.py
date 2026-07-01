@@ -42,9 +42,9 @@ async def test_report_inserts_report_and_declines(graph: DomainGraph, db_session
     deps = _deps(db_session, user_id=graph.dater_a.id)
     data = ReportActionData(reason="Inappropriate photos")
 
-    result = await Report.execute(graph.dating_profile_c, data, db_session, deps)
+    result = await Report.execute(graph.dating_profile_c, data, db_session, deps.user, deps)
     assert result.message == "Report filed"
-    assert "decisions" in result.invalidate_queries
+    assert "/decisions" in result.invalidate_queries
 
     # The report row was recorded.
     report = (
@@ -83,7 +83,7 @@ async def test_report_overwrites_existing_decision_to_declined(graph: DomainGrap
 
     deps = _deps(db_session, user_id=graph.dater_a.id)
     data = ReportActionData(reason="Changed my mind — abusive")
-    await Report.execute(graph.dating_profile_c, data, db_session, deps)
+    await Report.execute(graph.dating_profile_c, data, db_session, deps.user, deps)
 
     # Still exactly one decision row for the pair, now declined (upsert, not insert).
     rows = (
@@ -115,7 +115,7 @@ async def test_report_under_rls_actor(graph: DomainGraph, db_session: AsyncSessi
     async with acting_as(graph.dater_a.id) as s:
         deps = _deps(s, user_id=graph.dater_a.id)
         data = ReportActionData(reason="RLS path")
-        await Report.execute(graph.dating_profile_c, data, s, deps)
+        await Report.execute(graph.dating_profile_c, data, s, deps.user, deps)
 
         # The reporter reads back their own report (SELECT policy permits it).
         mine = (
@@ -142,7 +142,7 @@ async def test_report_under_rls_actor(graph: DomainGraph, db_session: AsyncSessi
 async def test_report_self_denied(graph: DomainGraph, db_session: AsyncSession) -> None:
     # is_available blocks reporting your own profile (the framework raises 403).
     deps = _deps(db_session, user_id=graph.dater_a.id)
-    assert Report.is_available(graph.dating_profile_a, deps) is False
+    assert Report.is_available(graph.dating_profile_a, deps.user, deps) is False
 
     # No report exists for the self pair.
     report = (

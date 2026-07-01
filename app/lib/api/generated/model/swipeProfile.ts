@@ -4,13 +4,16 @@
  * Litestar API
  * OpenAPI spec version: 1.0.0
  */
+import type { ActionDTO } from './actionDTO';
 import type { City } from './city';
 import type { DatingStatus } from './datingStatus';
 import type { Gender } from './gender';
 import type { Interest } from './interest';
 
 export interface SwipeProfile {
+  /** SQID-encoded identifier */
   profileId: string;
+  /** SQID-encoded identifier */
   userId: string;
   chosenName: string;
   gender: Gender | null;
@@ -24,4 +27,5 @@ export interface SwipeProfile {
   wingNote: string | null;
   suggestedBy: string | null;
   suggesterName: string | null;
+  actions?: ActionDTO[];
 }

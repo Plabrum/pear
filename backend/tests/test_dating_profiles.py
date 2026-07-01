@@ -8,26 +8,33 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.domain.dating_profiles.actions import Like, Pass, Report, Suggest
-from app.domain.dating_profiles.enums import City, DatingStatus
-from app.domain.dating_profiles.exceptions import (
-    CannotSuggestSelfError,
-    NotActiveWingpersonError,
+from app.domain.dating_profiles.actions import (
+    DatingProfileActionKey,
+    DeclineForDater,
+    Like,
+    Pass,
+    Report,
+    Suggest,
+    dating_profile_swipe_actions,
 )
+from app.domain.dating_profiles.enums import City, DatingStatus
+from app.domain.dating_profiles.exceptions import CannotSuggestSelfError
 from app.domain.dating_profiles.queries import (
     fetch_likes_you_count,
     fetch_swipe_pool,
     is_active_wingperson,
 )
-from app.domain.dating_profiles.schemas import ReportActionData, SuggestActionData
+from app.domain.dating_profiles.schemas import DeclineForDaterData, ReportActionData, SuggestActionData
 from app.domain.dating_profiles.transformers import row_to_swipe_profile
 from app.domain.decisions.enums import DecisionType
 from app.domain.decisions.models import Decision
 from app.domain.decisions.queries import find_mutual_match
 from app.domain.profiles.enums import Gender
 from app.domain.reports.models import ProfileReport
-from app.platform.actions.base import EmptyActionData
+from app.platform.actions.base import ActionGroup, EmptyActionData
 from app.platform.actions.deps import ActionDeps
+from app.platform.actions.enums import ActionGroupType
+from app.platform.actions.schemas import ActionDTO
 from app.platform.auth.principal import User
 from app.platform.state_machine.machine import StateMachineService
 from app.platform.state_machine.roles import Role
@@ -57,6 +64,20 @@ def _deps(session: AsyncSession, *, user_id, role: Role = Role.DATER) -> ActionD
 
 def _push(deps: ActionDeps) -> AsyncMock:
     return cast(AsyncMock, deps.push.send)
+
+
+def _swipe_group() -> ActionGroup:
+    """The swipe action group (importing actions.py has registered it)."""
+    return dating_profile_swipe_actions
+
+
+def _action_keys(dtos: list[ActionDTO]) -> set[str]:
+    """The bare action_key suffixes of a hydrated `actions` list.
+
+    Each `ActionDTO.action` is `dating_profile_swipe_actions__<key>`; strip the
+    `{group}__` prefix to compare against `DatingProfileActionKey` values.
+    """
+    return {dto.action.split("__", 1)[1] for dto in dtos}
 
 
 async def _normalize_ages(graph: DomainGraph, db_session: AsyncSession) -> None:
@@ -104,7 +125,8 @@ async def test_swipe_row_maps_to_camel_case(graph: DomainGraph, db_session: Asyn
     await _normalize_ages(graph, db_session)
     rows = await fetch_swipe_pool(db_session, viewer_id=graph.dater_a.id, page_size=20, page_offset=0)
     suggested = next(r for r in rows if r.user_id == graph.dater_b.id)
-    dto = await row_to_swipe_profile(suggested, local_media())
+    deps = _deps(db_session, user_id=graph.dater_a.id)
+    dto = await row_to_swipe_profile(suggested, local_media(), _swipe_group(), deps)
 
     assert dto.profileId == graph.dating_profile_b.id
     assert dto.userId == graph.dater_b.id
@@ -115,6 +137,72 @@ async def test_swipe_row_maps_to_camel_case(graph: DomainGraph, db_session: Asyn
     assert dto.suggestedBy == graph.winger.id
     assert dto.suggesterName == graph.winger.chosen_name
     assert dto.wingNote == graph.suggestion.note
+
+
+# ── action hydration on the swipe read ───────────────────────────────────────
+
+
+async def test_swipe_row_hydrates_dater_actions(graph: DomainGraph, db_session: AsyncSession) -> None:
+    # A dater viewing a candidate (other profile) sees the dater gestures: like,
+    # pass, report. The winger-only gestures (suggest, decline) are role-gated off.
+    await _normalize_ages(graph, db_session)
+    rows = await fetch_swipe_pool(db_session, viewer_id=graph.dater_a.id, page_size=20, page_offset=0)
+    candidate = next(r for r in rows if r.user_id == graph.dater_b.id)
+    deps = _deps(db_session, user_id=graph.dater_a.id, role=Role.DATER)
+    dto = await row_to_swipe_profile(candidate, local_media(), _swipe_group(), deps)
+
+    assert _action_keys(dto.actions) == {
+        DatingProfileActionKey.LIKE,
+        DatingProfileActionKey.PASS,
+        DatingProfileActionKey.REPORT,
+    }
+    # Every hydrated action belongs to this group and is available (not disabled).
+    for a in dto.actions:
+        assert a.action_group_type == ActionGroupType.DATING_PROFILE_SWIPE_ACTIONS
+        assert a.available is True
+        assert a.disabled_reason is None
+
+
+async def test_swipe_row_hydrates_winger_actions(graph: DomainGraph, db_session: AsyncSession) -> None:
+    # A winger swiping their dater's pool (daterId context) sees the winger gestures:
+    # suggest, decline, report. The dater gestures (like, pass) are role-gated off.
+    # Active-wingperson is enforced by RLS at execute, NOT in is_available, so the
+    # winger sees suggest/decline regardless.
+    await _normalize_ages(graph, db_session)
+    rows = await fetch_swipe_pool(
+        db_session,
+        viewer_id=graph.winger.id,
+        page_size=20,
+        page_offset=0,
+        filter_dater_id=graph.dater_a.id,
+    )
+    candidate = next(r for r in rows if r.user_id == graph.dater_b.id)
+    deps = _deps(db_session, user_id=graph.winger.id, role=Role.WINGER)
+    dto = await row_to_swipe_profile(candidate, local_media(), _swipe_group(), deps)
+
+    assert _action_keys(dto.actions) == {
+        DatingProfileActionKey.SUGGEST,
+        DatingProfileActionKey.DECLINE,
+        DatingProfileActionKey.REPORT,
+    }
+
+
+async def test_swipe_route_hydrates_actions(graph: DomainGraph, db_session: AsyncSession) -> None:
+    # The route loop resolves the group once and hydrates every row. Mirror it: every
+    # returned card carries the dater gestures, gated against the per-row scalar stub.
+    await _normalize_ages(graph, db_session)
+    rows = await fetch_swipe_pool(db_session, viewer_id=graph.dater_a.id, page_size=20, page_offset=0)
+    group = _swipe_group()
+    deps = _deps(db_session, user_id=graph.dater_a.id, role=Role.DATER)
+    dtos = [await row_to_swipe_profile(r, local_media(), group, deps) for r in rows]
+
+    assert dtos  # the dater has a non-empty pool
+    for dto in dtos:
+        assert _action_keys(dto.actions) == {
+            DatingProfileActionKey.LIKE,
+            DatingProfileActionKey.PASS,
+            DatingProfileActionKey.REPORT,
+        }
 
 
 async def test_swipe_pool_excludes_already_decided(graph: DomainGraph, db_session: AsyncSession) -> None:
@@ -204,7 +292,7 @@ async def test_is_active_wingperson_gate(graph: DomainGraph, db_session: AsyncSe
 async def test_like_no_match(graph: DomainGraph, db_session: AsyncSession) -> None:
     # dater_a likes dater_c's dating profile. dater_c has not approved back -> no match.
     deps = _deps(db_session, user_id=graph.dater_a.id)
-    result = await Like.execute(graph.dating_profile_c, EmptyActionData(), db_session, deps)
+    result = await Like.execute(graph.dating_profile_c, EmptyActionData(), db_session, deps.user, deps)
     assert result.created_id is None
     assert await find_mutual_match(db_session, graph.dater_a.id, graph.dater_c.id) is None
 
@@ -237,7 +325,7 @@ async def test_like_creates_match_on_mutual(graph: DomainGraph, db_session: Asyn
     await db_session.flush()
 
     deps = _deps(db_session, user_id=graph.dater_a.id)
-    result = await Like.execute(graph.dating_profile_c, EmptyActionData(), db_session, deps)
+    result = await Like.execute(graph.dating_profile_c, EmptyActionData(), db_session, deps.user, deps)
 
     # Non-null overlay signal on a fresh mutual.
     assert result.created_id is not None
@@ -252,7 +340,7 @@ async def test_like_lands_on_pending_winger_suggestion(graph: DomainGraph, db_se
     # UPDATE that same row (preserving suggested_by) — not create a second row — and
     # form a match because dater_b already approved dater_a.
     deps = _deps(db_session, user_id=graph.dater_a.id)
-    result = await Like.execute(graph.dating_profile_b, EmptyActionData(), db_session, deps)
+    result = await Like.execute(graph.dating_profile_b, EmptyActionData(), db_session, deps.user, deps)
 
     rows = (
         (
@@ -279,7 +367,7 @@ async def test_like_lands_on_pending_winger_suggestion(graph: DomainGraph, db_se
 
 async def test_pass_upserts_declined(graph: DomainGraph, db_session: AsyncSession) -> None:
     deps = _deps(db_session, user_id=graph.dater_a.id)
-    await Pass.execute(graph.dating_profile_c, EmptyActionData(), db_session, deps)
+    await Pass.execute(graph.dating_profile_c, EmptyActionData(), db_session, deps.user, deps)
     row = (
         await db_session.execute(
             select(Decision).where(
@@ -294,12 +382,12 @@ async def test_pass_upserts_declined(graph: DomainGraph, db_session: AsyncSessio
 async def test_like_role_gate_denies_winger(graph: DomainGraph, db_session: AsyncSession) -> None:
     # A winger may not Like — is_available gates the swipe to daters.
     deps = _deps(db_session, user_id=graph.winger.id, role=Role.WINGER)
-    assert Like.is_available(graph.dating_profile_c, deps) is False
+    assert Like.is_available(graph.dating_profile_c, deps.user, deps) is False
 
 
 async def test_like_self_denied(graph: DomainGraph, db_session: AsyncSession) -> None:
     deps = _deps(db_session, user_id=graph.dater_a.id)
-    assert Like.is_available(graph.dating_profile_a, deps) is False
+    assert Like.is_available(graph.dating_profile_a, deps.user, deps) is False
 
 
 # ── Suggest action ───────────────────────────────────────────────────────────
@@ -310,10 +398,10 @@ async def test_suggest_happy(graph: DomainGraph, db_session: AsyncSession) -> No
     graph.dater_a.push_token = "ExpoTokenA"
     await db_session.flush()
     deps = _deps(db_session, user_id=graph.winger.id, role=Role.WINGER)
-    assert Suggest.is_available(graph.dating_profile_c, deps) is True
+    assert Suggest.is_available(graph.dating_profile_c, deps.user, deps) is True
 
     data = SuggestActionData(daterId=graph.dater_a.id, note="You two!")
-    result = await Suggest.execute(graph.dating_profile_c, data, db_session, deps)
+    result = await Suggest.execute(graph.dating_profile_c, data, db_session, deps.user, deps)
     assert result.message == "Suggestion created"
 
     row = (
@@ -343,13 +431,13 @@ async def test_suggest_duplicate_is_noop_no_push(graph: DomainGraph, db_session:
     deps = _deps(db_session, user_id=graph.winger.id, role=Role.WINGER)
     data = SuggestActionData(daterId=graph.dater_a.id, note="You two!")
 
-    await Suggest.execute(graph.dating_profile_c, data, db_session, deps)
+    await Suggest.execute(graph.dating_profile_c, data, db_session, deps.user, deps)
     _push(deps).assert_awaited_once()  # first suggestion pushes
     _push(deps).reset_mock()
 
     # Second, conflicting suggestion on the same (dater_a -> dater_c) pair.
     again = SuggestActionData(daterId=graph.dater_a.id, note="Again!")
-    await Suggest.execute(graph.dating_profile_c, again, db_session, deps)
+    await Suggest.execute(graph.dating_profile_c, again, db_session, deps.user, deps)
 
     rows = (
         (
@@ -370,12 +458,11 @@ async def test_suggest_duplicate_is_noop_no_push(graph: DomainGraph, db_session:
     _push(deps).assert_not_awaited()
 
 
-async def test_suggest_gate_denied_not_wingperson(graph: DomainGraph, db_session: AsyncSession) -> None:
-    # dater_c is NOT a wingperson for dater_a -> 403 in execute, no row written.
-    deps = _deps(db_session, user_id=graph.dater_c.id, role=Role.WINGER)
-    data = SuggestActionData(daterId=graph.dater_a.id)
-    with pytest.raises(NotActiveWingpersonError):
-        await Suggest.execute(graph.dating_profile_b, data, db_session, deps)
+# NOTE: the "non-active wingperson is denied" case is no longer a handler-side check —
+# it's enforced by the decisions INSERT RLS policy (see
+# tests/test_rls.py::test_winger_cannot_insert_decision_for_unrelated_dater) and the
+# action dispatcher translates that DB denial into a 403
+# (tests/test_actions.py::test_trigger_translates_rls_denial_to_403).
 
 
 async def test_suggest_self_denied(graph: DomainGraph, db_session: AsyncSession) -> None:
@@ -383,12 +470,54 @@ async def test_suggest_self_denied(graph: DomainGraph, db_session: AsyncSession)
     deps = _deps(db_session, user_id=graph.winger.id, role=Role.WINGER)
     data = SuggestActionData(daterId=graph.dater_a.id)
     with pytest.raises(CannotSuggestSelfError):
-        await Suggest.execute(graph.dating_profile_a, data, db_session, deps)
+        await Suggest.execute(graph.dating_profile_a, data, db_session, deps.user, deps)
 
 
 async def test_suggest_role_gate_denies_dater(graph: DomainGraph, db_session: AsyncSession) -> None:
     deps = _deps(db_session, user_id=graph.dater_a.id, role=Role.DATER)
-    assert Suggest.is_available(graph.dating_profile_c, deps) is False
+    assert Suggest.is_available(graph.dating_profile_c, deps.user, deps) is False
+
+
+# ── DeclineForDater action ─────────────────────────────────────────────────────
+
+
+async def test_decline_for_dater_writes_declined_and_no_push(graph: DomainGraph, db_session: AsyncSession) -> None:
+    # winger (active for dater_a) declines dater_c's profile on dater_a's behalf:
+    # writes a 'declined' decision so it leaves the pool, and never pushes the dater.
+    graph.dater_a.push_token = "ExpoTokenA"
+    await db_session.flush()
+    deps = _deps(db_session, user_id=graph.winger.id, role=Role.WINGER)
+    assert DeclineForDater.is_available(graph.dating_profile_c, deps.user, deps) is True
+
+    data = DeclineForDaterData(daterId=graph.dater_a.id)
+    result = await DeclineForDater.execute(graph.dating_profile_c, data, db_session, deps.user, deps)
+    assert result.message == "Declined"
+
+    row = (
+        await db_session.execute(
+            select(Decision).where(
+                Decision.actor_id == graph.dater_a.id,
+                Decision.recipient_id == graph.dater_c.id,
+            )
+        )
+    ).scalar_one()
+    assert row.decision == DecisionType.DECLINED
+    assert row.suggested_by == graph.winger.id  # winger-authored, on the dater's behalf
+    # A decline is terminal for the dater — never pings them.
+    _push(deps).assert_not_awaited()
+
+
+async def test_decline_for_dater_self_denied(graph: DomainGraph, db_session: AsyncSession) -> None:
+    # Declining the dater's own profile (recipient == daterId) -> 400.
+    deps = _deps(db_session, user_id=graph.winger.id, role=Role.WINGER)
+    data = DeclineForDaterData(daterId=graph.dater_a.id)
+    with pytest.raises(CannotSuggestSelfError):
+        await DeclineForDater.execute(graph.dating_profile_a, data, db_session, deps.user, deps)
+
+
+async def test_decline_for_dater_role_gate_denies_dater(graph: DomainGraph, db_session: AsyncSession) -> None:
+    deps = _deps(db_session, user_id=graph.dater_a.id, role=Role.DATER)
+    assert DeclineForDater.is_available(graph.dating_profile_c, deps.user, deps) is False
 
 
 # ── Report action ────────────────────────────────────────────────────────────
@@ -397,12 +526,12 @@ async def test_suggest_role_gate_denies_dater(graph: DomainGraph, db_session: As
 async def test_report_inserts_report_and_declines(graph: DomainGraph, db_session: AsyncSession) -> None:
     # dater_a reports dater_c's profile (no prior decision between them).
     deps = _deps(db_session, user_id=graph.dater_a.id)
-    assert Report.is_available(graph.dating_profile_c, deps) is True
+    assert Report.is_available(graph.dating_profile_c, deps.user, deps) is True
 
     data = ReportActionData(reason="Inappropriate photos")
-    result = await Report.execute(graph.dating_profile_c, data, db_session, deps)
+    result = await Report.execute(graph.dating_profile_c, data, db_session, deps.user, deps)
     assert result.message == "Report filed"
-    assert "decisions" in result.invalidate_queries
+    assert "/decisions" in result.invalidate_queries
 
     report = (
         await db_session.execute(
@@ -428,4 +557,4 @@ async def test_report_inserts_report_and_declines(graph: DomainGraph, db_session
 
 async def test_report_self_denied(graph: DomainGraph, db_session: AsyncSession) -> None:
     deps = _deps(db_session, user_id=graph.dater_a.id)
-    assert Report.is_available(graph.dating_profile_a, deps) is False
+    assert Report.is_available(graph.dating_profile_a, deps.user, deps) is False

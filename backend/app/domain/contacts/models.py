@@ -1,10 +1,9 @@
-from uuid import UUID
-
 import sqlalchemy as sa
 from sqlalchemy.orm import Mapped, mapped_column, synonym
 
 from app.domain.contacts.enums import WingpersonStatus
 from app.platform.base.models import BaseDBModel
+from app.utils.sqids import Sqid, SqidType
 from app.utils.textenum import TextEnum
 
 
@@ -12,14 +11,16 @@ class Contact(BaseDBModel):
     __tablename__ = "contacts"
 
     # the dater who owns this contact — SQL: not null references profiles(id) on delete cascade
-    user_id: Mapped[UUID] = mapped_column(
+    user_id: Mapped[Sqid] = mapped_column(
+        SqidType,
         sa.ForeignKey("profiles.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     phone_number: Mapped[str] = mapped_column(sa.Text, nullable=False)
     # set once the invitee signs up & accepts — SQL: references profiles(id) on delete set null
-    winger_id: Mapped[UUID | None] = mapped_column(
+    winger_id: Mapped[Sqid | None] = mapped_column(
+        SqidType,
         sa.ForeignKey("profiles.id", ondelete="SET NULL"),
         nullable=True,
         index=True,

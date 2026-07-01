@@ -6,6 +6,7 @@
  */
 
 export interface WingingForTab {
+  /** SQID-encoded identifier */
   id: string;
   name: string;
 }

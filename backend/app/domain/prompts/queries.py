@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from uuid import UUID
 
 from sqlalchemy import asc, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,6 +14,7 @@ from app.domain.matches.models import Match
 from app.domain.profiles.models import Profile
 from app.domain.prompts.models import ProfilePrompt, PromptResponse, PromptTemplate
 from app.domain.prompts.transformers import ResponseBundle
+from app.utils.sqids import Sqid
 
 # ── Templates ──────────────────────────────────────────────────────────────────
 
@@ -34,13 +34,13 @@ async def fetch_onboarding_prompt_templates(db: AsyncSession, count: int) -> lis
 # ── Profile prompts ────────────────────────────────────────────────────────────
 
 
-async def fetch_own_dating_profile_id(db: AsyncSession, user_id: UUID) -> UUID | None:
+async def fetch_own_dating_profile_id(db: AsyncSession, user_id: Sqid) -> Sqid | None:
     return (
         await db.execute(select(DatingProfile.id).where(DatingProfile.user_id == user_id).limit(1))
     ).scalar_one_or_none()
 
 
-async def _fetch_prompt_responses(db: AsyncSession, prompt_ids: list[UUID]) -> dict[UUID, ResponseBundle]:
+async def _fetch_prompt_responses(db: AsyncSession, prompt_ids: list[Sqid]) -> dict[Sqid, ResponseBundle]:
     """Response threads (each with its author) grouped by profile_prompt_id."""
     if not prompt_ids:
         return {}
@@ -53,13 +53,13 @@ async def _fetch_prompt_responses(db: AsyncSession, prompt_ids: list[UUID]) -> d
             .order_by(asc(PromptResponse.created_at))
         )
     ).all()
-    by_prompt: dict[UUID, ResponseBundle] = {}
+    by_prompt: dict[Sqid, ResponseBundle] = {}
     for response, author_obj in rows:
         by_prompt.setdefault(response.profile_prompt_id, []).append((response, author_obj))
     return by_prompt
 
 
-async def fetch_own_profile_prompts(db: AsyncSession, user_id: UUID) -> list[tuple[ProfilePrompt, str, ResponseBundle]]:
+async def fetch_own_profile_prompts(db: AsyncSession, user_id: Sqid) -> list[tuple[ProfilePrompt, str, ResponseBundle]]:
     """The caller's profile prompts with their template question + response threads."""
     prompt_rows = (
         await db.execute(
@@ -77,25 +77,6 @@ async def fetch_own_profile_prompts(db: AsyncSession, user_id: UUID) -> list[tup
     return [(prompt, question, by_prompt.get(prompt.id, [])) for prompt, question in prompt_rows]
 
 
-async def fetch_profile_prompt_with_question(
-    db: AsyncSession, profile_prompt_id: UUID
-) -> tuple[ProfilePrompt, str, ResponseBundle] | None:
-    """A single profile prompt (used to render a freshly-created prompt)."""
-    row = (
-        await db.execute(
-            select(ProfilePrompt, PromptTemplate.question)
-            .join(PromptTemplate, PromptTemplate.id == ProfilePrompt.prompt_template_id)
-            .where(ProfilePrompt.id == profile_prompt_id)
-            .limit(1)
-        )
-    ).first()
-    if row is None:
-        return None
-    prompt, question = row
-    by_prompt = await _fetch_prompt_responses(db, [prompt.id])
-    return prompt, question, by_prompt.get(prompt.id, [])
-
-
 # ── Prompt responses ─────────────────────────────────────────────────────────
 
 
@@ -103,8 +84,8 @@ async def fetch_profile_prompt_with_question(
 class AuthoredResponseRow:
     """A response the caller authored, with the prompt's question + owning dater."""
 
-    id: UUID
-    dater_id: UUID
+    id: Sqid
+    dater_id: Sqid
     dater_name: str | None
     prompt_question: str
     message: str
@@ -113,7 +94,7 @@ class AuthoredResponseRow:
     created_at: datetime | None
 
 
-async def fetch_authored_prompt_responses(db: AsyncSession, author_id: UUID, limit: int) -> list[AuthoredResponseRow]:
+async def fetch_authored_prompt_responses(db: AsyncSession, author_id: Sqid, limit: int) -> list[AuthoredResponseRow]:
     """Responses the caller authored (`user_id = me`) + their acceptance status, newest first.
 
     Joins each response's prompt to its template (the question) and to the owning
@@ -165,7 +146,7 @@ async def fetch_authored_prompt_responses(db: AsyncSession, author_id: UUID, lim
     ]
 
 
-async def fetch_profile_prompt_owner(db: AsyncSession, profile_prompt_id: UUID) -> UUID | None:
+async def fetch_profile_prompt_owner(db: AsyncSession, profile_prompt_id: Sqid) -> Sqid | None:
     """The user_id of the dater who owns the dating profile this prompt belongs to."""
     return (
         await db.execute(
@@ -177,7 +158,7 @@ async def fetch_profile_prompt_owner(db: AsyncSession, profile_prompt_id: UUID) 
     ).scalar_one_or_none()
 
 
-async def is_active_wingperson(db: AsyncSession, dater_id: UUID, winger_id: UUID) -> bool:
+async def is_active_wingperson(db: AsyncSession, dater_id: Sqid, winger_id: Sqid) -> bool:
     """Whether `winger_id` is an active wingperson of `dater_id`."""
     row = (
         await db.execute(
@@ -193,7 +174,7 @@ async def is_active_wingperson(db: AsyncSession, dater_id: UUID, winger_id: UUID
     return row is not None
 
 
-async def is_matched_with(db: AsyncSession, viewer_id: UUID, other_user_id: UUID) -> bool:
+async def is_matched_with(db: AsyncSession, viewer_id: Sqid, other_user_id: Sqid) -> bool:
     """Whether `viewer_id` and `other_user_id` have a mutual match (either ordering)."""
     row = (
         await db.execute(

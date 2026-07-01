@@ -1,10 +1,9 @@
 import { useState } from 'react';
-import { Dimensions, KeyboardAvoidingView, Modal, Platform, StyleSheet } from 'react-native';
+import { Dimensions, StyleSheet } from 'react-native';
 import PulseSpinner from '@/components/ui/PulseSpinner';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { toast } from 'sonner-native';
 import { useQueryClient } from '@tanstack/react-query';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors } from '@/constants/theme';
 import { useAuth } from '@/context/auth';
@@ -13,10 +12,12 @@ import {
   getGetApiProfilesUserIdQueryKey,
 } from '@/lib/api/generated/profiles/profiles';
 import { getPhotoUrl, pickAndResizePhoto } from '@/lib/photos';
-import { addPromptResponse } from '@/lib/api/actions';
+import { useActionExecutor } from '@/hooks/actions/use-action-executor';
+import { useActionFormRenderer } from '@/hooks/actions/use-action-form-renderer';
+import type { ActionDTO } from '@/lib/actions/types';
 import { useUploadProfilePhoto } from '@/hooks/use-upload-profile-photo';
 
-import { View, Text, Pressable, ScrollView, SafeAreaView, TextInput } from '@/lib/tw';
+import { View, Text, Pressable, ScrollView, SafeAreaView } from '@/lib/tw';
 import { NavHeader } from '@/components/ui/NavHeader';
 import { PhotoRect } from '@/components/ui/PhotoRect';
 import { FaceAvatar } from '@/components/ui/FaceAvatar';
@@ -26,67 +27,12 @@ import ScreenSuspense from '@/components/ui/ScreenSuspense';
 
 const PHOTO_COL = (Dimensions.get('window').width - 20 * 2 - 8) / 2;
 
-function ResponseModal({
-  visible,
-  promptQuestion,
-  onSubmit,
-  onDismiss,
-}: {
-  visible: boolean;
-  promptQuestion: string;
-  onSubmit: (message: string) => void;
-  onDismiss: () => void;
-}) {
-  const insets = useSafeAreaInsets();
-  const [message, setMessage] = useState('');
-
-  const handleSubmit = () => {
-    if (!message.trim()) return;
-    onSubmit(message.trim());
-    setMessage('');
-  };
-
-  return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onDismiss}>
-      <View className="flex-1 bg-black/45">
-        <Pressable className="flex-1" onPress={onDismiss} />
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }}
-        >
-          <View
-            className="bg-white rounded-t-[20px] px-6 pt-3"
-            style={{ paddingBottom: insets.bottom + 20 }}
-          >
-            <View className="self-center w-9 h-1 rounded-full bg-fg-ghost mb-5" />
-            <Text className="text-xs font-semibold text-fg-muted uppercase tracking-[0.6px] mb-1">
-              Prompt
-            </Text>
-            <Text className="text-sm font-semibold text-fg mb-4" numberOfLines={2}>
-              {promptQuestion}
-            </Text>
-            <TextInput
-              className="border-[1.5px] border-separator rounded-xl px-4 py-[14px] text-sm text-fg bg-white min-h-[100px]"
-              placeholder="Write a comment on this prompt..."
-              placeholderTextColor={colors.inkGhost}
-              multiline
-              numberOfLines={4}
-              value={message}
-              onChangeText={setMessage}
-              textAlignVertical="top"
-              autoFocus
-            />
-            <View className="mt-4">
-              <Sprout block onPress={handleSubmit} disabled={!message.trim()}>
-                Send Comment
-              </Sprout>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </View>
-    </Modal>
-  );
-}
+// A winger's prompt comment — a top-level create on prompt_response_actions.
+const ADD_RESPONSE: ActionDTO = {
+  action: 'prompt_response_actions__create',
+  label: 'Reply',
+  action_group_type: 'prompt_response_actions',
+};
 
 function FriendDetailContent() {
   const router = useRouter();
@@ -96,10 +42,13 @@ function FriendDetailContent() {
 
   const { data } = useGetApiProfilesUserIdSuspense(daterId);
   const { upload, isPending: uploading } = useUploadProfilePhoto();
+  const responseExecutor = useActionExecutor({ actionGroup: 'prompt_response_actions' });
   const [respondingToPrompt, setRespondingToPrompt] = useState<{
     id: string;
     question: string;
   } | null>(null);
+  // The prompt-response form is pulled from the action registry; objectData is the prompt.
+  const renderResponseForm = useActionFormRenderer(respondingToPrompt ?? undefined);
 
   const daterName = data?.chosenName ?? 'them';
   const firstName = daterName.split(' ')[0] || daterName;
@@ -118,18 +67,6 @@ function FriendDetailContent() {
     if (!ok) return;
     queryClient.invalidateQueries({ queryKey: getGetApiProfilesUserIdQueryKey(daterId) });
     toast.success(`Photo suggested — ${firstName} will review it.`);
-  };
-
-  const handleSubmitResponse = async (message: string) => {
-    if (!respondingToPrompt) return;
-    const promptId = respondingToPrompt.id;
-    setRespondingToPrompt(null);
-    try {
-      await addPromptResponse({ profilePromptId: promptId, message });
-      toast.success(`Comment sent — ${firstName} will review it.`);
-    } catch {
-      toast.error("Couldn't send comment. Try again.");
-    }
   };
 
   return (
@@ -252,12 +189,22 @@ function FriendDetailContent() {
         )}
       </ScrollView>
 
-      <ResponseModal
-        visible={respondingToPrompt !== null}
-        promptQuestion={respondingToPrompt?.question ?? ''}
-        onSubmit={handleSubmitResponse}
-        onDismiss={() => setRespondingToPrompt(null)}
-      />
+      {respondingToPrompt &&
+        renderResponseForm({
+          action: ADD_RESPONSE,
+          onSubmit: (body) => {
+            // silent: keep our personalized success copy; executor still invalidates + error-toasts.
+            void responseExecutor
+              .executeAction(ADD_RESPONSE, body, { silent: true })
+              .then(() => toast.success(`Comment sent — ${firstName} will review it.`))
+              .catch(() => {});
+            setRespondingToPrompt(null);
+          },
+          onClose: () => setRespondingToPrompt(null),
+          isSubmitting: responseExecutor.isExecuting,
+          isOpen: true,
+          actionLabel: ADD_RESPONSE.label,
+        })}
     </>
   );
 }

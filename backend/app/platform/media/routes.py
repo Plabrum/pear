@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from uuid import UUID
-
 from litestar import Controller, Request, Router, delete, get, post
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,6 +16,7 @@ from app.platform.media.schemas import (
 from app.platform.media.service import MediaService
 from app.platform.queue.enums import TaskName
 from app.platform.queue.transactions import dispatch_task
+from app.utils.sqids import Sqid
 
 
 class MediaController(Controller):
@@ -43,10 +42,10 @@ class MediaController(Controller):
         presigned = await media.presign_upload(row.file_key, content_type=data.contentType)
         return PresignedUploadResponse(mediaId=row.id, uploadUrl=presigned.upload_url, key=presigned.key)
 
-    @post("/{media_id:uuid}/uploaded", operation_id="postApiMediaUploaded")
+    @post("/{media_id:str}/uploaded", operation_id="postApiMediaUploaded")
     async def uploaded(
         self,
-        media_id: UUID,
+        media_id: Sqid,
         request: Request,
         user: User,
         transaction: AsyncSession,
@@ -60,13 +59,13 @@ class MediaController(Controller):
         row = await fetch_media(transaction, media_id)
         if row is None or row.owner_id != user.id:
             raise MediaNotFoundError()
-        await dispatch_task(transaction, request, TaskName.PROCESS_IMAGE, media_id=str(row.id))
+        await dispatch_task(transaction, request, TaskName.PROCESS_IMAGE, media_id=int(row.id))
         return MediaResponse(id=row.id, state=str(row.state), url=row.file_key)
 
-    @get("/{media_id:uuid}", operation_id="getApiMediaById")
+    @get("/{media_id:str}", operation_id="getApiMediaById")
     async def get_one(
         self,
-        media_id: UUID,
+        media_id: Sqid,
         transaction: AsyncSession,
         media: BaseMediaClient,
     ) -> MediaResponse:
@@ -78,10 +77,10 @@ class MediaController(Controller):
         url = await service.resolve_url(row)
         return MediaResponse(id=row.id, state=str(row.state), url=url)
 
-    @delete("/{media_id:uuid}", operation_id="deleteApiMediaById", status_code=204)
+    @delete("/{media_id:str}", operation_id="deleteApiMediaById", status_code=204)
     async def delete_one(
         self,
-        media_id: UUID,
+        media_id: Sqid,
         transaction: AsyncSession,
         media: BaseMediaClient,
     ) -> None:

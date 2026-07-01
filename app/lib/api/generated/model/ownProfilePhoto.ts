@@ -4,13 +4,16 @@
  * Litestar API
  * OpenAPI spec version: 1.0.0
  */
+import type { ActionDTO } from './actionDTO';
 import type { PhotoSuggester } from './photoSuggester';
 
 export interface OwnProfilePhoto {
+  /** SQID-encoded identifier */
   id: string;
   storageUrl: string;
   displayOrder: number;
   approvedAt: string | null;
   suggesterId: string | null;
   suggester: PhotoSuggester | null;
+  actions?: ActionDTO[];
 }

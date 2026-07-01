@@ -4,11 +4,14 @@
  * Litestar API
  * OpenAPI spec version: 1.0.0
  */
+import type { ActionDTO } from './actionDTO';
 import type { MatchSummaryOther } from './matchSummaryOther';
 
 export interface MatchSummary {
+  /** SQID-encoded identifier */
   matchId: string;
   createdAt: string;
   hasMessages: boolean;
   other: MatchSummaryOther;
+  actions?: ActionDTO[];
 }

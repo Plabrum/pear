@@ -2,18 +2,14 @@ import { Suspense, useState } from 'react';
 import { Alert } from 'react-native';
 import Splash from '@/components/ui/Splash';
 import { useRouter } from 'expo-router';
-import { toast } from 'sonner-native';
 import { Ionicons } from '@expo/vector-icons';
 
-import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { FaceAvatar } from '@/components/ui/FaceAvatar';
 import { Sprout } from '@/components/ui/Sprout';
 import { View, Text, ScrollView, SafeAreaView, Pressable } from '@/lib/tw';
-import {
-  getGetApiWingpeopleQueryKey,
-  useGetApiWingpeopleSuspense,
-} from '@/lib/api/generated/contacts/contacts';
-import { acceptWingperson, declineWingperson, removeWingperson } from '@/lib/api/actions';
+import { useGetApiWingpeopleSuspense } from '@/lib/api/generated/contacts/contacts';
+import { useActionExecutor } from '@/hooks/actions/use-action-executor';
+import { shortKey, type ActionDTO } from '@/lib/actions/types';
 import { InviteWingpersonSheet } from '@/components/wingpeople/InviteWingpersonSheet';
 
 const INK = '#1F1B16';
@@ -51,68 +47,39 @@ interface ContentProps {
 
 function WingpeopleContent({ onOpenInvite }: ContentProps) {
   const router = useRouter();
-  const queryClient = useQueryClient();
   const { data } = useGetApiWingpeopleSuspense();
   const { wingpeople, invitations, wingingFor, sentInvitations, weeklyCounts } = data;
 
-  const acceptMutation = useMutation({ mutationFn: acceptWingperson });
-  const declineMutation = useMutation({ mutationFn: declineWingperson });
-  const removeMutation = useMutation({ mutationFn: removeWingperson });
+  // All wingperson writes flow through the action executor, driven by each row's
+  // server actions[] (contact_actions: accept / decline / remove). `silent` keeps
+  // the quiet-success UX; the executor owns invalidation + error toasts.
+  const executor = useActionExecutor({ actionGroup: 'contact_actions' });
 
-  const invalidate = () =>
-    queryClient.invalidateQueries({ queryKey: getGetApiWingpeopleQueryKey() });
+  type Row = { id: string; actions?: ActionDTO[] | null };
 
-  const handleAccept = async (contactId: string) => {
-    const result = await acceptMutation.mutateAsync(contactId).catch(() => null);
-    if (result == null) {
-      toast.error("Couldn't accept invitation. Try again.");
-      return;
+  const run = (row: Row, key: string) => {
+    const action = (row.actions ?? []).find((a) => shortKey(a.action) === key);
+    if (action) {
+      void executor
+        .executeAction(action, undefined, { objectId: row.id, silent: true })
+        .catch(() => {});
     }
-    invalidate();
   };
 
-  const handleDecline = async (contactId: string) => {
-    const result = await declineMutation.mutateAsync(contactId).catch(() => null);
-    if (result == null) {
-      toast.error("Couldn't decline invitation. Try again.");
-      return;
-    }
-    invalidate();
-  };
+  const handleAccept = (inv: Row) => run(inv, 'accept');
+  const handleDecline = (inv: Row) => run(inv, 'decline');
 
-  const handleCancelInvite = (contactId: string) => {
+  const handleCancelInvite = (inv: Row) => {
     Alert.alert('Cancel invite?', 'This will withdraw the invitation.', [
       { text: 'Keep', style: 'cancel' },
-      {
-        text: 'Cancel Invite',
-        style: 'destructive',
-        onPress: async () => {
-          const result = await removeMutation.mutateAsync(contactId).catch(() => null);
-          if (result == null) {
-            toast.error("Couldn't cancel invite. Try again.");
-            return;
-          }
-          invalidate();
-        },
-      },
+      { text: 'Cancel Invite', style: 'destructive', onPress: () => run(inv, 'remove') },
     ]);
   };
 
-  const handleRemove = (contactId: string) => {
+  const handleRemove = (w: Row) => {
     Alert.alert('Remove wingperson?', 'They will no longer swipe on your behalf.', [
       { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Remove',
-        style: 'destructive',
-        onPress: async () => {
-          const result = await removeMutation.mutateAsync(contactId).catch(() => null);
-          if (result == null) {
-            toast.error("Couldn't remove wingperson. Try again.");
-            return;
-          }
-          invalidate();
-        },
-      },
+      { text: 'Remove', style: 'destructive', onPress: () => run(w, 'remove') },
     ]);
   };
 
@@ -141,7 +108,7 @@ function WingpeopleContent({ onOpenInvite }: ContentProps) {
             return (
               <Pressable
                 key={w.id}
-                onLongPress={() => handleRemove(w.id)}
+                onLongPress={() => handleRemove(w)}
                 delayLongPress={500}
                 className="bg-surface"
                 style={{
@@ -164,7 +131,7 @@ function WingpeopleContent({ onOpenInvite }: ContentProps) {
                     {count} pick{count !== 1 ? 's' : ''} this week
                   </Text>
                 </View>
-                <Pressable hitSlop={8} style={{ padding: 6 }} onPress={() => handleRemove(w.id)}>
+                <Pressable hitSlop={8} style={{ padding: 6 }} onPress={() => handleRemove(w)}>
                   <Ionicons name="ellipsis-vertical" size={18} color={INK3} />
                 </Pressable>
               </Pressable>
@@ -204,7 +171,7 @@ function WingpeopleContent({ onOpenInvite }: ContentProps) {
                       Invite pending
                     </Text>
                   </View>
-                  <Sprout size="sm" variant="secondary" onPress={() => handleCancelInvite(inv.id)}>
+                  <Sprout size="sm" variant="secondary" onPress={() => handleCancelInvite(inv)}>
                     Cancel
                   </Sprout>
                 </View>
@@ -245,10 +212,10 @@ function WingpeopleContent({ onOpenInvite }: ContentProps) {
                       {"'"}s feed.
                     </Text>
                   </View>
-                  <Sprout size="sm" variant="secondary" onPress={() => handleDecline(inv.id)}>
+                  <Sprout size="sm" variant="secondary" onPress={() => handleDecline(inv)}>
                     Decline
                   </Sprout>
-                  <Sprout size="sm" onPress={() => handleAccept(inv.id)}>
+                  <Sprout size="sm" onPress={() => handleAccept(inv)}>
                     Accept
                   </Sprout>
                 </View>

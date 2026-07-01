@@ -2,13 +2,15 @@ from __future__ import annotations
 
 import logging
 from abc import ABC
+from collections.abc import Iterator
+from contextlib import contextmanager
 from enum import Enum, StrEnum
 from typing import Any, ClassVar
-from uuid import UUID
 
 from litestar.exceptions import NotFoundException, PermissionDeniedException
 from msgspec import Struct
 from sqlalchemy import select
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.base import ExecutableOption
 
@@ -20,9 +22,35 @@ from app.platform.actions.schemas import (
     ActionExecutionResponse,
     DisabledReason,
 )
+from app.platform.auth.principal import User
 from app.platform.base.models import BaseDBModel
+from app.utils.sqids import Sqid
 
 logger = logging.getLogger(__name__)
+
+# Postgres SQLSTATE raised when a write violates an RLS WITH CHECK policy. The app
+# connects as the non-superuser `pear_app` role under FORCE RLS, so a write the
+# caller isn't authorized for is rejected at the policy layer — never touching a
+# row — rather than returning a 500.
+_RLS_DENIED_SQLSTATE = "42501"  # insufficient_privilege
+
+
+@contextmanager
+def _translate_rls_denial(action_name: str) -> Iterator[None]:
+    """Map a Postgres RLS denial raised by a write to a clean 403.
+
+    All writes flow through actions, so this is the single central chokepoint where
+    an RLS `WITH CHECK` rejection (e.g. a non-active wingperson trying to insert a
+    suggestion) becomes `PermissionDeniedException` instead of leaking a 500. Any
+    other DB error propagates unchanged and keeps its default handling.
+    """
+    try:
+        yield
+    except DBAPIError as exc:
+        if getattr(getattr(exc, "orig", None), "sqlstate", None) == _RLS_DENIED_SQLSTATE:
+            logger.warning("Action %s denied by RLS policy", action_name)
+            raise PermissionDeniedException(detail="You are not permitted to perform this action") from exc
+        raise
 
 
 class EmptyActionData(Struct):
@@ -72,15 +100,15 @@ class BaseObjectAction[O: BaseDBModel, D: Struct](BaseAction[O, D]):
         D: The msgspec Struct type for action data/schema
 
     Subclasses must implement:
-        async def execute(cls, obj: O, data: D, transaction: AsyncSession, deps: ActionDeps)
+        async def execute(cls, obj: O, data: D, transaction: AsyncSession, user: User, deps: ActionDeps)
     """
 
     @classmethod
-    def is_available(cls, obj: O, deps: ActionDeps) -> bool:
+    def is_available(cls, obj: O, user: User, deps: ActionDeps) -> bool:
         return True
 
     @classmethod
-    def is_disabled(cls, obj: O, deps: ActionDeps) -> DisabledReason | None:
+    def is_disabled(cls, obj: O, user: User, deps: ActionDeps) -> DisabledReason | None:
         return None
 
     @classmethod
@@ -89,6 +117,7 @@ class BaseObjectAction[O: BaseDBModel, D: Struct](BaseAction[O, D]):
         obj: O,
         data: D,
         transaction: AsyncSession,
+        user: User,
         deps: ActionDeps,
     ) -> ActionExecutionResponse:
         raise NotImplementedError(f"{cls.__name__} must implement execute()")
@@ -101,15 +130,15 @@ class BaseTopLevelAction[D: Struct](BaseAction[BaseDBModel, D]):
         D: The msgspec Struct type for action data/schema
 
     Subclasses must implement:
-        async def execute(cls, data: D, transaction: AsyncSession, deps: ActionDeps)
+        async def execute(cls, data: D, transaction: AsyncSession, user: User, deps: ActionDeps)
     """
 
     @classmethod
-    def is_available(cls, deps: ActionDeps) -> bool:
+    def is_available(cls, user: User, deps: ActionDeps) -> bool:
         return True
 
     @classmethod
-    def is_disabled(cls, deps: ActionDeps) -> DisabledReason | None:
+    def is_disabled(cls, user: User, deps: ActionDeps) -> DisabledReason | None:
         return None
 
     @classmethod
@@ -117,6 +146,7 @@ class BaseTopLevelAction[D: Struct](BaseAction[BaseDBModel, D]):
         cls,
         data: D,
         transaction: AsyncSession,
+        user: User,
         deps: ActionDeps,
     ) -> ActionExecutionResponse:
         raise NotImplementedError(f"{cls.__name__} must implement execute()")
@@ -163,7 +193,7 @@ class ActionGroup:
             raise NotFoundException(detail=f"Action {action_key} not found")
         return self.actions[action_key]
 
-    async def get_object(self, object_id: UUID, transaction: AsyncSession) -> BaseDBModel | None:
+    async def get_object(self, object_id: Sqid, transaction: AsyncSession) -> BaseDBModel | None:
         """Get object by id using the action group's model type.
 
         Returns `None` when the row is not visible (id absent or hidden by RLS).
@@ -182,11 +212,12 @@ class ActionGroup:
         self,
         data: Any,  # Discriminated union instance
         deps: ActionDeps,
-        object_id: UUID | None = None,
+        object_id: Sqid | None = None,
     ) -> ActionExecutionResponse:
         """Execute an action with proper dependency injection."""
         action_class: type[BaseAction] = self.action_registry._struct_to_action[type(data)]
         transaction = deps.transaction
+        user = deps.user
 
         action_data = getattr(data, "data", data)
 
@@ -197,32 +228,34 @@ class ActionGroup:
             # `is_available` is the single source of truth for both UI visibility
             # and execution authorization. Checking here prevents a client from
             # bypassing a hidden action via a direct API call.
-            if not action_class.is_available(obj, deps):
+            if not action_class.is_available(obj, user, deps):
                 logger.warning(
                     "Action %s blocked for user %s on object %s",
                     action_class.__name__,
-                    getattr(deps.user, "id", None),
+                    user.id,
                     object_id,
                 )
                 raise PermissionDeniedException(
                     detail=f"Action {action_class.__name__} is not available in the current state"
                 )
-            disabled_reason = action_class.is_disabled(obj, deps)
+            disabled_reason = action_class.is_disabled(obj, user, deps)
             if disabled_reason is not None:
                 raise PermissionDeniedException(detail=disabled_reason.message)
-            actions_execution_response = await action_class.execute(obj, action_data, transaction, deps)
+            with _translate_rls_denial(action_class.__name__):
+                actions_execution_response = await action_class.execute(obj, action_data, transaction, user, deps)
         elif issubclass(action_class, BaseTopLevelAction):
-            if not action_class.is_available(deps):
+            if not action_class.is_available(user, deps):
                 logger.warning(
                     "Top-level action %s blocked for user %s",
                     action_class.__name__,
-                    getattr(deps.user, "id", None),
+                    user.id,
                 )
                 raise PermissionDeniedException(detail=f"Action {action_class.__name__} is not available for this user")
-            disabled_reason = action_class.is_disabled(deps)
+            disabled_reason = action_class.is_disabled(user, deps)
             if disabled_reason is not None:
                 raise PermissionDeniedException(detail=disabled_reason.message)
-            actions_execution_response = await action_class.execute(action_data, transaction, deps)
+            with _translate_rls_denial(action_class.__name__):
+                actions_execution_response = await action_class.execute(action_data, transaction, user, deps)
         else:
             raise TypeError(f"Action {action_class.__name__} must inherit from BaseObjectAction or BaseTopLevelAction")
 
@@ -236,19 +269,20 @@ class ActionGroup:
         deps: ActionDeps,
         obj: BaseDBModel | None = None,
     ) -> list[ActionDTO]:
+        user = deps.user
         available: list[tuple[str, type[BaseAction], DisabledReason | None]] = []
         if obj is not None:
             for action_key, action_class in self.object_actions.items():
                 if action_class.is_hidden:
                     continue
-                if action_class.is_available(obj, deps):
-                    available.append((action_key, action_class, action_class.is_disabled(obj, deps)))
+                if action_class.is_available(obj, user, deps):
+                    available.append((action_key, action_class, action_class.is_disabled(obj, user, deps)))
         else:
             for action_key, action_class in self.top_level_actions.items():
                 if action_class.is_hidden:
                     continue
-                if action_class.is_available(deps):
-                    available.append((action_key, action_class, action_class.is_disabled(deps)))
+                if action_class.is_available(user, deps):
+                    available.append((action_key, action_class, action_class.is_disabled(user, deps)))
 
         available.sort(key=lambda x: x[1].priority)
 

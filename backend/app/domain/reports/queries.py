@@ -1,19 +1,18 @@
 from __future__ import annotations
 
-from uuid import UUID
-
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.decisions.enums import DecisionType
 from app.domain.decisions.models import Decision
 from app.domain.reports.models import ProfileReport
+from app.utils.sqids import Sqid
 
 
 async def insert_report(
     db: AsyncSession,
-    reporter_id: UUID,
-    reported_id: UUID,
+    reporter_id: Sqid,
+    reported_id: Sqid,
     reason: str,
 ) -> ProfileReport:
     """Record a report of `reported_id` by `reporter_id`."""
@@ -29,8 +28,8 @@ async def insert_report(
 
 async def upsert_decline_decision(
     db: AsyncSession,
-    actor_id: UUID,
-    recipient_id: UUID,
+    actor_id: Sqid,
+    recipient_id: Sqid,
 ) -> None:
     """Upsert a `declined` decision so the reported profile leaves the queue.
 

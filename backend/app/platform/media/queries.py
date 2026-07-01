@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from typing import Any
-from uuid import UUID
 
 from sqlalchemy import case, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,6 +9,7 @@ from sqlalchemy.sql.elements import ColumnElement
 
 from app.platform.media.enums import MediaState
 from app.platform.media.models import Media
+from app.utils.sqids import Sqid
 
 
 def servable_key_expr(media_id_col: Any) -> ColumnElement[Any]:
@@ -58,12 +58,12 @@ def public_key_expr(media_id_col: Any) -> ColumnElement[Any]:
     )
 
 
-async def fetch_media(db: AsyncSession, media_id: UUID) -> Media | None:
+async def fetch_media(db: AsyncSession, media_id: Sqid) -> Media | None:
     """A single media row by id, subject to the caller's RLS scope."""
     return (await db.execute(select(Media).where(Media.id == media_id).limit(1))).scalar_one_or_none()
 
 
-async def fetch_media_by_ids(db: AsyncSession, media_ids: Sequence[UUID]) -> list[Media]:
+async def fetch_media_by_ids(db: AsyncSession, media_ids: Sequence[Sqid]) -> list[Media]:
     """Media rows for the given ids, subject to the caller's RLS scope.
 
     The media SELECT policy lets a viewer read each row they may legitimately see

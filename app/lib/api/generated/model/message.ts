@@ -7,8 +7,11 @@
 import type { MessageSender } from './messageSender';
 
 export interface Message {
+  /** SQID-encoded identifier */
   id: string;
+  /** SQID-encoded identifier */
   matchId: string;
+  /** SQID-encoded identifier */
   senderId: string;
   body: string;
   isRead: boolean;

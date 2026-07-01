@@ -56,7 +56,7 @@ BEGIN
         GRANT SELECT, INSERT, UPDATE, DELETE
             ON ALL TABLES IN SCHEMA public TO {APP_ROLE};
 
-        -- 3. Sequences for identity columns / gen_random_uuid()-fed defaults.
+        -- 3. Sequences for identity / autoincrement integer PK columns.
         GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO {APP_ROLE};
 
         -- 4. Execute on existing functions (e.g. current_user_id,

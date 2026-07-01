@@ -1,18 +1,18 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from uuid import UUID
 
 from app.domain.profiles.enums import UserRole
 from app.domain.profiles.models import Profile
 from app.platform.state_machine.roles import Role
+from app.utils.sqids import Sqid
 
 
 @dataclass
 class User:
     """Authenticated request principal, loaded from a verified access token."""
 
-    id: UUID
+    id: Sqid
     role: Role
     chosen_name: str | None = None
     # The profile's persisted dater|winger role (None until onboarding sets it).

@@ -24,6 +24,7 @@ from app.platform.actions.base import (
 from app.platform.actions.deps import ActionDeps
 from app.platform.actions.enums import ActionGroupType, ActionIcon
 from app.platform.actions.schemas import ActionExecutionResponse
+from app.platform.auth.principal import User
 
 # camelCase field name -> ORM (snake_case) attribute name. Only fields that
 # differ from a naive lower-snake of the JSON key need listing; we map them all
@@ -72,13 +73,13 @@ class DatingProfileActionKey(StrEnum):
 
 profile_actions = action_group_factory(
     ActionGroupType.PROFILE_ACTIONS,
-    default_invalidation="profiles",
+    default_invalidation="/profiles",
     model_type=Profile,
 )
 
 dating_profile_actions = action_group_factory(
     ActionGroupType.DATING_PROFILE_ACTIONS,
-    default_invalidation="dating_profiles",
+    default_invalidation="/dating-profiles/me",
     model_type=DatingProfile,
 )
 
@@ -93,9 +94,9 @@ class UpdateProfile(BaseObjectAction[Profile, UpdateProfileData]):
     icon = ActionIcon.EDIT
 
     @classmethod
-    def is_available(cls, obj: Profile, deps: ActionDeps) -> bool:
+    def is_available(cls, obj: Profile, user: User, deps: ActionDeps) -> bool:
         # A user may only edit their own profile row (RLS also enforces this).
-        return obj.id == deps.user.id
+        return obj.id == user.id
 
     @classmethod
     async def execute(
@@ -103,13 +104,14 @@ class UpdateProfile(BaseObjectAction[Profile, UpdateProfileData]):
         obj: Profile,
         data: UpdateProfileData,
         transaction: AsyncSession,
+        user: User,
         deps: ActionDeps,
     ) -> ActionExecutionResponse:
         _apply(obj, fields_set(data), _PROFILE_FIELD_MAP)
         await transaction.flush()
         return ActionExecutionResponse(
             message="Profile updated",
-            invalidate_queries=["profiles"],
+            invalidate_queries=["/profiles"],
         )
 
 
@@ -127,15 +129,16 @@ class CreateDatingProfile(BaseTopLevelAction[CreateDatingProfileData]):
         cls,
         data: CreateDatingProfileData,
         transaction: AsyncSession,
+        user: User,
         deps: ActionDeps,
     ) -> ActionExecutionResponse:
-        existing = await fetch_dating_profile_base(transaction, deps.user.id)
+        existing = await fetch_dating_profile_base(transaction, user.id)
         if existing is not None:
             raise DatingProfileAlreadyExistsError()
 
         provided = fields_set(data)
         dating_profile = DatingProfile(
-            user_id=deps.user.id,
+            user_id=user.id,
             city=provided["city"],
             bio=provided.get("bio"),
             age_from=provided["age_from"] if "age_from" in provided else data.ageFrom,
@@ -154,7 +157,7 @@ class CreateDatingProfile(BaseTopLevelAction[CreateDatingProfileData]):
         await transaction.flush()
         return ActionExecutionResponse(
             message="Dating profile created",
-            invalidate_queries=["dating_profiles"],
+            invalidate_queries=["/dating-profiles/me"],
             created_id=dating_profile.id,
         )
 
@@ -169,9 +172,9 @@ class UpdateDatingProfile(BaseObjectAction[DatingProfile, UpdateDatingProfileDat
     icon = ActionIcon.EDIT
 
     @classmethod
-    def is_available(cls, obj: DatingProfile, deps: ActionDeps) -> bool:
+    def is_available(cls, obj: DatingProfile, user: User, deps: ActionDeps) -> bool:
         # A user may only edit their own dating profile (RLS also enforces this).
-        return obj.user_id == deps.user.id
+        return obj.user_id == user.id
 
     @classmethod
     async def execute(
@@ -179,6 +182,7 @@ class UpdateDatingProfile(BaseObjectAction[DatingProfile, UpdateDatingProfileDat
         obj: DatingProfile,
         data: UpdateDatingProfileData,
         transaction: AsyncSession,
+        user: User,
         deps: ActionDeps,
     ) -> ActionExecutionResponse:
         provided = fields_set(data)
@@ -189,5 +193,5 @@ class UpdateDatingProfile(BaseObjectAction[DatingProfile, UpdateDatingProfileDat
         await transaction.flush()
         return ActionExecutionResponse(
             message="Dating profile updated",
-            invalidate_queries=["dating_profiles"],
+            invalidate_queries=["/dating-profiles/me"],
         )

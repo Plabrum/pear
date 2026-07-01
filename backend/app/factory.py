@@ -9,10 +9,15 @@ from litestar import Litestar, Router, get
 from litestar.channels import ChannelsPlugin
 from litestar.channels.backends.memory import MemoryChannelsBackend
 from litestar.config.cors import CORSConfig
-from litestar.datastructures import State
-from litestar.middleware import DefineMiddleware
-from litestar.middleware.base import AbstractMiddleware
+from litestar.connection import ASGIConnection
+from litestar.middleware.session.server_side import (
+    ServerSideSessionBackend,
+    ServerSideSessionConfig,
+)
 from litestar.plugins.jinja import JinjaTemplateEngine
+from litestar.security.session_auth import SessionAuth
+from litestar.stores.base import Store
+from litestar.stores.redis import RedisStore
 from litestar.template.config import TemplateConfig
 from litestar_saq import SAQConfig, SAQPlugin
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -24,20 +29,23 @@ from app.domain.decisions.routes import decisions_router
 from app.domain.matches.routes import matches_router
 from app.domain.messages.routes import messages_router
 from app.domain.photos.routes import photos_router
+from app.domain.profiles.models import Profile
 from app.domain.profiles.routes import profiles_router
 from app.domain.prompts.routes import prompts_router
 from app.domain.reports.routes import reports_router
 from app.platform.actions.routes import action_router
-from app.platform.auth.middleware import JWTAuthMiddleware
+from app.platform.auth.principal import User
 from app.platform.auth.routes import auth_router
 from app.platform.base.models import BaseDBModel
 from app.platform.base.soft_delete import install_soft_delete_filter
 from app.platform.media.routes import media_router
+from app.platform.plugins import SqidSchemaPlugin
 from app.platform.queue.config import queue_config
 from app.platform.realtime.routes import realtime_ws
 from app.utils.deps import get_dependencies
 from app.utils.discovery import discover_and_import
 from app.utils.exceptions import ApplicationError, exception_to_http_response
+from app.utils.sqids import Sqid, sqid_dec_hook, sqid_enc_hook, sqid_type_predicate
 
 # ── Boot-time registry population ─────────────────────────────────────────────
 # Trigger SQLAlchemy mapper registration across all model files.
@@ -54,23 +62,21 @@ install_soft_delete_filter()
 
 __all__ = ["BaseDBModel", "create_app"]
 
-# Unauthenticated /auth/* routes (the login-method + refresh endpoints). These
-# must NOT be rejected by the ES256 middleware for lacking a bearer token. New
-# public paths are appended here (e.g. /auth/apple). Note /auth/me and
-# /auth/logout are intentionally ABSENT — they require a token.
+# Unauthenticated /auth/* routes (the login-method endpoints). These must NOT be
+# rejected by SessionAuth for lacking a session cookie. New public paths are
+# appended here. /auth/me and /auth/logout are intentionally ABSENT — they require
+# a session.
 AUTH_PUBLIC_PATHS = [
-    "^/auth/refresh$",
     "^/auth/apple$",
     "^/auth/magic-link/request$",
     "^/auth/magic-link/verify$",
 ]
 
-# Routes excluded from the auth middleware: health probe, OpenAPI schema/docs,
-# the unauthenticated auth routes above, and the websocket route. `/ws`
-# authenticates the ES256 token ITSELF (from the `?token=` query param — React
-# Native's WebSocket can't set an Authorization header on the handshake), so the
-# HTTP bearer middleware must not reject the upgrade for lacking a header.
-_AUTH_EXCLUDE = ["^/health", "^/schema", "^/ws", *AUTH_PUBLIC_PATHS]
+# Routes excluded from SessionAuth: health probe, OpenAPI schema/docs, and the
+# unauthenticated auth routes above. `/ws` is NOT excluded — SessionAuth runs on
+# the upgrade and authenticates the handshake via the session cookie, exposing the
+# principal on `conn.user` / `conn.scope["user"]`.
+_AUTH_EXCLUDE = ["^/health", "^/schema", *AUTH_PUBLIC_PATHS]
 
 
 @get("/health", sync_to_thread=False, exclude_from_auth=True)
@@ -84,6 +90,8 @@ def create_app(
     dependencies_overrides: dict[str, Any] | None = None,
     plugins_overrides: list[Any] | None = None,
     middleware_overrides: list[Any] | None = None,
+    stores_overrides: dict[str, Store] | None = None,
+    retrieve_user_handler_override: Any = None,
 ) -> Litestar:
     """Create and configure the Litestar application."""
 
@@ -94,9 +102,11 @@ def create_app(
         allow_headers=["Content-Type", "Authorization"],
     )
 
-    # Engine is created explicitly so worker hooks / tasks share the pool config.
+    # Engine is created explicitly so worker hooks / tasks share the pool config,
+    # and so the SessionAuth `retrieve_user_handler` can load the principal on its
+    # own short-lived session (it runs outside the request-scoped transaction).
     engine = create_async_engine(config.ASYNC_DATABASE_URL)
-    async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False, autoflush=False)
+    session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False, autoflush=False)
 
     sqlalchemy_plugin = SQLAlchemyPlugin(
         config=SQLAlchemyAsyncConfig(
@@ -130,17 +140,52 @@ def create_app(
         arbitrary_channels_allowed=True,
     )
 
-    default_plugins: list[Any] = [sqlalchemy_plugin, saq_plugin, channels_plugin]
+    default_plugins: list[Any] = [sqlalchemy_plugin, saq_plugin, channels_plugin, SqidSchemaPlugin()]
     plugins = plugins_overrides if plugins_overrides is not None else default_plugins
 
-    # Verified ES256 auth: check the Bearer token's signature/exp/iss/aud and attach
-    # the verified principal. Skipped for the health probe, OpenAPI schema, and the
-    # unauthenticated /auth/* routes (login methods + refresh).
-    auth_middleware: AbstractMiddleware | DefineMiddleware = DefineMiddleware(
-        JWTAuthMiddleware,
+    async def retrieve_user_handler(session: dict, connection: ASGIConnection) -> User | None:
+        """Rehydrate the request principal from the cookie session.
+
+        Reads `session["user_id"]`, loads the Profile by id on a short-lived session
+        (the request transaction is not open yet), and returns the `User` principal
+        (carrying `.id` for `provide_transaction` + `.role` for ActionDeps). Returns
+        None when the session is empty or the profile no longer exists, which makes
+        SessionAuth treat the request as unauthenticated.
+        """
+        user_id = session.get("user_id")
+        if not user_id:
+            return None
+        async with session_factory() as db:
+            profile = await db.get(Profile, user_id)
+            return User.from_profile(profile) if profile is not None else None
+
+    # Server-side cookie sessions backed by Redis (the infra already runs a redis
+    # container). A Redis store — not a memory store — so a rolling deploy / restart
+    # does not drop sessions and log everyone out. The signed session id rides a
+    # secure, http-only, lax cookie; the payload lives in Redis under the "sessions"
+    # store namespace.
+    redis_store = RedisStore.with_client(url=config.REDIS_URL)
+    stores: dict[str, Store] = {"sessions": redis_store}
+    if stores_overrides:
+        stores.update(stores_overrides)
+
+    session_auth = SessionAuth[User, ServerSideSessionBackend](
+        retrieve_user_handler=retrieve_user_handler_override or retrieve_user_handler,
+        session_backend_config=ServerSideSessionConfig(
+            store="sessions",
+            samesite="lax",
+            # Secure everywhere except local dev (== `not config.IS_DEV`); the test
+            # config relaxes it so the plain-HTTP test client sends the cookie back.
+            secure=config.SESSION_COOKIE_SECURE,
+            httponly=True,
+            max_age=config.SESSION_MAX_AGE_SECONDS,
+        ),
         exclude=_AUTH_EXCLUDE,
     )
-    middleware = middleware_overrides if middleware_overrides is not None else [auth_middleware]
+
+    # SessionAuth installs its own middleware via `on_app_init`; tests may still
+    # inject extra middleware (or none) through `middleware_overrides`.
+    middleware = middleware_overrides if middleware_overrides is not None else []
 
     deps = {**get_dependencies(), **(dependencies_overrides or {})}
 
@@ -179,21 +224,21 @@ def create_app(
             auth_router,
             api_router,
             # Realtime websocket. Stays at the root (`/ws`), not under `/api` — it
-            # is a long-lived socket, not an HTTP data/action route, and
-            # authenticates its own `?token=` access token (see realtime/routes.py).
+            # is a long-lived socket, not an HTTP data/action route. It is NOT in the
+            # auth exclude list, so SessionAuth runs on the upgrade and authenticates
+            # the handshake via the session cookie (see realtime/routes.py).
             realtime_ws,
         ],
-        # The active config is shared via app state so the auth middleware / deps
-        # verify with the SAME keypair that signed tokens. In prod every config is
-        # built from the same env PEM; under tests `TestConfig` mints an ephemeral
-        # keypair, so this single instance must be authoritative everywhere.
-        state=State({"config": config}),
         plugins=plugins,
         middleware=middleware,
+        on_app_init=[session_auth.on_app_init],
+        stores=stores,
         cors_config=cors_config,
         template_config=template_config,
         dependencies=deps,
         on_startup=on_startup,
         exception_handlers={ApplicationError: exception_to_http_response},
+        type_encoders={Sqid: sqid_enc_hook},
+        type_decoders=[(sqid_type_predicate, sqid_dec_hook)],
         debug=config.IS_DEV,
     )

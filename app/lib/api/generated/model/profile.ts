@@ -4,10 +4,12 @@
  * Litestar API
  * OpenAPI spec version: 1.0.0
  */
+import type { ActionDTO } from './actionDTO';
 import type { Gender } from './gender';
 import type { UserRole } from './userRole';
 
 export interface Profile {
+  /** SQID-encoded identifier */
   id: string;
   chosenName: string | null;
   avatarUrl: string | null;
@@ -16,4 +18,5 @@ export interface Profile {
   gender: Gender | null;
   role: UserRole;
   pushToken: string | null;
+  actions?: ActionDTO[];
 }

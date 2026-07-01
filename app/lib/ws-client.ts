@@ -1,18 +1,17 @@
 // Single shared WebSocket transport for realtime. Connects to the backend `/ws`
-// endpoint, authenticating with the in-memory ES256 access token from
-// `auth-client`. One process-wide connection is multiplexed across every
-// subscriber (per-pair presence, the messages-list presence set, typing, and the
-// new-message stream). The hooks in `hooks/*` and `lib/messages-realtime.ts`
-// consume this manager.
-
-import { getAccessToken, refresh } from '@/lib/auth-client';
+// endpoint, authenticating via the session cookie sent on the handshake (the RN
+// WebSocket carries it automatically; SessionAuth runs on the upgrade). One
+// process-wide connection is multiplexed across every subscriber (per-pair
+// presence, the messages-list presence set, typing, and the new-message stream).
+// The hooks in `hooks/*` and `lib/messages-realtime.ts` consume this manager.
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000';
 
-// ws(s)://<api-host>/ws — derive from the http(s) API URL.
-function wsUrl(token: string): string {
+// ws(s)://<api-host>/ws — derive from the http(s) API URL. Auth is the session
+// cookie on the handshake, so no query param / header is appended.
+function wsUrl(): string {
   const base = API_URL.replace(/^http/, 'ws').replace(/\/+$/, '');
-  return `${base}/ws?token=${encodeURIComponent(token)}`;
+  return `${base}/ws`;
 }
 
 // Server -> client frame shapes.
@@ -67,9 +66,6 @@ class WsManager {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectAttempts = 0;
 
-  // Guard against re-entrant refresh-and-reconnect after a 4401.
-  private refreshing = false;
-
   // --- Public API consumed by the hooks ---------------------------------
 
   // Join a channel and receive its events. Returns an unsubscribe function.
@@ -119,22 +115,15 @@ class WsManager {
     this.connect();
   }
 
-  private async connect(): Promise<void> {
+  private connect(): void {
     if (this.state === 'connecting' || this.state === 'open') return;
-
-    // No access token in memory yet (e.g. cold start) — try a refresh so we can
-    // open the socket. If that fails we stay idle until the next subscribe.
-    let token = getAccessToken();
-    if (!token) token = await refresh();
-    if (!token) {
-      this.state = 'idle';
-      return;
-    }
 
     this.state = 'connecting';
     this.ready = false;
 
-    const socket = new WebSocket(wsUrl(token));
+    // The session cookie authenticates the handshake; SessionAuth runs on the
+    // upgrade and rejects unauthenticated connections (close 4401).
+    const socket = new WebSocket(wsUrl());
     this.socket = socket;
 
     socket.onopen = () => {
@@ -212,26 +201,14 @@ class WsManager {
     }
 
     if (code === WS_CLOSE_UNAUTHENTICATED) {
-      // Auth failed/expired — refresh the token then reconnect immediately.
-      void this.refreshAndReconnect();
+      // The session cookie is missing/expired → effectively logged out. There's
+      // no token to refresh; stay idle so we don't hammer the upgrade. A future
+      // subscribe (after a fresh login restores the cookie) reconnects.
+      this.state = 'idle';
       return;
     }
 
     this.scheduleReconnect();
-  }
-
-  private async refreshAndReconnect(): Promise<void> {
-    if (this.refreshing) return;
-    this.refreshing = true;
-    const token = await refresh();
-    this.refreshing = false;
-    if (!token) {
-      // Refresh failed → logged out. Stay idle; a future subscribe retries.
-      this.state = 'idle';
-      return;
-    }
-    this.reconnectAttempts = 0;
-    this.connect();
   }
 
   private scheduleReconnect(): void {

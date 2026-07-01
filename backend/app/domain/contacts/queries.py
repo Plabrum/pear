@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from uuid import UUID
 
 from sqlalchemy import and_, asc, desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,13 +19,69 @@ from app.domain.dating_profiles.models import DatingProfile
 from app.domain.decisions.models import Decision
 from app.domain.profiles.models import Profile
 from app.platform.media.queries import public_key_expr
+from app.utils.sqids import Sqid
 
 
-async def fetch_push_token(db: AsyncSession, user_id: UUID) -> str | None:
+async def fetch_push_token(db: AsyncSession, user_id: Sqid) -> str | None:
     return (await db.execute(select(Profile.push_token).where(Profile.id == user_id).limit(1))).scalar_one_or_none()
 
 
-async def fetch_active_wingpeople(db: AsyncSession, dater_id: UUID) -> list[WingpersonRow]:
+# ── Action-gating: real Contact rows keyed by id ─────────────────────────────
+#
+# The roster loaders above project loose dataclass rows that DROP the scalar
+# columns action gating reads (`user_id`, `winger_id`, `wingperson_status`).
+# These bulk fetchers return the matching Contact ORM rows — one query per
+# actionable bucket, mirroring each loader's filter — so the route can hydrate
+# `CONTACT_ACTIONS` per row. Contact has NO ORM relationships, so gating touches
+# only flat scalars and there is no N+1 / lazy-load.
+
+
+async def fetch_active_wingperson_contacts(db: AsyncSession, dater_id: Sqid) -> dict[Sqid, Contact]:
+    """Active contacts the caller owns as a dater — keyed by Contact.id."""
+    rows = (
+        await db.execute(
+            select(Contact).where(
+                and_(
+                    Contact.user_id == dater_id,
+                    Contact.wingperson_status == WingpersonStatus.ACTIVE,
+                )
+            )
+        )
+    ).scalars()
+    return {c.id: c for c in rows}
+
+
+async def fetch_incoming_invitation_contacts(db: AsyncSession, winger_id: Sqid) -> dict[Sqid, Contact]:
+    """Invited contacts addressed to the caller as a winger — keyed by Contact.id."""
+    rows = (
+        await db.execute(
+            select(Contact).where(
+                and_(
+                    Contact.winger_id == winger_id,
+                    Contact.wingperson_status == WingpersonStatus.INVITED,
+                )
+            )
+        )
+    ).scalars()
+    return {c.id: c for c in rows}
+
+
+async def fetch_sent_invitation_contacts(db: AsyncSession, dater_id: Sqid) -> dict[Sqid, Contact]:
+    """Invited contacts the caller sent as a dater — keyed by Contact.id."""
+    rows = (
+        await db.execute(
+            select(Contact).where(
+                and_(
+                    Contact.user_id == dater_id,
+                    Contact.wingperson_status == WingpersonStatus.INVITED,
+                )
+            )
+        )
+    ).scalars()
+    return {c.id: c for c in rows}
+
+
+async def fetch_active_wingpeople(db: AsyncSession, dater_id: Sqid) -> list[WingpersonRow]:
     winger = aliased(Profile)
     rows = (
         await db.execute(
@@ -61,7 +116,7 @@ async def fetch_active_wingpeople(db: AsyncSession, dater_id: UUID) -> list[Wing
     ]
 
 
-async def fetch_incoming_invitations(db: AsyncSession, winger_id: UUID) -> list[IncomingInvitationRow]:
+async def fetch_incoming_invitations(db: AsyncSession, winger_id: Sqid) -> list[IncomingInvitationRow]:
     dater = aliased(Profile)
     rows = (
         await db.execute(
@@ -87,7 +142,7 @@ async def fetch_incoming_invitations(db: AsyncSession, winger_id: UUID) -> list[
     ]
 
 
-async def fetch_sent_invitations(db: AsyncSession, dater_id: UUID) -> list[SentInvitationRow]:
+async def fetch_sent_invitations(db: AsyncSession, dater_id: Sqid) -> list[SentInvitationRow]:
     winger = aliased(Profile)
     rows = (
         await db.execute(
@@ -120,7 +175,7 @@ async def fetch_sent_invitations(db: AsyncSession, dater_id: UUID) -> list[SentI
     ]
 
 
-async def fetch_winging_for(db: AsyncSession, winger_id: UUID) -> list[WingingForDaterRow]:
+async def fetch_winging_for(db: AsyncSession, winger_id: Sqid) -> list[WingingForDaterRow]:
     dater = aliased(Profile)
     rows = (
         await db.execute(
@@ -158,7 +213,7 @@ async def fetch_winging_for(db: AsyncSession, winger_id: UUID) -> list[WingingFo
     ]
 
 
-async def fetch_winging_for_tabs(db: AsyncSession, winger_id: UUID) -> list[WingingForTabRow]:
+async def fetch_winging_for_tabs(db: AsyncSession, winger_id: Sqid) -> list[WingingForTabRow]:
     """The daters the caller actively wings for — my active winger-side edges, newest first.
 
     Active `contacts` where the caller is the `winger_id`, joined to each dater's
@@ -191,7 +246,7 @@ async def fetch_winging_for_tabs(db: AsyncSession, winger_id: UUID) -> list[Wing
 
 async def fetch_weekly_counts(
     db: AsyncSession,
-    dater_id: UUID,
+    dater_id: Sqid,
     wingpeople: list[WingpersonRow],
 ) -> dict[str, int]:
     """contactId -> # of suggestions a winger made to this dater in the last 7 days.
@@ -199,8 +254,8 @@ async def fetch_weekly_counts(
     A single query covers all the dater's active wingers at once so the wingpeople
     bundle stays O(1) round-trips.
     """
-    winger_ids: list[UUID] = []
-    winger_to_contact_id: dict[UUID, str] = {}
+    winger_ids: list[Sqid] = []
+    winger_to_contact_id: dict[Sqid, str] = {}
     for w in wingpeople:
         if w.winger_id is not None:
             winger_ids.append(w.winger_id)
@@ -232,7 +287,7 @@ async def fetch_weekly_counts(
     return counts
 
 
-async def find_profile_id_by_phone(db: AsyncSession, phone_number: str) -> UUID | None:
+async def find_profile_id_by_phone(db: AsyncSession, phone_number: str) -> Sqid | None:
     return (
         await db.execute(select(Profile.id).where(Profile.phone_number == phone_number).limit(1))
     ).scalar_one_or_none()

@@ -1,12 +1,18 @@
 from __future__ import annotations
 
 from unittest.mock import MagicMock
-from uuid import uuid4
 
 import pytest
 from msgspec import UNSET
 from sqlalchemy.ext.asyncio import AsyncSession
 
+# Importing each domain's actions module registers its ActionGroup(s) in the
+# singleton ActionRegistry, so `resolve_group(...)` succeeds for every group the
+# profiles read paths hydrate (the swipe group on a public profile; the photo /
+# prompt / response groups on the own dating-profile bundle).
+import app.domain.dating_profiles.actions  # noqa: F401, E402  (registers DATING_PROFILE_SWIPE_ACTIONS)
+import app.domain.photos.actions  # noqa: F401, E402  (registers PHOTO_ACTIONS)
+import app.domain.prompts.actions  # noqa: F401, E402  (registers PROFILE_PROMPT/PROMPT_RESPONSE_ACTIONS)
 from app.domain.dating_profiles.enums import City, DatingStatus, Interest, Religion
 from app.domain.profiles.actions import (
     CreateDatingProfile,
@@ -36,6 +42,9 @@ from app.domain.profiles.transformers import (
     row_to_profile,
 )
 from app.platform.actions.deps import ActionDeps
+from app.platform.actions.enums import ActionGroupType
+from app.platform.actions.hydrate import resolve_group
+from app.platform.actions.schemas import ActionDTO
 from app.platform.auth.principal import User
 from app.platform.media.enums import MediaState
 from app.platform.media.models import Media
@@ -43,6 +52,7 @@ from app.platform.media.service import MediaService
 from app.platform.state_machine.machine import StateMachineService
 from app.platform.state_machine.roles import Role
 from tests.fixtures.graph import DomainGraph
+from tests.fixtures.ids import fake_id
 from tests.fixtures.media import local_media
 
 # `asyncio_mode = "auto"` (pyproject.toml) runs `async def test_*` without a marker.
@@ -61,19 +71,51 @@ def _deps(session: AsyncSession, *, user_id, role: Role = Role.DATER) -> ActionD
     )
 
 
+def _keys(actions: list[ActionDTO]) -> set[str]:
+    """The bare action keys (suffix after `<group>__`) surfaced on an Actionable."""
+    return {a.action.split("__", 1)[1] for a in actions}
+
+
 # ── Reads ──────────────────────────────────────────────────────────────────────
 
 
 async def test_get_own_profile(graph: DomainGraph, db_session: AsyncSession) -> None:
     row = await fetch_profile(db_session, graph.dater_a.id)
     assert row is not None
-    dto = row_to_profile(row, {})
+    deps = _deps(db_session, user_id=graph.dater_a.id)
+    profile_group = resolve_group(ActionGroupType.PROFILE_ACTIONS)
+    dto = row_to_profile(row, {}, profile_group, deps)
 
     assert dto.id == graph.dater_a.id
     assert dto.chosenName == graph.dater_a.chosen_name
     assert dto.role == UserRole.DATER
     # gender serializes by .value through msgspec -> matches the Zod enum wire form.
     assert dto.gender is Gender.MALE
+    # The owner sees the edit action on their own profile row.
+    assert _keys(dto.actions) == {"update"}
+    update = dto.actions[0]
+    assert update.action_group_type == ActionGroupType.PROFILE_ACTIONS
+
+
+async def test_get_own_profile_actions_empty_for_other_viewer(graph: DomainGraph, db_session: AsyncSession) -> None:
+    # A different actor viewing the row gets no actions (UpdateProfile gates on
+    # obj.id == user.id). The route only ever serves /profiles/me to the owner, but
+    # this proves the hydration honors the gate, not the route.
+    row = await fetch_profile(db_session, graph.dater_a.id)
+    assert row is not None
+    deps = _deps(db_session, user_id=graph.winger.id, role=Role.WINGER)
+    profile_group = resolve_group(ActionGroupType.PROFILE_ACTIONS)
+    dto = row_to_profile(row, {}, profile_group, deps)
+    assert dto.actions == []
+
+
+def _own_dating_profile_groups():
+    return (
+        resolve_group(ActionGroupType.DATING_PROFILE_ACTIONS),
+        resolve_group(ActionGroupType.PHOTO_ACTIONS),
+        resolve_group(ActionGroupType.PROFILE_PROMPT_ACTIONS),
+        resolve_group(ActionGroupType.PROMPT_RESPONSE_ACTIONS),
+    )
 
 
 async def test_get_own_dating_profile_bundle(graph: DomainGraph, db_session: AsyncSession) -> None:
@@ -81,7 +123,11 @@ async def test_get_own_dating_profile_bundle(graph: DomainGraph, db_session: Asy
     assert bundle is not None
     base, photos, prompts = bundle
     url_by_media = await MediaService(db_session, local_media()).resolve_urls(own_media_ids(photos, prompts))
-    dto = dating_profile_to_own(base, photos, prompts, url_by_media)
+    deps = _deps(db_session, user_id=graph.dater_a.id)
+    dp_group, photo_group, prompt_group, response_group = _own_dating_profile_groups()
+    dto = dating_profile_to_own(
+        base, photos, prompts, url_by_media, dp_group, photo_group, prompt_group, response_group, deps
+    )
 
     assert dto.userId == graph.dater_a.id
     assert dto.city == City.BOSTON
@@ -109,9 +155,30 @@ async def test_get_own_dating_profile_bundle(graph: DomainGraph, db_session: Asy
     # ripeness is the documented 0-100 completeness score.
     assert 0 <= dto.ripeness <= 100
 
+    # ── Hydrated actions, viewed as the owning dater ──────────────────────────
+    # base -> the EDIT group (DATING_PROFILE_ACTIONS), never the swipe group. The
+    # owner sees `update`; `create` is a top-level action so it never rides on a row.
+    assert _keys(dto.actions) == {"update"}
+    assert all(a.action_group_type == ActionGroupType.DATING_PROFILE_ACTIONS for a in dto.actions)
+
+    # Approved (self-uploaded) photo: owner may only delete it — approve/reject gate
+    # on PENDING, reorder is hidden.
+    assert _keys(approved.actions) == {"delete"}
+    # Pending (winger-suggested) photo: owner may approve / reject / delete it.
+    assert _keys(pending.actions) == {"approve", "reject", "delete"}
+    assert all(a.action_group_type == ActionGroupType.PHOTO_ACTIONS for a in pending.actions)
+
+    # The owning dater may delete their own prompt.
+    assert _keys(prompt.actions) == {"delete"}
+    assert all(a.action_group_type == ActionGroupType.PROFILE_PROMPT_ACTIONS for a in prompt.actions)
+
+    # On the pending winger comment the profile owner may approve or delete it.
+    assert _keys(resp.actions) == {"approve", "delete"}
+    assert all(a.action_group_type == ActionGroupType.PROMPT_RESPONSE_ACTIONS for a in resp.actions)
+
 
 async def test_get_own_dating_profile_returns_none_when_absent(db_session: AsyncSession) -> None:
-    assert await fetch_own_dating_profile(db_session, uuid4()) is None
+    assert await fetch_own_dating_profile(db_session, fake_id()) is None
 
 
 async def test_get_public_profile(graph: DomainGraph, db_session: AsyncSession) -> None:
@@ -119,7 +186,15 @@ async def test_get_public_profile(graph: DomainGraph, db_session: AsyncSession) 
     assert bundle is not None
     profile, base, photos, prompts = bundle
     url_by_media = await MediaService(db_session, local_media()).resolve_urls(public_media_ids(profile, photos))
-    dto = bundle_to_public_profile(profile, base, photos, prompts, url_by_media)
+    dto = bundle_to_public_profile(
+        profile,
+        base,
+        photos,
+        prompts,
+        url_by_media,
+        resolve_group(ActionGroupType.DATING_PROFILE_SWIPE_ACTIONS),
+        _deps(db_session, user_id=graph.dater_a.id),
+    )
 
     assert dto.id == graph.dater_b.id
     assert dto.chosenName == graph.dater_b.chosen_name
@@ -130,7 +205,7 @@ async def test_get_public_profile(graph: DomainGraph, db_session: AsyncSession) 
 
 
 async def test_get_public_profile_missing_returns_none(db_session: AsyncSession) -> None:
-    assert await fetch_public_profile(db_session, uuid4()) is None
+    assert await fetch_public_profile(db_session, fake_id()) is None
 
 
 async def test_public_profile_only_serves_approved_photos(graph: DomainGraph, db_session: AsyncSession) -> None:
@@ -144,7 +219,15 @@ async def test_public_profile_only_serves_approved_photos(graph: DomainGraph, db
     assert all(photo.approved_at is not None for photo, _ in photos)
 
     url_by_media = await MediaService(db_session, local_media()).resolve_urls(public_media_ids(profile, photos))
-    dto = bundle_to_public_profile(profile, base, photos, prompts, url_by_media)
+    dto = bundle_to_public_profile(
+        profile,
+        base,
+        photos,
+        prompts,
+        url_by_media,
+        resolve_group(ActionGroupType.DATING_PROFILE_SWIPE_ACTIONS),
+        _deps(db_session, user_id=graph.dater_b.id),
+    )
     assert dto.datingProfile is not None
     # Exactly the one approved photo is visible, with a resolved URL.
     assert len(dto.datingProfile.photos) == 1
@@ -172,7 +255,9 @@ async def test_avatar_media_id_resolves_to_url_on_own_profile(graph: DomainGraph
     await db_session.flush()
 
     url_by_media = await MediaService(db_session, local_media()).resolve_urls([avatar.id])
-    dto = row_to_profile(row, url_by_media)
+    dto = row_to_profile(
+        row, url_by_media, resolve_group(ActionGroupType.PROFILE_ACTIONS), _deps(db_session, user_id=graph.dater_a.id)
+    )
     assert dto.avatarUrl is not None
     assert dto.avatarUrl.startswith("http")
     assert avatar.processed_key is not None and avatar.processed_key in dto.avatarUrl
@@ -196,8 +281,8 @@ async def test_update_profile_mutates_row(graph: DomainGraph, db_session: AsyncS
     deps = _deps(db_session, user_id=graph.dater_a.id)
     data = UpdateProfileData(chosenName="Renamed", pushToken="ExpoToken123")
 
-    assert UpdateProfile.is_available(graph.dater_a, deps) is True
-    result = await UpdateProfile.execute(graph.dater_a, data, db_session, deps)
+    assert UpdateProfile.is_available(graph.dater_a, deps.user, deps) is True
+    result = await UpdateProfile.execute(graph.dater_a, data, db_session, deps.user, deps)
 
     assert result.message == "Profile updated"
     refreshed = await fetch_profile(db_session, graph.dater_a.id)
@@ -221,7 +306,7 @@ async def test_update_profile_sets_avatar_media_id(graph: DomainGraph, db_sessio
 
     deps = _deps(db_session, user_id=graph.dater_a.id)
     data = UpdateProfileData(avatarMediaId=avatar.id)
-    await UpdateProfile.execute(graph.dater_a, data, db_session, deps)
+    await UpdateProfile.execute(graph.dater_a, data, db_session, deps.user, deps)
 
     refreshed = await fetch_profile(db_session, graph.dater_a.id)
     assert refreshed is not None
@@ -237,8 +322,8 @@ async def test_update_dating_profile_mutates_row(graph: DomainGraph, db_session:
         interests=[Interest.ART, Interest.MUSIC],
     )
 
-    assert UpdateDatingProfile.is_available(dp, deps) is True
-    result = await UpdateDatingProfile.execute(dp, data, db_session, deps)
+    assert UpdateDatingProfile.is_available(dp, deps.user, deps) is True
+    result = await UpdateDatingProfile.execute(dp, data, db_session, deps.user, deps)
 
     assert result.message == "Dating profile updated"
     base = await fetch_dating_profile_base(db_session, graph.dater_a.id)
@@ -264,7 +349,7 @@ async def test_create_dating_profile_inserts(graph: DomainGraph, db_session: Asy
         bio="Hello",
     )
 
-    result = await CreateDatingProfile.execute(data, db_session, deps)
+    result = await CreateDatingProfile.execute(data, db_session, deps.user, deps)
     assert result.created_id is not None
 
     base = await fetch_dating_profile_base(db_session, new_profile.id)
@@ -284,12 +369,12 @@ async def test_update_profile_denied_for_other_user(graph: DomainGraph, db_sessi
     # winger trying to edit dater_a's profile row -> is_available is False, which
     # the action router surfaces as PermissionDenied before execute runs.
     deps = _deps(db_session, user_id=graph.winger.id, role=Role.WINGER)
-    assert UpdateProfile.is_available(graph.dater_a, deps) is False
+    assert UpdateProfile.is_available(graph.dater_a, deps.user, deps) is False
 
 
 async def test_update_dating_profile_denied_for_other_user(graph: DomainGraph, db_session: AsyncSession) -> None:
     deps = _deps(db_session, user_id=graph.winger.id, role=Role.WINGER)
-    assert UpdateDatingProfile.is_available(graph.dating_profile_a, deps) is False
+    assert UpdateDatingProfile.is_available(graph.dating_profile_a, deps.user, deps) is False
 
 
 async def test_create_dating_profile_conflict(graph: DomainGraph, db_session: AsyncSession) -> None:
@@ -303,4 +388,4 @@ async def test_create_dating_profile_conflict(graph: DomainGraph, db_session: As
         interests=[Interest.FOOD],
     )
     with pytest.raises(DatingProfileAlreadyExistsError):
-        await CreateDatingProfile.execute(data, db_session, deps)
+        await CreateDatingProfile.execute(data, db_session, deps.user, deps)

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import time
 from datetime import UTC, datetime, timedelta
 
 import jwt
@@ -10,54 +9,11 @@ from cryptography.hazmat.primitives.asymmetric import ec
 
 from app.config import TestConfig
 from app.platform.auth.clients.apple import AppleAuthError, LocalAppleVerifier
-from app.platform.auth.magic_link import InMemoryMagicLinkStore
-from app.platform.auth.rate_limit import InMemoryRateLimiter
 
-# ── Magic-link store ──────────────────────────────────────────────────────────
-
-
-async def test_magic_link_single_use_and_replay_rejected() -> None:
-    store = InMemoryMagicLinkStore(ttl_seconds=900)
-    token = await store.issue("dater@example.com")
-
-    # First consume returns the bound email; a replay returns None (single-use).
-    assert await store.consume(token) == "dater@example.com"
-    assert await store.consume(token) is None
-
-
-async def test_magic_link_unknown_token_rejected() -> None:
-    store = InMemoryMagicLinkStore(ttl_seconds=900)
-    assert await store.consume("never-issued") is None
-
-
-async def test_magic_link_expired_token_rejected() -> None:
-    store = InMemoryMagicLinkStore(ttl_seconds=900)
-    token = await store.issue("dater@example.com")
-    # Force the entry's expiry into the past.
-    email, _ = store._tokens[token]  # type: ignore[attr-defined]
-    store._tokens[token] = (email, time.time() - 1)  # type: ignore[attr-defined]
-    assert await store.consume(token) is None
-
-
-# ── Rate limiter ──────────────────────────────────────────────────────────────
-
-
-async def test_rate_limiter_allows_within_budget_then_denies() -> None:
-    limiter = InMemoryRateLimiter(limit=3, window_seconds=300)
-    key = "magic:dater@example.com:1.2.3.4"
-    assert [await limiter.allow(key) for _ in range(3)] == [True, True, True]
-    assert await limiter.allow(key) is False  # 4th over the budget
-
-
-async def test_rate_limiter_window_resets() -> None:
-    limiter = InMemoryRateLimiter(limit=1, window_seconds=300)
-    key = "magic:dater@example.com:1.2.3.4"
-    assert await limiter.allow(key) is True
-    assert await limiter.allow(key) is False
-    # Roll the window start into the past so it resets.
-    count, _ = limiter._counters[key]  # type: ignore[attr-defined]
-    limiter._counters[key] = (count, time.time() - 301)  # type: ignore[attr-defined]
-    assert await limiter.allow(key) is True
+# Magic-link tokens now live in Postgres (HMAC-hashed, single-use via `used_at`); the
+# issue/consume/replay/expiry behavior is exercised end-to-end in test_auth_provider.py.
+# Rate limiting on /magic-link/request is Litestar's built-in RateLimitConfig
+# middleware — its 429 behavior is exercised in test_auth_provider.py.
 
 
 # ── Apple verifier (injected test key) ────────────────────────────────────────

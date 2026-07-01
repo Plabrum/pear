@@ -6,6 +6,7 @@
  */
 
 export interface MessageSender {
+  /** SQID-encoded identifier */
   id: string;
   chosenName: string | null;
 }

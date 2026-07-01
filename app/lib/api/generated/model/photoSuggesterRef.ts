@@ -6,6 +6,7 @@
  */
 
 export interface PhotoSuggesterRef {
+  /** SQID-encoded identifier */
   id: string;
   chosenName: string | null;
 }

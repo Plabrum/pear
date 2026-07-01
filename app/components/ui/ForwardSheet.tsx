@@ -2,12 +2,20 @@ import { useState } from 'react';
 import { Modal, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { toast } from 'sonner-native';
-import { suggest } from '@/lib/api/actions';
 import type { WingingForRow } from '@/lib/api/generated/model';
+import { useActionExecutor } from '@/hooks/actions/use-action-executor';
+import { useActionFormRenderer } from '@/hooks/actions/use-action-form-renderer';
+import type { ActionDTO } from '@/lib/actions/types';
 import { View, Text, Pressable } from '@/lib/tw';
 import { FaceAvatar } from '@/components/ui/FaceAvatar';
-import { NoteModal } from '@/components/ui/NoteModal';
+
+// Suggest is an object action on the target DatingProfile; the sheet collects the
+// note and the chosen dater, so the body is built per-send (daterId varies).
+const SUGGEST: ActionDTO = {
+  action: 'dating_profile_swipe_actions__suggest',
+  label: 'Suggest',
+  action_group_type: 'dating_profile_swipe_actions',
+};
 
 const INK = '#1F1B16';
 const INK_SUBTLE = '#8B8170';
@@ -39,21 +47,31 @@ export function ForwardSheet({
   const insets = useSafeAreaInsets();
   const [pendingDater, setPendingDater] = useState<{ id: string; name: string } | null>(null);
 
+  const executor = useActionExecutor({ actionGroup: 'dating_profile_swipe_actions' });
+  const renderSuggestForm = useActionFormRenderer(
+    pendingDater
+      ? {
+          daterFirstName: pendingDater.name.split(' ')[0] || pendingDater.name,
+          subjectName: recipientName ?? 'they',
+        }
+      : undefined
+  );
+
   const targets = wingingFor.filter(
     (r) => r.dater?.id !== excludeDaterId && r.dater?.id !== recipientId
   );
 
   async function handleNoteSend(note: string | null) {
     if (!pendingDater) return;
-    const result = await suggest(recipientProfileId, {
-      daterId: pendingDater.id,
-      note,
-      decision: null,
-    }).catch(() => null);
-    if (result == null) {
-      toast.error("Couldn't forward this profile. Try again.");
-      return;
-    }
+    const ok = await executor
+      .executeAction(
+        SUGGEST,
+        { action: SUGGEST.action, data: { daterId: pendingDater.id, note } },
+        { objectId: recipientProfileId, silent: true }
+      )
+      .then(() => true)
+      .catch(() => false);
+    if (!ok) return; // the executor already surfaced the error toast
     setPendingDater(null);
     onClose();
   }
@@ -175,13 +193,15 @@ export function ForwardSheet({
         </View>
       </Modal>
 
-      <NoteModal
-        visible={pendingDater !== null}
-        daterFirstName={pendingDater?.name.split(' ')[0] ?? ''}
-        subjectName={recipientName ?? 'they'}
-        onSend={handleNoteSend}
-        onDismiss={() => setPendingDater(null)}
-      />
+      {pendingDater &&
+        renderSuggestForm({
+          action: SUGGEST,
+          onSubmit: (body) => handleNoteSend((body.data?.note ?? null) as string | null),
+          onClose: () => setPendingDater(null),
+          isSubmitting: executor.isExecuting,
+          isOpen: true,
+          actionLabel: SUGGEST.label,
+        })}
     </>
   );
 }

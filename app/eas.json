@@ -33,6 +33,7 @@
     "production": {
       "channel": "production",
       "autoIncrement": true,
+      "node": "24.8.0",
       "android": {
         "image": "latest"
       },
@@ -44,10 +45,7 @@
   "submit": {
     "production": {
       "ios": {
-        "ascAppId": "6759815338",
-        "ascApiKeyPath": "./.secrets/ascApiKey/AuthKey_66BPK6T5T3.p8",
-        "ascApiKeyId": "66BPK6T5T3",
-        "ascApiKeyIssuerId": "5e9b50f7-e876-4587-a7c9-52c1fc40a253"
+        "ascAppId": "6759815338"
       }
     }
   }

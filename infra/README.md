@@ -95,13 +95,18 @@ aws secretsmanager put-secret-value \
   --secret-id "$SECRET_ARN" \
   --secret-string '{
     "SECRET_KEY": "...",
-    "JWT_SIGNING_KEY": "...",
     "APPLE_CLIENT_ID": "...",
     "APNS_KEY": "...",
     "APNS_KEY_ID": "...",
     "APNS_TEAM_ID": "..."
   }'
 ```
+
+`SECRET_KEY` signs the session cookie. Sessions are **Redis-backed** — the cookie
+holds only a signed session id and the session payload lives in Redis, so it
+survives rolling deploys (the box's `redis` service uses a durable `redis_data`
+volume; the ECS path uses ElastiCache). Rotating `SECRET_KEY` invalidates existing
+cookies and logs everyone out.
 
 `deploy.sh` on the box merges this JSON into `/opt/pear/.env` on every deploy.
 Pear self-hosts auth and storage.
@@ -229,7 +234,7 @@ Secrets are created by Terraform but intentionally **not updated** by it
 ```bash
 aws secretsmanager put-secret-value \
   --secret-id pear-production-app-secrets \
-  --secret-string '{"SECRET_KEY": "...", "JWT_SIGNING_KEY": "...", ...}'
+  --secret-string '{"SECRET_KEY": "...", "APPLE_CLIENT_ID": "...", ...}'
 just prod-ssh -- '/opt/pear/deploy.sh'   # re-merge into .env and restart
 ```
 

@@ -3,7 +3,7 @@ import { Dimensions, Platform, StyleSheet } from 'react-native';
 import PulseSpinner from '@/components/ui/PulseSpinner';
 import { router } from 'expo-router';
 import { useForm } from 'react-hook-form';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, type QueryKey } from '@tanstack/react-query';
 import { toast } from 'sonner-native';
 import Animated, {
   Extrapolation,
@@ -20,21 +20,13 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 
-import {
-  Modal,
-  ModalView,
-  View,
-  Text,
-  ScrollView,
-  SafeAreaView,
-  Pressable,
-  TextInput,
-} from '@/lib/tw';
+import { View, Text, ScrollView, SafeAreaView, Pressable } from '@/lib/tw';
 import { useAuth } from '@/context/auth';
-import { useDiscover, type PoolFetcher, type LikeResult } from '@/hooks/use-discover';
+import { useDiscover, type PoolFetcher } from '@/hooks/use-discover';
 import type { Enums } from '@/types/database';
 import {
   getApiDatingProfilesSwipe,
+  getGetApiDatingProfilesSwipeQueryKey,
   useGetApiDatingProfilesSwipeSuspense,
   useGetApiDatingProfilesSwipeCountSuspense,
 } from '@/lib/api/generated/dating-profiles/dating-profiles';
@@ -43,7 +35,7 @@ import {
   useGetApiDatingProfilesMeSuspense,
   getGetApiDatingProfilesMeQueryKey,
 } from '@/lib/api/generated/profiles/profiles';
-import { report, updateDatingProfile } from '@/lib/api/actions';
+import { updateDatingProfile } from '@/lib/api/actions';
 import { useGetApiWingpeopleSuspense } from '@/lib/api/generated/contacts/contacts';
 import { LargeHeader } from '@/components/ui/LargeHeader';
 import { Pill } from '@/components/ui/Pill';
@@ -52,6 +44,8 @@ import { WingStack } from '@/components/ui/WingStack';
 import { PearMark } from '@/components/ui/PearMark';
 import { ForwardSheet } from '@/components/ui/ForwardSheet';
 import ScreenSuspense from '@/components/ui/ScreenSuspense';
+import { useActionFormRenderer } from '@/hooks/actions/use-action-form-renderer';
+import type { ActionDTO } from '@/lib/actions/types';
 import { cardButtonShadow } from '@/lib/styles';
 
 const PAGE_SIZE = 20;
@@ -332,7 +326,13 @@ function LikeStamp({ swipeX }: { swipeX: SharedValue<number> }) {
 
 // ── DiscoverCard ──────────────────────────────────────────────────────────────
 
-type ReportStep = 'confirm' | 'reason';
+// Report is an object action on the swiped DatingProfile; the form (registry)
+// collects the reason, the deck hook records it against `card.profileId`.
+const REPORT: ActionDTO = {
+  action: 'dating_profile_swipe_actions__report',
+  label: 'Report',
+  action_group_type: 'dating_profile_swipe_actions',
+};
 
 function DiscoverCard({
   card,
@@ -349,11 +349,12 @@ function DiscoverCard({
 }) {
   const swipeX = useSharedValue(0);
   const [photoIndex, setPhotoIndex] = useState(0);
-  const [reportStep, setReportStep] = useState<ReportStep | null>(null);
-  const [reportReason, setReportReason] = useState('');
+  const [reportOpen, setReportOpen] = useState(false);
   const [reporting, setReporting] = useState(false);
   const [forwardOpen, setForwardOpen] = useState(false);
   const photos = card.photos;
+  // The report form (confirm → reason) is pulled from the action registry.
+  const renderReportForm = useActionFormRenderer();
 
   const finishSwipe = useCallback(
     (direction: 'like' | 'pass') => {
@@ -387,15 +388,11 @@ function DiscoverCard({
     transform: [{ translateX: swipeX.value }, { rotate: `${swipeX.value * 0.04}deg` }],
   }));
 
-  async function submitReport() {
-    if (!reportReason.trim() || reporting) return;
+  async function handleReportSubmit(reason: string) {
     setReporting(true);
     try {
-      await onReport(reportReason.trim());
-      setReportStep(null);
-      setReportReason('');
-    } catch {
-      toast.error("Couldn't send report. Try again.");
+      await onReport(reason);
+      setReportOpen(false);
     } finally {
       setReporting(false);
     }
@@ -403,138 +400,15 @@ function DiscoverCard({
 
   return (
     <>
-      <Modal
-        visible={reportStep != null}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setReportStep(null)}
-      >
-        <ModalView
-          backgroundColor="rgba(0,0,0,0.5)"
-          style={{ justifyContent: 'center', alignItems: 'center', padding: 24 }}
-        >
-          <View
-            style={{
-              backgroundColor: PAPER,
-              borderRadius: 22,
-              padding: 24,
-              width: '100%',
-              maxWidth: 360,
-              gap: 16,
-            }}
-          >
-            {reportStep === 'confirm' ? (
-              <>
-                <View style={{ gap: 6 }}>
-                  <Text style={{ fontFamily: 'DMSerifDisplay', fontSize: 22, color: INK }}>
-                    Report profile?
-                  </Text>
-                  <Text style={{ fontSize: 14, color: INK_MUTED, lineHeight: 20 }}>
-                    Something feel off? Let us know and we&apos;ll look into it.
-                  </Text>
-                </View>
-                <View style={{ flexDirection: 'row', gap: 10 }}>
-                  <Pressable
-                    onPress={() => setReportStep(null)}
-                    style={{
-                      flex: 1,
-                      paddingVertical: 13,
-                      borderRadius: 14,
-                      borderWidth: 1,
-                      borderColor: LINE,
-                      alignItems: 'center',
-                    }}
-                  >
-                    <Text style={{ fontSize: 15, fontWeight: '600', color: INK_MUTED }}>
-                      No, cancel
-                    </Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => setReportStep('reason')}
-                    style={{
-                      flex: 1,
-                      paddingVertical: 13,
-                      borderRadius: 14,
-                      backgroundColor: PASS_RED,
-                      alignItems: 'center',
-                    }}
-                  >
-                    <Text style={{ fontSize: 15, fontWeight: '600', color: PAPER }}>
-                      Yes, report
-                    </Text>
-                  </Pressable>
-                </View>
-              </>
-            ) : (
-              <>
-                <View style={{ gap: 6 }}>
-                  <Text style={{ fontFamily: 'DMSerifDisplay', fontSize: 22, color: INK }}>
-                    What&apos;s the issue?
-                  </Text>
-                  <Text style={{ fontSize: 14, color: INK_MUTED, lineHeight: 20 }}>
-                    Describe the problem so we can review it.
-                  </Text>
-                </View>
-                <TextInput
-                  value={reportReason}
-                  onChangeText={setReportReason}
-                  placeholder="Describe the issue…"
-                  placeholderTextColor={INK_SUBTLE}
-                  multiline
-                  maxLength={500}
-                  style={{
-                    backgroundColor: 'white',
-                    borderWidth: 1,
-                    borderColor: LINE,
-                    borderRadius: 14,
-                    padding: 14,
-                    fontSize: 14,
-                    color: INK,
-                    minHeight: 100,
-                    textAlignVertical: 'top',
-                  }}
-                />
-                <View style={{ flexDirection: 'row', gap: 10 }}>
-                  <Pressable
-                    onPress={() => {
-                      setReportStep(null);
-                      setReportReason('');
-                    }}
-                    style={{
-                      flex: 1,
-                      paddingVertical: 13,
-                      borderRadius: 14,
-                      borderWidth: 1,
-                      borderColor: LINE,
-                      alignItems: 'center',
-                    }}
-                  >
-                    <Text style={{ fontSize: 15, fontWeight: '600', color: INK_MUTED }}>
-                      Cancel
-                    </Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={submitReport}
-                    disabled={!reportReason.trim() || reporting}
-                    style={{
-                      flex: 1,
-                      paddingVertical: 13,
-                      borderRadius: 14,
-                      backgroundColor: PASS_RED,
-                      alignItems: 'center',
-                      opacity: !reportReason.trim() || reporting ? 0.4 : 1,
-                    }}
-                  >
-                    <Text style={{ fontSize: 15, fontWeight: '600', color: PAPER }}>
-                      {reporting ? 'Sending…' : 'Send'}
-                    </Text>
-                  </Pressable>
-                </View>
-              </>
-            )}
-          </View>
-        </ModalView>
-      </Modal>
+      {reportOpen &&
+        renderReportForm({
+          action: REPORT,
+          onSubmit: (body) => void handleReportSubmit((body.data?.reason ?? '') as string),
+          onClose: () => setReportOpen(false),
+          isSubmitting: reporting,
+          isOpen: true,
+          actionLabel: REPORT.label,
+        })}
       {wingingFor.length > 0 && (
         <ForwardSheet
           visible={forwardOpen}
@@ -650,7 +524,7 @@ function DiscoverCard({
 
             {/* Report icon */}
             <Pressable
-              onPress={() => setReportStep('confirm')}
+              onPress={() => setReportOpen(true)}
               hitSlop={8}
               style={{
                 position: 'absolute',
@@ -1076,7 +950,8 @@ function NoMoreProfilesEmptyState() {
 
 type PoolViewProps = {
   userId: string;
-  initialPool: SwipeProfile[];
+  queryKey: QueryKey;
+  pool: SwipeProfile[];
   fetchPool: PoolFetcher;
   emptyState: React.ReactNode;
   onDecrementLikes: ((recipientId: string) => void) | null;
@@ -1085,56 +960,34 @@ type PoolViewProps = {
 
 function PoolView({
   userId,
-  initialPool,
+  queryKey,
+  pool,
   fetchPool,
   emptyState,
   onDecrementLikes,
   wingingFor,
 }: PoolViewProps) {
-  const queryClient = useQueryClient();
-  const { pool, index, like, pass } = useDiscover(fetchPool, userId, initialPool);
+  const { card, like, pass, report } = useDiscover({ queryKey, pool, fetchPool, userId });
   const [matchCard, setMatchCard] = useState<SwipeProfile | null>(null);
-  const card = pool[index] ?? null;
-
-  function invalidatePools(decidedCard: SwipeProfile) {
-    queryClient.invalidateQueries({ queryKey: ['/api/dating-profiles/swipe'], refetchType: 'none' });
-    queryClient.invalidateQueries({
-      queryKey: ['/api/dating-profiles/swipe/count'],
-      refetchType: 'none',
-    });
-    if (decidedCard.suggestedBy != null) {
-      queryClient.invalidateQueries({ queryKey: ['/api/winger-tabs'], refetchType: 'none' });
-    }
-  }
 
   async function handleLike() {
     if (!card) return;
     const decidedCard = card;
     onDecrementLikes?.(decidedCard.userId);
-    const result: LikeResult = await like();
-    invalidatePools(decidedCard);
-    if (result === 'match') {
-      setMatchCard(decidedCard);
-      queryClient.invalidateQueries({ queryKey: ['matches', userId] });
-      queryClient.invalidateQueries({ queryKey: ['conversations', userId] });
-    }
+    const result = await like();
+    if (result === 'match') setMatchCard(decidedCard);
   }
 
   async function handlePass() {
     if (!card) return;
-    const decidedCard = card;
-    onDecrementLikes?.(decidedCard.userId);
+    onDecrementLikes?.(card.userId);
     await pass();
-    invalidatePools(decidedCard);
   }
 
   async function handleReport(reason: string) {
     if (!card) return;
-    const reportedCard = card;
-    onDecrementLikes?.(reportedCard.userId);
-    await report(reportedCard.profileId, { reason });
-    await pass();
-    invalidatePools(reportedCard);
+    onDecrementLikes?.(card.userId);
+    await report(reason);
   }
 
   if (card == null) {
@@ -1178,12 +1031,14 @@ function LikesYouPool({
   handPickedOnly: boolean;
   wingingFor: WingingForRow[];
 }) {
-  const { data: initialPool } = useGetApiDatingProfilesSwipeSuspense({
+  const params = {
     pageSize: PAGE_SIZE,
     pageOffset: 0,
     likesYouOnly: true,
     ...(handPickedOnly && { wingerOnly: true }),
-  });
+  };
+  const queryKey = getGetApiDatingProfilesSwipeQueryKey(params);
+  const { data: pool } = useGetApiDatingProfilesSwipeSuspense(params);
 
   const fetchPool = useCallback<PoolFetcher>(
     (_uid, pageSize, offset) =>
@@ -1199,7 +1054,8 @@ function LikesYouPool({
   return (
     <PoolView
       userId={userId}
-      initialPool={initialPool}
+      queryKey={queryKey}
+      pool={pool}
       fetchPool={fetchPool}
       emptyState={emptyState}
       onDecrementLikes={onDecrementLikes}
@@ -1219,11 +1075,13 @@ function DiscoverFeedPool({
   handPickedOnly: boolean;
   wingingFor: WingingForRow[];
 }) {
-  const { data: initialPool } = useGetApiDatingProfilesSwipeSuspense({
+  const params = {
     pageSize: PAGE_SIZE,
     pageOffset: 0,
     ...(handPickedOnly && { wingerOnly: true }),
-  });
+  };
+  const queryKey = getGetApiDatingProfilesSwipeQueryKey(params);
+  const { data: pool } = useGetApiDatingProfilesSwipeSuspense(params);
 
   const fetchPool = useCallback<PoolFetcher>(
     (_uid, pageSize, offset) =>
@@ -1238,7 +1096,8 @@ function DiscoverFeedPool({
   return (
     <PoolView
       userId={userId}
-      initialPool={initialPool}
+      queryKey={queryKey}
+      pool={pool}
       fetchPool={fetchPool}
       emptyState={emptyState}
       onDecrementLikes={null}

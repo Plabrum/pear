@@ -7,6 +7,7 @@
 import type { WingingForDater } from './wingingForDater';
 
 export interface WingingForRow {
+  /** SQID-encoded identifier */
   id: string;
   createdAt: string;
   dater: WingingForDater | null;

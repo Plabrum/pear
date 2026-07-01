@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 from typing import Any
-from uuid import UUID
 
 from litestar.channels import ChannelsPlugin
 from sqlalchemy import event
@@ -15,6 +14,7 @@ from app.platform.realtime.channels import (
     presence_pair_channel,
     typing_pair_channel,
 )
+from app.utils.sqids import sqid_encode
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ class RealtimeService:
 
     # ── Live messages ──────────────────────────────────────────────────────────
 
-    def _message_frame(self, match_id: UUID, message: Message) -> dict[str, Any]:
+    def _message_frame(self, match_id: int, message: Message) -> dict[str, Any]:
         return {
             "type": "message",
             "channel": match_channel(match_id),
@@ -35,7 +35,7 @@ class RealtimeService:
     def publish_message_after_commit(
         self,
         transaction: AsyncSession,
-        match_id: UUID,
+        match_id: int,
         message: Message,
     ) -> None:
         """Broadcast a new message to its match channel AFTER the tx commits.
@@ -59,7 +59,7 @@ class RealtimeService:
 
     # ── Presence ───────────────────────────────────────────────────────────────
 
-    def publish_pair_presence(self, viewer_id: UUID, other_id: UUID, *, online: bool) -> None:
+    def publish_pair_presence(self, viewer_id: int, other_id: int, *, online: bool) -> None:
         """Tell `other_id`'s pair channel whether `viewer_id` is online.
 
         The frame is keyed to the SORTED pair channel both peers share; the client's
@@ -71,7 +71,7 @@ class RealtimeService:
             channel,
         )
 
-    def publish_messages_list_presence(self, online_ids: set[UUID]) -> None:
+    def publish_messages_list_presence(self, online_ids: set[int]) -> None:
         """Broadcast the full online set to the messages-list channel.
 
         Mirrors `use-messages-list-presence.ts`, which consumed a `Set<string>`. The
@@ -81,21 +81,21 @@ class RealtimeService:
             {
                 "type": "presence",
                 "channel": MESSAGES_LIST_CHANNEL,
-                "onlineIds": [str(uid) for uid in online_ids],
+                "onlineIds": [sqid_encode(uid) for uid in online_ids],
             },
             MESSAGES_LIST_CHANNEL,
         )
 
     # ── Typing ─────────────────────────────────────────────────────────────────
 
-    def publish_typing(self, viewer_id: UUID, other_id: UUID, ts: int) -> None:
+    def publish_typing(self, viewer_id: int, other_id: int, ts: int) -> None:
         """Transient typing event over the sorted pair channel (`use-typing.ts`)."""
         channel = typing_pair_channel(viewer_id, other_id)
         self._channels.publish(
             {
                 "type": "typing",
                 "channel": channel,
-                "payload": {"userId": str(viewer_id), "ts": ts},
+                "payload": {"userId": sqid_encode(viewer_id), "ts": ts},
             },
             channel,
         )

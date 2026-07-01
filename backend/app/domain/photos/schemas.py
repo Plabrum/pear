@@ -1,25 +1,26 @@
 from __future__ import annotations
 
 from typing import Literal
-from uuid import UUID
 
+from app.platform.actions.schemas import Actionable
 from app.platform.base.schemas import BaseSchema
+from app.utils.sqids import Sqid
 
 # ── Output ───────────────────────────────────────────────────────────────────
 
 
 class PhotoSuggesterRef(BaseSchema):
-    id: UUID
+    id: Sqid
     chosenName: str | None
 
 
-class Photo(BaseSchema):
-    id: UUID
-    datingProfileId: UUID
+class Photo(Actionable):
+    id: Sqid
+    datingProfileId: Sqid
     storageUrl: str
     displayOrder: int
     approvedAt: str | None
-    suggesterId: UUID | None
+    suggesterId: Sqid | None
     suggester: PhotoSuggesterRef | None
 
 
@@ -35,8 +36,8 @@ SuggestedPhotoStatus = Literal["approved", "pending", "not_accepted"]
 class SuggestedPhoto(BaseSchema):
     """A photo the caller suggested for a dater, with that dater + the verdict."""
 
-    id: UUID
-    daterId: UUID
+    id: Sqid
+    daterId: Sqid
     daterName: str
     storageUrl: str
     status: SuggestedPhotoStatus
@@ -45,12 +46,6 @@ class SuggestedPhoto(BaseSchema):
 
 # GET /photos/suggested returns a bare JSON array.
 SuggestedPhotosResponse = list[SuggestedPhoto]
-
-
-class PhotosOkResponse(BaseSchema):
-    """`{ ok: true }` — reject / delete success body."""
-
-    ok: Literal[True] = True
 
 
 # ── Input ────────────────────────────────────────────────────────────────────
@@ -62,8 +57,8 @@ class CreatePhotoData(BaseSchema):
     `mediaId` references a platform Media the caller already created+uploaded via
     POST /media/upload-url + POST /media/{id}/uploaded. No S3 keys cross this domain."""
 
-    datingProfileId: UUID
-    mediaId: UUID
+    datingProfileId: Sqid
+    mediaId: Sqid
     displayOrder: int
 
 

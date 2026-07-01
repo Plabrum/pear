@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from enum import StrEnum, auto
 from typing import Protocol
-from uuid import UUID
+
+from app.utils.sqids import Sqid
 
 
 class Role(StrEnum):
@@ -14,11 +15,11 @@ class Role(StrEnum):
 class Actor(Protocol):
     """Structural type for the caller of a human-initiated transition.
 
-    Any object exposing a UUID `id` and a `Role` satisfies the transition contract.
+    Any object exposing a Sqid/int `id` and a `Role` satisfies the transition contract.
     """
 
     @property
-    def id(self) -> UUID: ...
+    def id(self) -> Sqid: ...
 
     @property
     def role(self) -> Role: ...

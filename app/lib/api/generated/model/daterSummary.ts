@@ -6,6 +6,7 @@
  */
 
 export interface DaterSummary {
+  /** SQID-encoded identifier */
   id: string;
   chosenName: string | null;
 }

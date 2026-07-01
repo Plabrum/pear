@@ -7,6 +7,7 @@
 import type { MatchSheetPromptTemplate } from './matchSheetPromptTemplate';
 
 export interface MatchSheetPrompt {
+  /** SQID-encoded identifier */
   id: string;
   answer: string;
   template: MatchSheetPromptTemplate | null;

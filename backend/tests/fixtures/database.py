@@ -1,8 +1,8 @@
 import os
+import random
 import subprocess
 from collections.abc import AsyncGenerator
 from pathlib import Path
-from uuid import uuid4
 
 import pytest
 from sqlalchemy import create_engine, text
@@ -188,13 +188,17 @@ async def db_session(test_engine, setup_database) -> AsyncGenerator[AsyncSession
 
 
 @pytest.fixture
-def user_id() -> str:
-    """A stable random user id (UUID str) for RLS-scoped fixtures."""
-    return str(uuid4())
+def user_id() -> int:
+    """A stable random user id (int) for RLS-scoped fixtures.
+
+    A high random int so it never collides with the small autoincrement ids the
+    seed fixtures create.
+    """
+    return random.randint(1_000_000_000, 2_000_000_000)
 
 
 @pytest.fixture
-async def transaction(db_session: AsyncSession, user_id: str) -> AsyncGenerator[AsyncSession]:
+async def transaction(db_session: AsyncSession, user_id: int) -> AsyncGenerator[AsyncSession]:
     """Session with RLS enforced for `user_id`.
 
     Use instead of `db_session` to test user-scoped queries. Seed fixtures via
@@ -202,6 +206,6 @@ async def transaction(db_session: AsyncSession, user_id: str) -> AsyncGenerator[
     the non-superuser `pear_app` role, so there is no `SET ROLE` — just establish
     the actor and turn the system escape off.
     """
-    await db_session.execute(text(f"SET LOCAL app.user_id = '{user_id}'"))
+    await db_session.execute(text(f"SET LOCAL app.user_id = {int(user_id)}"))
     await db_session.execute(text("SET LOCAL app.is_system_mode = false"))
     yield db_session

@@ -8,6 +8,7 @@ import type { City } from './city';
 import type { Interest } from './interest';
 
 export interface MatchSummaryOther {
+  /** SQID-encoded identifier */
   id: string;
   chosenName: string | null;
   dateOfBirth: string | null;

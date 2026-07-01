@@ -144,7 +144,6 @@ resource "aws_secretsmanager_secret_version" "app" {
   # preserved by the ignore_changes lifecycle below — Terraform never overwrites them.
   secret_string = jsonencode({
     SECRET_KEY      = "CHANGE-ME"
-    JWT_SIGNING_KEY = "CHANGE-ME"
     APPLE_CLIENT_ID = "CHANGE-ME"
     APNS_KEY        = ""
     APNS_KEY_ID     = ""

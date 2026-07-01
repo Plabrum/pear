@@ -4,13 +4,16 @@
  * Litestar API
  * OpenAPI spec version: 1.0.0
  */
+import type { ActionDTO } from './actionDTO';
 import type { OwnPromptResponse } from './ownPromptResponse';
 import type { PromptTemplateRef } from './promptTemplateRef';
 
 export interface OwnProfilePrompt {
+  /** SQID-encoded identifier */
   id: string;
   answer: string;
   createdAt: string;
   template: PromptTemplateRef;
   responses: OwnPromptResponse[];
+  actions?: ActionDTO[];
 }

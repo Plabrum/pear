@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from typing import TYPE_CHECKING
-from uuid import UUID
 
 from app.domain.profiles.models import Profile
 from app.domain.prompts.models import ProfilePrompt, PromptResponse, PromptTemplate
@@ -14,13 +13,17 @@ from app.domain.prompts.schemas import (
     PromptResponseAuthor,
     PromptTemplate as PromptTemplateSchema,
 )
+from app.platform.actions.base import ActionGroup
+from app.platform.actions.deps import ActionDeps
+from app.platform.actions.hydrate import actions_for
+from app.utils.sqids import Sqid
 
 if TYPE_CHECKING:
     from app.domain.prompts.queries import AuthoredResponseRow
 
 # `url_by_media` maps a Media id -> its resolved URL; the route batches one
 # MediaService resolve over every response-author avatar, then hands it down.
-UrlByMedia = dict[UUID, str]
+UrlByMedia = dict[Sqid, str]
 
 
 def _iso(value: datetime | date | None) -> str:
@@ -29,7 +32,7 @@ def _iso(value: datetime | date | None) -> str:
     return value.isoformat()
 
 
-def _resolve(media_id: UUID | None, url_by_media: UrlByMedia) -> str | None:
+def _resolve(media_id: Sqid | None, url_by_media: UrlByMedia) -> str | None:
     return url_by_media.get(media_id) if media_id is not None else None
 
 
@@ -38,9 +41,13 @@ def row_to_prompt_template(row: PromptTemplate) -> PromptTemplateSchema:
 
 
 def row_to_prompt_response(
-    response: PromptResponse, author: Profile | None, url_by_media: UrlByMedia
+    response: PromptResponse,
+    author: Profile | None,
+    url_by_media: UrlByMedia,
+    response_group: ActionGroup,
+    deps: ActionDeps,
 ) -> PromptResponseSchema:
-    return PromptResponseSchema(
+    dto = PromptResponseSchema(
         id=response.id,
         profilePromptId=response.profile_prompt_id,
         message=response.message,
@@ -57,6 +64,10 @@ def row_to_prompt_response(
             else None
         ),
     )
+    # Gate the response (approve/delete) — pass the PromptResponse ORM row, not the
+    # author Profile; the gating reads only flat scalars on the response.
+    dto.actions = actions_for(response_group, deps, response)
+    return dto
 
 
 # A loaded prompt bundle: the prompt, its joined template question, and its
@@ -64,7 +75,7 @@ def row_to_prompt_response(
 ResponseBundle = list[tuple[PromptResponse, Profile | None]]
 
 
-def prompt_bundle_media_ids(bundles: list[tuple[ProfilePrompt, str, ResponseBundle]]) -> list[UUID]:
+def prompt_bundle_media_ids(bundles: list[tuple[ProfilePrompt, str, ResponseBundle]]) -> list[Sqid]:
     """Every author-avatar Media id referenced across a list of prompt bundles."""
     return [
         author.avatar_media_id
@@ -79,15 +90,21 @@ def row_to_profile_prompt(
     question: str,
     responses: ResponseBundle,
     url_by_media: UrlByMedia,
+    prompt_group: ActionGroup,
+    response_group: ActionGroup,
+    deps: ActionDeps,
 ) -> ProfilePromptSchema:
-    return ProfilePromptSchema(
+    dto = ProfilePromptSchema(
         id=prompt.id,
         datingProfileId=prompt.dating_profile_id,
         answer=prompt.answer,
         createdAt=_iso(prompt.created_at),
         template=PromptTemplateSchema(id=prompt.prompt_template_id, question=question),
-        responses=[row_to_prompt_response(r, author, url_by_media) for r, author in responses],
+        responses=[row_to_prompt_response(r, author, url_by_media, response_group, deps) for r, author in responses],
     )
+    # Gate the prompt itself (delete) on the ProfilePrompt ORM row.
+    dto.actions = actions_for(prompt_group, deps, prompt)
+    return dto
 
 
 def _authored_status(row: AuthoredResponseRow) -> AuthoredResponseStatus:

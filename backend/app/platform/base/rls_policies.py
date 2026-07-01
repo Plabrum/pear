@@ -14,8 +14,15 @@ _ACTIVE = WingpersonStatus.ACTIVE.name
 # `profile_photos` and `profile_prompts` are NOT here: they enroll for RLS via
 # their mixins (UserScopedMixin / WingpersonScopedMixin record them in
 # `metadata.info["rls"]`); we only attach a supplementary public-SELECT policy.
+#
+# `profiles` is deliberately NOT here: the root identity table carries no RLS.
+# Profiles are world-readable anyway, and a row's scope is only knowable after its
+# id exists — forcing RLS here would require the unauthenticated first-login
+# bootstrap to "become" a user before that user exists. We leave the identity table
+# open and rely on the app layer (handlers only ever update the authenticated
+# principal's own row) plus the relationship-scoped child tables (dating_profiles,
+# matches, messages, …) for the real floor.
 _RLS_TABLES = (
-    "profiles",
     "dating_profiles",
     "prompt_templates",
     "prompt_responses",
@@ -25,6 +32,7 @@ _RLS_TABLES = (
     "messages",
     "profile_reports",
     "media",
+    "magic_link_tokens",
 )
 
 
@@ -38,39 +46,8 @@ def _policy(table: str, signature: str, definition: str) -> PGPolicy:
 
 
 # ── profiles ─────────────────────────────────────────────────────────────────
-# Public select; insert own; update own.
-_PROFILES = [
-    _policy(
-        "profiles",
-        "profiles_select",
-        """
-        AS PERMISSIVE
-        FOR SELECT
-        TO pear_app
-        USING (true)
-        """,
-    ),
-    _policy(
-        "profiles",
-        "profiles_insert",
-        """
-        AS PERMISSIVE
-        FOR INSERT
-        TO pear_app
-        WITH CHECK (public.is_system_mode() OR (id = public.current_user_id()))
-        """,
-    ),
-    _policy(
-        "profiles",
-        "profiles_update",
-        """
-        AS PERMISSIVE
-        FOR UPDATE
-        TO pear_app
-        USING (public.is_system_mode() OR (id = public.current_user_id()))
-        """,
-    ),
-]
+# The root identity table carries NO RLS — see `_RLS_TABLES` above. No policies are
+# defined here; access is governed at the app layer.
 
 
 # ── dating_profiles ──────────────────────────────────────────────────────────
@@ -517,8 +494,51 @@ _MEDIA = [
 ]
 
 
+# ── magic_link_tokens ────────────────────────────────────────────────────────
+# A BEARER-SECRET table, not an actor-scoped one. Both the mint (`/magic-link/request`)
+# and the consume (`/magic-link/verify`) run UNAUTHENTICATED — there is no
+# `app.user_id` to scope against, and the consume must look the row up by an
+# unguessable `token_hash` it cannot know in advance. So the policies are permissive
+# (`USING (true)`), exactly like `prompt_templates`, but for every command. The real
+# authorization floor here is the secret itself: the token is HMAC-hashed at rest, so
+# even a full read of this table yields nothing replayable without the raw token (which
+# lives only in the emailed link). RLS stays FORCE-enabled so the table is never an
+# accidental hole; these policies just make that floor explicit.
+_MAGIC_LINK_TOKENS = [
+    _policy(
+        "magic_link_tokens",
+        "magic_link_tokens_select",
+        """
+        AS PERMISSIVE
+        FOR SELECT
+        TO pear_app
+        USING (true)
+        """,
+    ),
+    _policy(
+        "magic_link_tokens",
+        "magic_link_tokens_insert",
+        """
+        AS PERMISSIVE
+        FOR INSERT
+        TO pear_app
+        WITH CHECK (true)
+        """,
+    ),
+    _policy(
+        "magic_link_tokens",
+        "magic_link_tokens_update",
+        """
+        AS PERMISSIVE
+        FOR UPDATE
+        TO pear_app
+        USING (true)
+        """,
+    ),
+]
+
+
 PEAR_RLS_POLICIES: list[PGPolicy] = [
-    *_PROFILES,
     *_DATING_PROFILES,
     *_PROFILE_PHOTOS,
     *_PROMPT_TEMPLATES,
@@ -530,6 +550,7 @@ PEAR_RLS_POLICIES: list[PGPolicy] = [
     *_MESSAGES,
     *_PROFILE_REPORTS,
     *_MEDIA,
+    *_MAGIC_LINK_TOKENS,
 ]
 
 

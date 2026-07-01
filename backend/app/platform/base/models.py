@@ -1,10 +1,11 @@
 from datetime import UTC, datetime
 from typing import Any
-from uuid import UUID, uuid4
 
 import sqlalchemy as sa
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+
+from app.utils.sqids import Sqid, SqidType
 
 
 class BaseDBModel(DeclarativeBase):
@@ -21,7 +22,7 @@ class BaseDBModel(DeclarativeBase):
     def get_all_models(cls) -> set[type["BaseDBModel"]]:
         return cls._model_registry
 
-    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    id: Mapped[Sqid] = mapped_column(SqidType, primary_key=True, autoincrement=True)
     created_at: Mapped[datetime] = mapped_column(
         sa.DateTime(timezone=True),
         server_default=sa.func.now(),

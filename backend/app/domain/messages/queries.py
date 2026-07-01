@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from uuid import UUID
-
 from sqlalchemy import asc, case, desc, func, or_, select, true
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
@@ -10,13 +8,14 @@ from app.domain.matches.models import Match
 from app.domain.messages.models import Message
 from app.domain.messages.transformers import ConversationRow, MessageRow
 from app.domain.profiles.models import Profile
+from app.utils.sqids import Sqid
 
 
-async def fetch_push_token(db: AsyncSession, user_id: UUID) -> str | None:
+async def fetch_push_token(db: AsyncSession, user_id: Sqid) -> str | None:
     return (await db.execute(select(Profile.push_token).where(Profile.id == user_id).limit(1))).scalar_one_or_none()
 
 
-async def is_viewer_in_match(db: AsyncSession, viewer_id: UUID, match_id: UUID) -> bool:
+async def is_viewer_in_match(db: AsyncSession, viewer_id: Sqid, match_id: Sqid) -> bool:
     row = (
         await db.execute(
             select(Match.id)
@@ -30,14 +29,14 @@ async def is_viewer_in_match(db: AsyncSession, viewer_id: UUID, match_id: UUID) 
     return row is not None
 
 
-async def get_match_peers(db: AsyncSession, match_id: UUID) -> tuple[UUID, UUID] | None:
+async def get_match_peers(db: AsyncSession, match_id: Sqid) -> tuple[Sqid, Sqid] | None:
     row = (await db.execute(select(Match.user_a_id, Match.user_b_id).where(Match.id == match_id).limit(1))).first()
     if row is None:
         return None
     return row.user_a_id, row.user_b_id
 
 
-async def fetch_messages_for_match(db: AsyncSession, match_id: UUID, limit: int, offset: int) -> list[MessageRow]:
+async def fetch_messages_for_match(db: AsyncSession, match_id: Sqid, limit: int, offset: int) -> list[MessageRow]:
     rows = (
         await db.execute(
             select(
@@ -70,7 +69,7 @@ async def fetch_messages_for_match(db: AsyncSession, match_id: UUID, limit: int,
     ]
 
 
-async def fetch_conversations(db: AsyncSession, viewer_id: UUID) -> list[ConversationRow]:
+async def fetch_conversations(db: AsyncSession, viewer_id: Sqid) -> list[ConversationRow]:
     other_id_expr = case(
         (Match.user_a_id == viewer_id, Match.user_b_id),
         else_=Match.user_a_id,
@@ -151,7 +150,7 @@ async def fetch_conversations(db: AsyncSession, viewer_id: UUID) -> list[Convers
     ]
 
 
-async def insert_message(db: AsyncSession, match_id: UUID, sender_id: UUID, body: str) -> MessageRow:
+async def insert_message(db: AsyncSession, match_id: Sqid, sender_id: Sqid, body: str) -> MessageRow:
     message = Message(match_id=match_id, sender_id=sender_id, body=body)
     db.add(message)
     await db.flush()
@@ -171,7 +170,7 @@ async def insert_message(db: AsyncSession, match_id: UUID, sender_id: UUID, body
     )
 
 
-async def mark_messages_read(db: AsyncSession, match_id: UUID, viewer_id: UUID) -> int:
+async def mark_messages_read(db: AsyncSession, match_id: Sqid, viewer_id: Sqid) -> int:
     """Mark inbound (not-sent-by-viewer) unread messages as read; return the count.
 
     RLS already restricts the rows to matches the viewer is party to; the

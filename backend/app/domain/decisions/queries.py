@@ -1,10 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
-from typing import Any
-from uuid import UUID
-
-from sqlalchemy import Row, and_, desc, exists, or_, select
+from sqlalchemy import and_, desc, exists, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
@@ -16,14 +12,15 @@ from app.domain.decisions.models import Decision
 from app.domain.decisions.transformers import SuggestionRow
 from app.domain.matches.models import Match
 from app.domain.profiles.models import Profile
+from app.utils.sqids import Sqid
 
 # ── Decision writes ───────────────────────────────────────────────────────────
 
 
 async def upsert_direct_decision(
     db: AsyncSession,
-    actor_id: UUID,
-    recipient_id: UUID,
+    actor_id: Sqid,
+    recipient_id: Sqid,
     decision: DecisionType,
 ) -> None:
     """Direct like/pass: upsert the actor's decision on the recipient.
@@ -48,9 +45,9 @@ async def upsert_direct_decision(
 
 async def insert_wing_suggestion(
     db: AsyncSession,
-    dater_id: UUID,
-    recipient_id: UUID,
-    winger_id: UUID,
+    dater_id: Sqid,
+    recipient_id: Sqid,
+    winger_id: Sqid,
     note: str | None,
     decision: DecisionType | None,
 ) -> bool:
@@ -84,18 +81,18 @@ async def insert_wing_suggestion(
 # ── Mutual-match lookup + match formation ─────────────────────────────────────
 
 
-async def find_mutual_match(db: AsyncSession, user_a: UUID, user_b: UUID) -> Match | None:
+async def find_mutual_match(db: AsyncSession, user_a: Sqid, user_b: Sqid) -> Match | None:
     """Look up the matches row for a pair, regardless of who is user_a vs user_b.
 
     `matches` enforces user_a_id < user_b_id, so we order before querying.
     """
-    lo, hi = (user_a, user_b) if str(user_a) < str(user_b) else (user_b, user_a)
+    lo, hi = (user_a, user_b) if user_a < user_b else (user_b, user_a)
     return (
         await db.execute(select(Match).where(and_(Match.user_a_id == lo, Match.user_b_id == hi)).limit(1))
     ).scalar_one_or_none()
 
 
-async def both_sides_approved(db: AsyncSession, user_a: UUID, user_b: UUID) -> bool:
+async def both_sides_approved(db: AsyncSession, user_a: Sqid, user_b: Sqid) -> bool:
     """True when BOTH directions of the decision are 'approved' (mutual like).
 
     This is the condition checked before inserting a match row.
@@ -118,7 +115,7 @@ async def both_sides_approved(db: AsyncSession, user_a: UUID, user_b: UUID) -> b
 # ── Authorization + push lookups ──────────────────────────────────────────────
 
 
-async def is_active_wingperson(db: AsyncSession, dater_id: UUID, winger_id: UUID) -> bool:
+async def is_active_wingperson(db: AsyncSession, dater_id: Sqid, winger_id: Sqid) -> bool:
     """True when `winger_id` is an ACTIVE wingperson for `dater_id`."""
     row = (
         await db.execute(
@@ -136,7 +133,7 @@ async def is_active_wingperson(db: AsyncSession, dater_id: UUID, winger_id: UUID
     return row is not None
 
 
-async def push_tokens_for(db: AsyncSession, user_ids: list[UUID]) -> list[str]:
+async def push_tokens_for(db: AsyncSession, user_ids: list[Sqid]) -> list[str]:
     """Non-null Expo push tokens for the given users."""
     if not user_ids:
         return []
@@ -145,7 +142,7 @@ async def push_tokens_for(db: AsyncSession, user_ids: list[UUID]) -> list[str]:
 
 
 async def dater_push_and_winger_name(
-    db: AsyncSession, dater_id: UUID, winger_id: UUID
+    db: AsyncSession, dater_id: Sqid, winger_id: Sqid
 ) -> tuple[str | None, str | None]:
     """Return (dater push token, winger chosen name) for the suggestion push."""
     rows = (
@@ -163,48 +160,10 @@ async def dater_push_and_winger_name(
     return dater_token, winger_name
 
 
-# ── Pending-suggestions read ──────────────────────────────────────────────────
-
-
-async def fetch_pending_suggestions(
-    db: AsyncSession, actor_id: UUID
-) -> Sequence[Row[tuple[UUID, UUID, str | None, Any, UUID | None, str | None]]]:
-    """Pending winger suggestions awaiting the viewer (actor_id).
-
-    A pending suggestion is a decision row where `decision IS NULL` and
-    `suggested_by IS NOT NULL`, newest first. Returns
-    (id, recipient_id, note, created_at, winger_id, winger_name) tuples; the route
-    maps them through `row_to_pending_suggestion`.
-    """
-    winger = aliased(Profile)
-    rows = (
-        await db.execute(
-            select(
-                Decision.id,
-                Decision.recipient_id,
-                Decision.note,
-                Decision.created_at,
-                Decision.suggested_by,
-                winger.chosen_name,
-            )
-            .outerjoin(winger, winger.id == Decision.suggested_by)
-            .where(
-                and_(
-                    Decision.actor_id == actor_id,
-                    Decision.decision.is_(None),
-                    Decision.suggested_by.is_not(None),
-                )
-            )
-            .order_by(desc(Decision.created_at))
-        )
-    ).all()
-    return rows
-
-
 # ── Suggestions I made as a winger (the people-activity read) ──────────────────
 
 
-async def fetch_my_suggestions(db: AsyncSession, winger_id: UUID, limit: int) -> list[SuggestionRow]:
+async def fetch_my_suggestions(db: AsyncSession, winger_id: Sqid, limit: int) -> list[SuggestionRow]:
     """Cards the winger suggested + whether each became a match, newest first.
 
     Every decision row the winger authored (`suggested_by = winger_id`), joined to

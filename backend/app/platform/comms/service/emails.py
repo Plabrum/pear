@@ -1,6 +1,5 @@
 import logging
 from typing import Any
-from uuid import UUID
 
 from email_validator import EmailNotValidError, validate_email
 from litestar import Request
@@ -50,11 +49,11 @@ class EmailService:
         subject: str,
         template_name: str,
         context: dict[str, Any],
-        user_id: UUID | None = None,
+        user_id: int | None = None,
         from_email: str | None = None,
         from_name: str | None = None,
         reply_to: str | None = None,
-    ) -> UUID:
+    ) -> int:
         if isinstance(to, str):
             to = [to]
         to = [self.validate_email_address(email) for email in to]
@@ -79,7 +78,7 @@ class EmailService:
         self.transaction.add(record)
         await self.transaction.flush()
 
-        await dispatch_task(self.transaction, self.request, TaskName.SEND_EMAIL, message_id=str(record.id))
+        await dispatch_task(self.transaction, self.request, TaskName.SEND_EMAIL, message_id=int(record.id))
         return record.id
 
     async def send_magic_link_email(
@@ -87,9 +86,9 @@ class EmailService:
         *,
         to_email: str,
         magic_link_url: str,
-        user_id: UUID | None = None,
+        user_id: int | None = None,
         expires_minutes: int = 15,
-    ) -> UUID:
+    ) -> int:
         return await self.send_email(
             user_id=user_id,
             to=to_email,

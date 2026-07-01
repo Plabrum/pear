@@ -10,12 +10,12 @@ from typing import (
     get_origin,
     get_type_hints,
 )
-from uuid import UUID
 
 import msgspec
 
 from app.platform.actions.enums import ActionGroupType, ActionResultType
 from app.platform.base.schemas import BaseSchema
+from app.utils.sqids import Sqid
 
 if TYPE_CHECKING:
     from app.platform.actions.registry import ActionRegistry
@@ -57,11 +57,11 @@ class ActionDTO(BaseSchema):
 
 class ActionExecutionRequest(BaseSchema):
     action_group: ActionGroupType
-    object_id: UUID
+    object_id: Sqid
 
 
 class RedirectActionResult(BaseSchema, tag=ActionResultType.REDIRECT.value):
-    path: str  # e.g. "/matches/<uuid>" or ".." for parent
+    path: str  # e.g. "/matches/<sqid>" or ".." for parent
 
 
 class DownloadFileActionResult(BaseSchema, tag=ActionResultType.DOWNLOAD_FILE.value):
@@ -83,7 +83,7 @@ class ActionExecutionResponse(BaseSchema):
     message: str = ""
     invalidate_queries: list[str] = []  # Query keys the client should invalidate
     action_result: ActionResult | None = None  # Follow-up the client should perform
-    created_id: UUID | None = None  # ID of a newly created object (for create actions)
+    created_id: Sqid | None = None  # ID of a newly created object (for create actions)
 
 
 class ActionListResponse(BaseSchema):

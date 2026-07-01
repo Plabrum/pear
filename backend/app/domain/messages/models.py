@@ -1,9 +1,8 @@
-from uuid import UUID
-
 import sqlalchemy as sa
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.platform.base.models import BaseDBModel
+from app.utils.sqids import Sqid, SqidType
 
 
 class Message(BaseDBModel):
@@ -12,12 +11,14 @@ class Message(BaseDBModel):
     # SQL: not null references matches(id) on delete cascade
     # The composite (match_id, created_at) index below covers match_id-prefix
     # lookups, so no standalone index here.
-    match_id: Mapped[UUID] = mapped_column(
+    match_id: Mapped[Sqid] = mapped_column(
+        SqidType,
         sa.ForeignKey("matches.id", ondelete="CASCADE"),
         nullable=False,
     )
     # SQL: not null references profiles(id) on delete cascade
-    sender_id: Mapped[UUID] = mapped_column(
+    sender_id: Mapped[Sqid] = mapped_column(
+        SqidType,
         sa.ForeignKey("profiles.id", ondelete="CASCADE"),
         nullable=False,
         index=True,

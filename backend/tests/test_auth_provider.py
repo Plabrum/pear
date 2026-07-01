@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import time
+import re
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -10,18 +10,19 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from litestar import Request
+from litestar.connection import ASGIConnection
 from litestar.di import Provide
+from litestar.stores.memory import MemoryStore
 from litestar.testing import AsyncTestClient
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import TestConfig
+from app.config import Config, config
+from app.domain.profiles.models import Profile
 from app.factory import create_app
-from app.platform.auth.deps import _magic_link_store_for
 from app.platform.auth.enums import AuthProvider
-from app.platform.auth.magic_link import InMemoryMagicLinkStore
-from app.platform.auth.models import AuthIdentity, RefreshToken
-from app.platform.auth.tokens import hash_refresh_token
+from app.platform.auth.models import AuthIdentity, MagicLinkToken
+from app.platform.auth.principal import User
 from app.platform.comms.models.messages import Message
 from app.platform.queue.enums import TaskName
 
@@ -74,45 +75,43 @@ def _apple_token(
 
 @pytest.fixture
 def apple_keypair() -> tuple[str, str]:
-    """A dedicated Apple signing keypair (distinct from the JWT access-token pair)."""
+    """An Apple signing keypair injected as the verifier's test public key."""
     return _es256_keypair()
 
 
 @pytest.fixture
-def auth_config(test_config: TestConfig, apple_keypair: tuple[str, str]) -> TestConfig:
-    """A per-test TestConfig: ephemeral JWT keypair + injected Apple test key.
+def auth_config(apple_keypair: tuple[str, str], monkeypatch: pytest.MonkeyPatch) -> Config:
+    """Inject the per-test Apple test key onto the module-global `config`.
 
-    A FRESH config object per test so the per-config memoized magic-link store and
-    rate limiter (`auth/deps.py` keys them by `id(config)`) start empty each test —
-    no token / counter bleed across tests.
+    The app and its deps read the module-global `config` directly (no DI/state
+    threading), so a test mints Apple tokens with `apple_keypair` and patches the
+    matching public key + client/issuer onto that singleton; `build_apple_verifier`
+    then selects the Local injected-key verifier. monkeypatch restores after the test.
     """
     _, apple_public = apple_keypair
-    cfg = TestConfig()
-    # Reuse the session keypair so signing/verifying is stable across the test.
-    cfg.JWT_SIGNING_KEY = test_config.JWT_SIGNING_KEY
-    cfg.JWT_PUBLIC_KEY = test_config.JWT_PUBLIC_KEY
-    cfg.APPLE_CLIENT_ID = "com.plabrum.wingmate"
-    cfg.APPLE_ISSUER = "https://appleid.apple.com"
-    cfg.APPLE_TEST_PUBLIC_KEY = apple_public
-    cfg.API_BASE_URL = "http://testserver"
-    cfg.APP_DEEP_LINK_SCHEME = "pear"
-    cfg.DEV_MAGIC_LINK_EMAIL = ""  # exercise the real send path (patched dispatch)
-    return cfg
+    monkeypatch.setattr(config, "APPLE_CLIENT_ID", "com.plabrum.wingmate")
+    monkeypatch.setattr(config, "APPLE_ISSUER", "https://appleid.apple.com")
+    monkeypatch.setattr(config, "APPLE_TEST_PUBLIC_KEY", apple_public)
+    return config
 
 
 @pytest.fixture
 async def auth_app(
-    auth_config: TestConfig,
+    auth_config: Config,
     db_session: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
 ) -> AsyncGenerator[AsyncTestClient]:
     """Real app wired to the savepoint `db_session` + the injected-key config.
 
-    Overrides the `db_session` DI provider so `provide_transaction` runs against
-    the test's savepoint session (nested begin -> savepoint; outer never commits ->
-    rolls back at teardown). The magic-link route's `dispatch_task` is patched to a
-    counting fake so the QUEUED email is asserted via the persisted Message row
-    without invoking the SEND_EMAIL task (which needs `email_client` ctx).
+    Cookie sessions: SessionAuth is given an in-memory "sessions" store (no Redis in
+    tests) and a `retrieve_user_handler` that rehydrates the principal from the SAME
+    savepoint `db_session` the request transaction runs on (so a profile created on
+    `/auth/apple` is visible when `/auth/me` rehydrates from the cookie). The
+    AsyncTestClient persists the Set-Cookie across requests like a real client.
+
+    The magic-link route's `dispatch_task` is patched to a counting fake so the
+    QUEUED email is asserted via the persisted Message row without invoking the
+    SEND_EMAIL task (which needs `email_client` ctx).
     """
     sent_emails: list[dict[str, Any]] = []
 
@@ -122,16 +121,23 @@ async def auth_app(
 
     monkeypatch.setattr("app.platform.comms.service.emails.dispatch_task", _fake_dispatch)
 
+    async def _retrieve_user(session: dict, connection: ASGIConnection) -> User | None:
+        user_id = session.get("user_id")
+        if not user_id:
+            return None
+        profile = await db_session.get(Profile, user_id)
+        return User.from_profile(profile) if profile is not None else None
+
     # Request-scoped transaction on the savepoint session — mirrors the production
     # `provide_transaction` (app/utils/deps.py) under the non-superuser role model:
     # the connection is the NON-superuser `pear_app` role (no `SET ROLE`), and for
     # an authenticated request we set `app.user_id` + pin the escape OFF.
     #
-    # Unauthenticated login routes (apple, magic-link) set no
-    # `app.user_id`; their first-login `profiles` INSERT succeeds because
-    # `AuthService.find_or_create_identity` turns on the honored
-    # `app.is_system_mode` escape itself — a genuine bypass, NOT a superuser
-    # connection. That is the bootstrap behavior this suite exercises end-to-end.
+    # Unauthenticated login routes (apple, magic-link) set no `app.user_id`; their
+    # first-login `profiles` INSERT succeeds because
+    # `AuthService.find_or_create_identity` scopes `app.user_id` to the NEW profile's
+    # own id under the user's own RLS scope. That is the bootstrap behavior this suite
+    # exercises end-to-end.
     async def _test_transaction(request: Request) -> AsyncGenerator[AsyncSession]:
         # Switch the RLS actor in place on the shared savepoint session, then RESTORE
         # system mode on exit so the next request/assertion (and fixture seeding) is
@@ -141,7 +147,7 @@ async def auth_app(
             principal = request.scope.get("user")
             await db_session.execute(text("SET LOCAL app.is_system_mode = false"))
             if principal is not None:
-                # Authenticated request (/me, /logout): scope to the verified user.
+                # Authenticated request (/me, /logout): scope to the session user.
                 await db_session.execute(text(f"SET LOCAL app.user_id = '{principal.id}'"))
             try:
                 yield db_session
@@ -155,10 +161,14 @@ async def auth_app(
             "db_session": Provide(lambda: db_session, sync_to_thread=False),
             "transaction": Provide(_test_transaction),
         },
+        stores_overrides={"sessions": MemoryStore()},
+        retrieve_user_handler_override=_retrieve_user,
     )
 
+    # The session cookie is non-secure under TestConfig, so the plain-HTTP test
+    # client persists it across requests like a real client.
     async with AsyncTestClient(app=app) as client:
-        # Stash assertion handles on the client for the email/refresh tests.
+        # Stash assertion handles on the client for the email tests.
         client.sent_emails = sent_emails  # type: ignore[attr-defined]
         client.db_session = db_session  # type: ignore[attr-defined]
         client.config = auth_config  # type: ignore[attr-defined]
@@ -168,37 +178,44 @@ async def auth_app(
 # ── Small request helpers ──────────────────────────────────────────────────────
 
 
-def _magic_store(client: AsyncTestClient) -> InMemoryMagicLinkStore:
-    """Reach into the per-config memoized in-memory store to read the minted token."""
-    store = _magic_link_store_for(client.config)  # type: ignore[attr-defined]
-    assert isinstance(store, InMemoryMagicLinkStore)
-    return store
+# The raw token is HMAC-hashed at rest, so it exists only inside the emailed link.
+# Tests recover it the same way a real user would: by reading it out of the email
+# body (here the persisted Message row that the SEND_EMAIL task would have sent).
+_TOKEN_RE = re.compile(r"[?&]token=([^\s&\"'<]+)")
 
 
-def _token_for_email(store: InMemoryMagicLinkStore, email: str) -> str:
-    for token, (bound_email, _exp) in store._tokens.items():  # type: ignore[attr-defined]
-        if bound_email == email:
-            return token
-    raise AssertionError(f"no magic-link token minted for {email}")
+async def _token_for_email(client: AsyncTestClient, email: str) -> str:
+    """Parse the most recent magic-link token emailed to `email` from its Message row."""
+    db: AsyncSession = client.db_session  # type: ignore[attr-defined]
+    rows = (
+        (
+            await db.execute(
+                select(Message).where(Message.to_emails.any(email)).order_by(Message.created_at.desc())  # type: ignore[attr-defined]
+            )
+        )
+        .scalars()
+        .all()
+    )
+    for msg in rows:
+        match = _TOKEN_RE.search(msg.body_text or "")
+        if match is not None:
+            return match.group(1)
+    raise AssertionError(f"no magic-link token emailed for {email}")
 
 
 async def _magic_login(client: AsyncTestClient, email: str) -> Any:
-    """Request + verify a magic link, returning the verify response (issues a session)."""
+    """Request + verify a magic link, returning the verify response (starts a session)."""
     await client.post("/auth/magic-link/request", json={"email": email})
-    token = _token_for_email(_magic_store(client), email)
+    token = await _token_for_email(client, email)
     return await client.post("/auth/magic-link/verify", json={"token": token})
-
-
-def _auth_header(access_token: str) -> dict[str, str]:
-    return {"Authorization": f"Bearer {access_token}"}
 
 
 # ── Apple ──────────────────────────────────────────────────────────────────────
 
 
-async def test_apple_valid_token_creates_session(auth_app: AsyncTestClient, apple_keypair: tuple[str, str]) -> None:
+async def test_apple_valid_token_sets_session_cookie(auth_app: AsyncTestClient, apple_keypair: tuple[str, str]) -> None:
     private_pem, _ = apple_keypair
-    cfg: TestConfig = auth_app.config  # type: ignore[attr-defined]
+    cfg: Config = auth_app.config  # type: ignore[attr-defined]
     token = _apple_token(
         private_pem,
         aud=cfg.APPLE_CLIENT_ID,
@@ -210,10 +227,15 @@ async def test_apple_valid_token_creates_session(auth_app: AsyncTestClient, appl
     )
     resp = await auth_app.post("/auth/apple", json={"identityToken": token, "fullName": "Ada Lovelace"})
     assert resp.status_code == 201, resp.text
+    # No tokens in the body — auth is a cookie session.
     body = resp.json()
-    assert body["accessToken"] and body["refreshToken"]
+    assert "accessToken" not in body and "refreshToken" not in body
+    # The session cookie authenticates the follow-up /auth/me.
+    me = await auth_app.get("/auth/me")
+    assert me.status_code == 200, me.text
+    assert me.json()["user"]["id"] == body["id"]
     # `fullName` lands on the bootstrap profile as chosen_name.
-    assert body["user"]["chosenName"] == "Ada Lovelace"
+    assert body["chosenName"] == "Ada Lovelace"
 
     db: AsyncSession = auth_app.db_session  # type: ignore[attr-defined]
     identity = (
@@ -224,14 +246,33 @@ async def test_apple_valid_token_creates_session(auth_app: AsyncTestClient, appl
             )
         )
     ).scalar_one()
-    assert str(identity.profile_id) == body["user"]["id"]
+    assert str(identity.profile_id) == body["id"]
+
+
+async def test_apple_session_cookie_authenticates_me(auth_app: AsyncTestClient, apple_keypair: tuple[str, str]) -> None:
+    private_pem, _ = apple_keypair
+    cfg: Config = auth_app.config  # type: ignore[attr-defined]
+    token = _apple_token(
+        private_pem,
+        aud=cfg.APPLE_CLIENT_ID,
+        iss=cfg.APPLE_ISSUER,
+        exp_delta=timedelta(minutes=5),
+        sub="apple-user-me",
+    )
+    login = await auth_app.post("/auth/apple", json={"identityToken": token})
+    assert login.status_code == 201, login.text
+
+    # The persisted cookie authenticates a follow-up /auth/me.
+    me = await auth_app.get("/auth/me")
+    assert me.status_code == 200, me.text
+    assert me.json()["user"]["id"] == login.json()["id"]
 
 
 async def test_apple_same_subject_returns_same_profile(
     auth_app: AsyncTestClient, apple_keypair: tuple[str, str]
 ) -> None:
     private_pem, _ = apple_keypair
-    cfg: TestConfig = auth_app.config  # type: ignore[attr-defined]
+    cfg: Config = auth_app.config  # type: ignore[attr-defined]
 
     def _tok() -> str:
         return _apple_token(
@@ -244,20 +285,23 @@ async def test_apple_same_subject_returns_same_profile(
 
     first = (await auth_app.post("/auth/apple", json={"identityToken": _tok()})).json()
     second = (await auth_app.post("/auth/apple", json={"identityToken": _tok()})).json()
-    assert first["user"]["id"] == second["user"]["id"]
+    assert first["id"] == second["id"]
 
 
 async def test_apple_wrong_aud_rejected(auth_app: AsyncTestClient, apple_keypair: tuple[str, str]) -> None:
     private_pem, _ = apple_keypair
-    cfg: TestConfig = auth_app.config  # type: ignore[attr-defined]
+    cfg: Config = auth_app.config  # type: ignore[attr-defined]
     token = _apple_token(private_pem, aud="someone.else", iss=cfg.APPLE_ISSUER, exp_delta=timedelta(minutes=5))
     resp = await auth_app.post("/auth/apple", json={"identityToken": token})
     assert resp.status_code == 401
+    # The rejected login does not establish an authenticated session.
+    me = await auth_app.get("/auth/me")
+    assert me.status_code in (401, 403)
 
 
 async def test_apple_expired_rejected(auth_app: AsyncTestClient, apple_keypair: tuple[str, str]) -> None:
     private_pem, _ = apple_keypair
-    cfg: TestConfig = auth_app.config  # type: ignore[attr-defined]
+    cfg: Config = auth_app.config  # type: ignore[attr-defined]
     token = _apple_token(private_pem, aud=cfg.APPLE_CLIENT_ID, iss=cfg.APPLE_ISSUER, exp_delta=timedelta(minutes=-5))
     resp = await auth_app.post("/auth/apple", json={"identityToken": token})
     assert resp.status_code == 401
@@ -265,7 +309,7 @@ async def test_apple_expired_rejected(auth_app: AsyncTestClient, apple_keypair: 
 
 async def test_apple_tampered_signature_rejected(auth_app: AsyncTestClient, apple_keypair: tuple[str, str]) -> None:
     private_pem, _ = apple_keypair
-    cfg: TestConfig = auth_app.config  # type: ignore[attr-defined]
+    cfg: Config = auth_app.config  # type: ignore[attr-defined]
     token = _apple_token(private_pem, aud=cfg.APPLE_CLIENT_ID, iss=cfg.APPLE_ISSUER, exp_delta=timedelta(minutes=5))
     tampered = token[:-4] + ("aaaa" if not token.endswith("aaaa") else "bbbb")
     resp = await auth_app.post("/auth/apple", json={"identityToken": tampered})
@@ -303,16 +347,20 @@ async def test_magic_link_unknown_email_same_response_no_leak(auth_app: AsyncTes
     assert resp.status_code == 204
 
 
-async def test_magic_link_verify_once_then_replay_rejected(auth_app: AsyncTestClient) -> None:
+async def test_magic_link_verify_sets_session_then_replay_rejected(auth_app: AsyncTestClient) -> None:
     email = "ml-verify@example.com"
     await auth_app.post("/auth/magic-link/request", json={"email": email})
-    token = _token_for_email(_magic_store(auth_app), email)
+    token = await _token_for_email(auth_app, email)
 
-    # First verify succeeds and issues a session for the email identity.
+    # First verify succeeds and starts a cookie session for the email identity.
     first = await auth_app.post("/auth/magic-link/verify", json={"token": token})
     assert first.status_code == 201, first.text
     body = first.json()
-    assert body["accessToken"] and body["refreshToken"]
+    assert "accessToken" not in body and "refreshToken" not in body
+    # The session cookie authenticates the follow-up /auth/me.
+    me = await auth_app.get("/auth/me")
+    assert me.status_code == 200, me.text
+    assert me.json()["user"]["id"] == body["id"]
 
     db: AsyncSession = auth_app.db_session  # type: ignore[attr-defined]
     identity = (
@@ -323,7 +371,7 @@ async def test_magic_link_verify_once_then_replay_rejected(auth_app: AsyncTestCl
             )
         )
     ).scalar_one()
-    assert str(identity.profile_id) == body["user"]["id"]
+    assert str(identity.profile_id) == body["id"]
 
     # Replay of the consumed token is rejected.
     replay = await auth_app.post("/auth/magic-link/verify", json={"token": token})
@@ -333,13 +381,31 @@ async def test_magic_link_verify_once_then_replay_rejected(auth_app: AsyncTestCl
 async def test_magic_link_expired_token_rejected(auth_app: AsyncTestClient) -> None:
     email = "ml-expired@example.com"
     await auth_app.post("/auth/magic-link/request", json={"email": email})
-    store = _magic_store(auth_app)
-    token = _token_for_email(store, email)
-    # Force the entry's expiry into the past.
-    bound_email, _ = store._tokens[token]  # type: ignore[attr-defined]
-    store._tokens[token] = (bound_email, time.time() - 1)  # type: ignore[attr-defined]
+    token = await _token_for_email(auth_app, email)
+
+    # Force the persisted token's expiry into the past.
+    db: AsyncSession = auth_app.db_session  # type: ignore[attr-defined]
+    row = (await db.execute(select(MagicLinkToken).where(MagicLinkToken.email == email))).scalar_one()
+    row.expires_at = datetime.now(UTC) - timedelta(seconds=1)
+    await db.flush()
 
     resp = await auth_app.post("/auth/magic-link/verify", json={"token": token})
+    assert resp.status_code == 401
+
+
+async def test_magic_link_request_rate_limited(auth_app: AsyncTestClient) -> None:
+    # The built-in RateLimitConfig middleware allows 3 requests/minute per IP; the
+    # 4th is rejected with 429 (per-app in-memory counter, fresh for this test).
+    for _ in range(3):
+        ok = await auth_app.post("/auth/magic-link/request", json={"email": "rl@example.com"})
+        assert ok.status_code == 204, ok.text
+    throttled = await auth_app.post("/auth/magic-link/request", json={"email": "rl@example.com"})
+    assert throttled.status_code == 429
+
+
+async def test_magic_link_unknown_token_rejected(auth_app: AsyncTestClient) -> None:
+    # A token that was never issued hashes to nothing on file → 401 (no leak/500).
+    resp = await auth_app.post("/auth/magic-link/verify", json={"token": "never-issued-token"})
     assert resp.status_code == 401
 
 
@@ -353,133 +419,33 @@ async def test_magic_link_verify_redirect_hops_into_app_scheme(auth_app: AsyncTe
     assert resp.headers["location"] == "pear://magic-link?token=some-token"
 
 
-# ── Refresh rotation + reuse detection ─────────────────────────────────────────
+# ── /auth/me + logout (cookie session) ─────────────────────────────────────────
 
 
-async def test_refresh_rotates_pair_and_revokes_old(auth_app: AsyncTestClient) -> None:
-    login = (await _magic_login(auth_app, "refresh-rotate@example.com")).json()
-    old_refresh = login["refreshToken"]
-
-    rotated = await auth_app.post("/auth/refresh", json={"refreshToken": old_refresh})
-    assert rotated.status_code == 200, rotated.text
-    pair = rotated.json()
-    assert pair["accessToken"] and pair["refreshToken"]
-    assert pair["refreshToken"] != old_refresh
-
-    db: AsyncSession = auth_app.db_session  # type: ignore[attr-defined]
-    old_row = (
-        await db.execute(select(RefreshToken).where(RefreshToken.token_hash == hash_refresh_token(old_refresh)))
-    ).scalar_one()
-    assert old_row.revoked is True
-    # The old token points at its replacement (the rotation chain link).
-    new_row = (
-        await db.execute(
-            select(RefreshToken).where(RefreshToken.token_hash == hash_refresh_token(pair["refreshToken"]))
-        )
-    ).scalar_one()
-    assert old_row.replaced_by == new_row.id
-    assert new_row.revoked is False
-
-    # The new refresh token works.
-    again = await auth_app.post("/auth/refresh", json={"refreshToken": pair["refreshToken"]})
-    assert again.status_code == 200
-
-
-async def test_refresh_reuse_detection_revokes_chain(auth_app: AsyncTestClient) -> None:
-    login = (await _magic_login(auth_app, "refresh-reuse@example.com")).json()
-    refresh_1 = login["refreshToken"]
-
-    # Rotate once: refresh_1 -> refresh_2 (refresh_1 now revoked).
-    pair = (await auth_app.post("/auth/refresh", json={"refreshToken": refresh_1})).json()
-    refresh_2 = pair["refreshToken"]
-
-    # Reusing the already-rotated refresh_1 is reuse detection: rejected with 401.
-    reuse = await auth_app.post("/auth/refresh", json={"refreshToken": refresh_1})
-    assert reuse.status_code == 401
-
-    # The whole chain is burned — refresh_2 (the active child) is now revoked too.
-    db: AsyncSession = auth_app.db_session  # type: ignore[attr-defined]
-    row_2 = (
-        await db.execute(select(RefreshToken).where(RefreshToken.token_hash == hash_refresh_token(refresh_2)))
-    ).scalar_one()
-    assert row_2.revoked is True
-    # And refresh_2 can no longer be rotated.
-    after = await auth_app.post("/auth/refresh", json={"refreshToken": refresh_2})
-    assert after.status_code == 401
-
-
-async def test_refresh_unknown_token_rejected(auth_app: AsyncTestClient) -> None:
-    resp = await auth_app.post("/auth/refresh", json={"refreshToken": "not-a-real-token"})
-    assert resp.status_code == 401
-
-
-# ── Access token + /auth/me + logout ───────────────────────────────────────────
-
-
-async def test_me_with_valid_token_returns_user(auth_app: AsyncTestClient) -> None:
+async def test_me_with_session_returns_user(auth_app: AsyncTestClient) -> None:
     login = (await _magic_login(auth_app, "me-valid@example.com")).json()
-    resp = await auth_app.get("/auth/me", headers=_auth_header(login["accessToken"]))
+    resp = await auth_app.get("/auth/me")
     assert resp.status_code == 200, resp.text
-    body = resp.json()
-    assert body["user"]["id"] == login["user"]["id"]
+    assert resp.json()["user"]["id"] == login["id"]
 
 
-async def test_me_without_token_rejected(auth_app: AsyncTestClient) -> None:
+async def test_me_without_session_rejected(auth_app: AsyncTestClient) -> None:
     resp = await auth_app.get("/auth/me")
     assert resp.status_code in (401, 403)
 
 
-async def test_me_with_expired_access_token_rejected(auth_app: AsyncTestClient) -> None:
-    cfg: TestConfig = auth_app.config  # type: ignore[attr-defined]
-    # Mint an already-expired access token signed with the app's real JWT key.
-    now = datetime.now(UTC)
-    expired = jwt.encode(
-        {
-            "sub": "00000000-0000-0000-0000-000000000001",
-            "role": None,
-            "iat": int((now - timedelta(hours=1)).timestamp()),
-            "exp": int((now - timedelta(minutes=30)).timestamp()),
-            "iss": cfg.JWT_ISSUER,
-            "aud": cfg.JWT_AUDIENCE,
-        },
-        cfg.JWT_SIGNING_KEY,
-        algorithm="ES256",
-    )
-    resp = await auth_app.get("/auth/me", headers=_auth_header(expired))
-    assert resp.status_code in (401, 403)
+async def test_logout_clears_session(auth_app: AsyncTestClient) -> None:
+    await _magic_login(auth_app, "logout-clear@example.com")
 
-
-async def test_me_with_tampered_access_token_rejected(auth_app: AsyncTestClient) -> None:
-    login = (await _magic_login(auth_app, "me-tampered@example.com")).json()
-    tampered = login["accessToken"][:-4] + ("aaaa" if not login["accessToken"].endswith("aaaa") else "bbbb")
-    resp = await auth_app.get("/auth/me", headers=_auth_header(tampered))
-    assert resp.status_code in (401, 403)
-
-
-async def test_logout_revokes_refresh_token(auth_app: AsyncTestClient) -> None:
-    login = (await _magic_login(auth_app, "logout-revoke@example.com")).json()
-
-    resp = await auth_app.post(
-        "/auth/logout",
-        json={"refreshToken": login["refreshToken"]},
-        headers=_auth_header(login["accessToken"]),
-    )
+    # Authenticated logout succeeds and clears the cookie.
+    resp = await auth_app.post("/auth/logout")
     assert resp.status_code == 204
 
-    db: AsyncSession = auth_app.db_session  # type: ignore[attr-defined]
-    row = (
-        await db.execute(
-            select(RefreshToken).where(RefreshToken.token_hash == hash_refresh_token(login["refreshToken"]))
-        )
-    ).scalar_one()
-    assert row.revoked is True
-
-    # A revoked refresh token can no longer be rotated (reuse detection -> 401).
-    after = await auth_app.post("/auth/refresh", json={"refreshToken": login["refreshToken"]})
-    assert after.status_code == 401
+    # After logout the session no longer authenticates /auth/me.
+    after = await auth_app.get("/auth/me")
+    assert after.status_code in (401, 403)
 
 
-async def test_logout_requires_access_token(auth_app: AsyncTestClient) -> None:
-    login = (await _magic_login(auth_app, "logout-requires-token@example.com")).json()
-    resp = await auth_app.post("/auth/logout", json={"refreshToken": login["refreshToken"]})
+async def test_logout_requires_session(auth_app: AsyncTestClient) -> None:
+    resp = await auth_app.post("/auth/logout")
     assert resp.status_code in (401, 403)

@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from app.domain.dating_profiles.enums import City, Interest
+from app.domain.matches.models import Match
 from app.domain.matches.schemas import (
     MatchSheet,
     MatchSheetPrompt,
@@ -14,7 +15,19 @@ from app.domain.matches.schemas import (
     MatchSummary,
     MatchSummaryOther,
 )
+from app.platform.actions.hydrate import actions_for
 from app.platform.media.client import BaseMediaClient
+from app.utils.sqids import Sqid
+
+if TYPE_CHECKING:
+    # Type-only: importing `ActionGroup`/`ActionDeps` at runtime would close an
+    # import cycle (transformers → actions.base → actions.deps → realtime.service →
+    # realtime.channels → messages.queries → ... ). `from __future__ import
+    # annotations` keeps the parameter annotations as strings, so the runtime path
+    # never needs these symbols — `actions_for` is the only runtime dependency and
+    # it carries no such back-edge into matches.
+    from app.platform.actions.base import ActionGroup
+    from app.platform.actions.deps import ActionDeps
 
 
 def _iso(value: datetime | None) -> str:
@@ -25,10 +38,15 @@ def _iso(value: datetime | None) -> str:
 class MatchRow:
     """One row of the matches list aggregate."""
 
-    match_id: UUID
+    match_id: Sqid
     created_at: datetime | None
     has_messages: bool
-    other_user_id: UUID
+    other_user_id: Sqid
+    # The match's two participant ids (ordered: user_a_id < user_b_id). Carried so a
+    # transient `Match` stub can feed the MESSAGE_ACTIONS gate (`_viewer_in_match`),
+    # which reads ONLY these two scalar columns.
+    user_a_id: Sqid
+    user_b_id: Sqid
     chosen_name: str | None
     date_of_birth: datetime | None
     age: int | None
@@ -41,20 +59,20 @@ class MatchRow:
 @dataclass
 class WingNoteRow:
     note: str | None
-    suggested_by: UUID | None
-    winger_id: UUID | None
+    suggested_by: Sqid | None
+    winger_id: Sqid | None
     winger_chosen_name: str | None
 
 
 @dataclass
 class MatchPromptRow:
-    id: UUID
+    id: Sqid
     answer: str
-    template_id: UUID | None
+    template_id: Sqid | None
     template_question: str | None
 
 
-async def row_to_match(row: MatchRow, media: BaseMediaClient) -> MatchSummary:
+async def row_to_match(row: MatchRow, media: BaseMediaClient, group: ActionGroup, deps: ActionDeps) -> MatchSummary:
     # `first_photo` is the other user's first APPROVED photo key (the query filters
     # approved_at IS NOT NULL), so presigning it is safe. None stays None.
     first_photo = await media.presign_download(row.first_photo) if row.first_photo is not None else None
@@ -68,12 +86,19 @@ async def row_to_match(row: MatchRow, media: BaseMediaClient) -> MatchSummary:
         interests=list(row.interests) if row.interests is not None else [],
         firstPhoto=first_photo,
     )
-    return MatchSummary(
+    summary = MatchSummary(
         matchId=row.match_id,
         createdAt=_iso(row.created_at),
         hasMessages=row.has_messages,
         other=other,
     )
+    # The MESSAGE_ACTIONS gate (`_viewer_in_match`) reads ONLY Match.user_a_id /
+    # user_b_id — never a relationship — so a transient stub carrying just those
+    # scalar identity columns is sufficient (and adds zero DB round-trips). Do NOT
+    # add it to the session.
+    stub = Match(id=row.match_id, user_a_id=row.user_a_id, user_b_id=row.user_b_id)
+    summary.actions = actions_for(group, deps, stub)
+    return summary
 
 
 def row_to_wing_note(row: WingNoteRow | None) -> MatchSheetWingNote | None:

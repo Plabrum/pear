@@ -19,7 +19,7 @@ import {
   updateMyProfile,
   createDatingProfile,
   addProfilePrompt,
-  rejectPhoto,
+  deletePhoto,
 } from '@/lib/api/actions';
 import { useAuth } from '@/context/auth';
 import { useUploadProfilePhoto } from '@/hooks/use-upload-profile-photo';
@@ -375,7 +375,7 @@ function PhotosStep({ dpId, onContinue }: { dpId: string | null; onContinue: () 
     const previous = photos;
     setPhotos((p) => p.filter((x) => x.id !== photoId));
     try {
-      await rejectPhoto(photoId);
+      await deletePhoto(photoId);
     } catch {
       setPhotos(previous);
       toast.error('Failed to remove photo. Please try again.');

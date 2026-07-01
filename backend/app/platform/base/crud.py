@@ -1,7 +1,6 @@
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Literal, get_type_hints
-from uuid import UUID
 
 from litestar import Controller, get, post
 from litestar.exceptions import NotFoundException
@@ -13,6 +12,7 @@ from app.platform.base.filters import apply_filter, apply_sorts
 from app.platform.base.models import BaseDBModel
 from app.platform.base.registry import BaseRegistry
 from app.platform.base.schemas import ListRequest, PagedResponse
+from app.utils.sqids import Sqid
 
 # Populated by make_crud_controller — exposed (e.g. via a /schema endpoint) for codegen.
 _crud_metadata: dict[str, dict] = {}
@@ -156,10 +156,10 @@ def make_crud_controller[ModelT: BaseDBModel, ListT: Struct, DetailT: Struct](
 
     list_handler.fn.__annotations__["return"] = PagedResponse[list_item_type]
 
-    @get("/{id:uuid}", guards=detail_guards, tags=[model_name.lower()])
+    @get("/{id:str}", guards=detail_guards, tags=[model_name.lower()])
     async def detail_handler(
         self,
-        id: UUID,
+        id: Sqid,
         user: Any,
         transaction: AsyncSession,
     ) -> Struct:

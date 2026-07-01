@@ -3,7 +3,6 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import cast
 from unittest.mock import AsyncMock, MagicMock
-from uuid import UUID, uuid4
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,13 +14,11 @@ from app.domain.decisions.enums import DecisionType
 from app.domain.decisions.models import Decision
 from app.domain.decisions.queries import (
     fetch_my_suggestions,
-    fetch_pending_suggestions,
     find_mutual_match,
 )
 from app.domain.decisions.tasks import form_match
 from app.domain.decisions.transformers import (
     SuggestionRow,
-    row_to_pending_suggestion,
     transform_my_suggestion,
 )
 from app.domain.matches.models import Match
@@ -40,12 +37,17 @@ from app.domain.matches.transformers import (
     row_to_match_prompt,
     row_to_wing_note,
 )
+
+# Importing the messages domain's actions module registers MESSAGE_ACTIONS
+# (model_type=Match) on the singleton registry so row_to_match can hydrate it.
+from app.domain.messages.actions import message_actions
 from app.platform.actions.base import EmptyActionData
 from app.platform.actions.deps import ActionDeps
 from app.platform.auth.principal import User
 from app.platform.state_machine.machine import StateMachineService
 from app.platform.state_machine.roles import Role
 from tests.fixtures.graph import DomainGraph
+from tests.fixtures.ids import fake_id
 from tests.fixtures.media import local_media
 
 # `asyncio_mode = "auto"` (pyproject.toml) runs `async def test_*` without a marker.
@@ -73,27 +75,6 @@ def _push(deps: ActionDeps) -> AsyncMock:
 # ── decisions: reads ─────────────────────────────────────────────────────────
 
 
-async def test_fetch_pending_suggestions(graph: DomainGraph, db_session: AsyncSession) -> None:
-    rows = await fetch_pending_suggestions(db_session, graph.dater_a.id)
-    # The graph seeds exactly one winger-suggested pending card for dater_a.
-    assert len(rows) == 1
-    sid, recipient_id, note, created_at, winger_id, winger_name = rows[0]
-    assert recipient_id == graph.dater_b.id
-    assert winger_id == graph.winger.id
-    assert winger_name == graph.winger.chosen_name
-
-    dto = row_to_pending_suggestion(
-        suggestion_id=sid,
-        recipient_id=recipient_id,
-        note=note,
-        created_at=created_at,
-        winger_id=winger_id,
-        winger_name=winger_name,
-    )
-    assert dto.recipientId == graph.dater_b.id
-    assert dto.wingerName == graph.winger.chosen_name
-
-
 async def test_fetch_my_suggestions(graph: DomainGraph, db_session: AsyncSession) -> None:
     # The winger authored exactly one suggestion (dater_a -> dater_b, pending).
     rows = await fetch_my_suggestions(db_session, graph.winger.id, limit=50)
@@ -118,10 +99,10 @@ async def test_fetch_my_suggestions_empty_for_non_suggester(graph: DomainGraph, 
 
 def test_transform_my_suggestion_matched() -> None:
     row = SuggestionRow(
-        id=uuid4(),
+        id=fake_id(),
         decision=DecisionType.APPROVED,
         has_match=True,
-        dater_id=uuid4(),
+        dater_id=fake_id(),
         dater_name="Alex",
         recipient_name="Sam",
         created_at=datetime(2026, 1, 1, tzinfo=UTC),
@@ -131,10 +112,10 @@ def test_transform_my_suggestion_matched() -> None:
 
 def test_transform_my_suggestion_not_accepted() -> None:
     row = SuggestionRow(
-        id=uuid4(),
+        id=fake_id(),
         decision=DecisionType.DECLINED,
         has_match=False,
-        dater_id=uuid4(),
+        dater_id=fake_id(),
         dater_name="Alex",
         recipient_name="Sam",
         created_at=None,
@@ -151,7 +132,7 @@ async def test_merged_like_flips_winger_pending_row(graph: DomainGraph, db_sessi
     # winger's people-activity flips from pending to matched (dater_b already
     # approved dater_a, so a match forms).
     deps = _deps(db_session, user_id=graph.dater_a.id)
-    await Like.execute(graph.dating_profile_b, EmptyActionData(), db_session, deps)
+    await Like.execute(graph.dating_profile_b, EmptyActionData(), db_session, deps.user, deps)
 
     rows = (
         (
@@ -185,7 +166,7 @@ def _ctx() -> dict[str, object]:
 
 
 async def _count_matches(db_session: AsyncSession, a, b) -> int:
-    lo, hi = sorted([a, b], key=str)
+    lo, hi = sorted([a, b])
     rows = (await db_session.execute(select(Match).where(Match.user_a_id == lo, Match.user_b_id == hi))).scalars().all()
     return len(rows)
 
@@ -204,8 +185,8 @@ async def test_form_match_creates_on_mutual(graph: DomainGraph, db_session: Asyn
     await form_match(
         _ctx(),
         transaction=db_session,
-        actor_id=str(graph.dater_a.id),
-        recipient_id=str(graph.dater_c.id),
+        actor_id=graph.dater_a.id,
+        recipient_id=graph.dater_c.id,
     )
 
     assert await find_mutual_match(db_session, graph.dater_a.id, graph.dater_c.id) is not None
@@ -219,8 +200,8 @@ async def test_form_match_is_idempotent(graph: DomainGraph, db_session: AsyncSes
     await form_match(
         _ctx(),
         transaction=db_session,
-        actor_id=str(graph.dater_a.id),
-        recipient_id=str(graph.dater_b.id),
+        actor_id=graph.dater_a.id,
+        recipient_id=graph.dater_b.id,
     )
     assert await _count_matches(db_session, graph.dater_a.id, graph.dater_b.id) == 1
 
@@ -233,8 +214,8 @@ async def test_form_match_noop_when_not_mutual(graph: DomainGraph, db_session: A
     await form_match(
         _ctx(),
         transaction=db_session,
-        actor_id=str(graph.dater_a.id),
-        recipient_id=str(graph.dater_c.id),
+        actor_id=graph.dater_a.id,
+        recipient_id=graph.dater_c.id,
     )
     assert await find_mutual_match(db_session, graph.dater_a.id, graph.dater_c.id) is None
     assert await _count_matches(db_session, graph.dater_a.id, graph.dater_c.id) == 0
@@ -254,7 +235,7 @@ async def test_fetch_matches(graph: DomainGraph, db_session: AsyncSession) -> No
     assert row.has_messages is True
     assert row.city == City.BOSTON
 
-    dto = await row_to_match(row, local_media())
+    dto = await row_to_match(row, local_media(), message_actions, _deps(db_session, user_id=graph.dater_a.id))
     assert dto.matchId == graph.match.id
     assert dto.other.id == graph.dater_b.id
     assert dto.hasMessages is True
@@ -291,11 +272,17 @@ async def test_match_sheet_other_user_id_not_participant(graph: DomainGraph, db_
 # ── matches transformers ─────────────────────────────────────────────────────
 
 
+_MATCH_ID = fake_id()
+_OTHER_USER_ID = fake_id()
+_USER_A_ID = fake_id()
+
 _BASE_MATCH_ROW = MatchRow(
-    match_id=UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
+    match_id=_MATCH_ID,
     created_at=datetime(2026, 1, 1, tzinfo=UTC),
     has_messages=False,
-    other_user_id=UUID("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"),
+    other_user_id=_OTHER_USER_ID,
+    user_a_id=_USER_A_ID,
+    user_b_id=_OTHER_USER_ID,
     chosen_name="Alex",
     date_of_birth=datetime(1995, 6, 15, tzinfo=UTC),
     age=30,
@@ -307,7 +294,12 @@ _BASE_MATCH_ROW = MatchRow(
 
 
 async def test_row_to_match_maps_all_fields() -> None:
-    result = await row_to_match(_BASE_MATCH_ROW, local_media())
+    result = await row_to_match(
+        _BASE_MATCH_ROW,
+        local_media(),
+        message_actions,
+        _deps(cast(AsyncSession, MagicMock()), user_id=_BASE_MATCH_ROW.user_a_id),
+    )
     assert result.matchId == _BASE_MATCH_ROW.match_id
     assert result.hasMessages is False
     assert result.other.id == _BASE_MATCH_ROW.other_user_id
@@ -321,7 +313,13 @@ async def test_row_to_match_maps_all_fields() -> None:
 
 async def test_row_to_match_empty_array_when_interests_none() -> None:
     row = MatchRow(**{**_BASE_MATCH_ROW.__dict__, "interests": None})
-    assert (await row_to_match(row, local_media())).other.interests == []
+    summary = await row_to_match(
+        row,
+        local_media(),
+        message_actions,
+        _deps(cast(AsyncSession, MagicMock()), user_id=row.user_a_id),
+    )
+    assert summary.other.interests == []
 
 
 def test_row_to_wing_note_none_when_row_none() -> None:
@@ -329,12 +327,12 @@ def test_row_to_wing_note_none_when_row_none() -> None:
 
 
 def test_row_to_wing_note_none_when_note_none() -> None:
-    row = WingNoteRow(note=None, suggested_by=uuid4(), winger_id=None, winger_chosen_name=None)
+    row = WingNoteRow(note=None, suggested_by=fake_id(), winger_id=None, winger_chosen_name=None)
     assert row_to_wing_note(row) is None
 
 
 def test_row_to_wing_note_maps_note_and_winger() -> None:
-    wid = uuid4()
+    wid = fake_id()
     row = WingNoteRow(note="Great match!", suggested_by=wid, winger_id=wid, winger_chosen_name="Sam")
     result = row_to_wing_note(row)
     assert result is not None
@@ -350,9 +348,9 @@ def test_row_to_wing_note_winger_none_when_winger_id_none() -> None:
 
 
 def test_row_to_match_prompt_with_template() -> None:
-    tid = uuid4()
+    tid = fake_id()
     row = MatchPromptRow(
-        id=uuid4(),
+        id=fake_id(),
         answer="I love sunsets",
         template_id=tid,
         template_question="What is your favourite time of day?",
@@ -365,14 +363,14 @@ def test_row_to_match_prompt_with_template() -> None:
 
 
 def test_row_to_match_prompt_template_none() -> None:
-    row = MatchPromptRow(id=uuid4(), answer="No template", template_id=None, template_question=None)
+    row = MatchPromptRow(id=fake_id(), answer="No template", template_id=None, template_question=None)
     assert row_to_match_prompt(row).template is None
 
 
 def test_build_match_sheet_assembles() -> None:
-    wid = uuid4()
+    wid = fake_id()
     wing_note = WingNoteRow(note="They are great", suggested_by=wid, winger_id=wid, winger_chosen_name="Sam")
-    prompts = [MatchPromptRow(id=uuid4(), answer="Answer A", template_id=uuid4(), template_question="Question?")]
+    prompts = [MatchPromptRow(id=fake_id(), answer="Answer A", template_id=fake_id(), template_question="Question?")]
     result = build_match_sheet(wing_note, prompts)
     assert result.wingNote is not None and result.wingNote.note == "They are great"
     assert len(result.prompts) == 1

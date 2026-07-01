@@ -1,6 +1,8 @@
-import { useRef, useState } from 'react';
-import type { DecisionType, SwipeProfile } from '@/lib/api/generated/model';
-import { like as likeProfile, pass as passProfile } from '@/lib/api/actions';
+import { useRef } from 'react';
+import { useQueryClient, type QueryKey } from '@tanstack/react-query';
+import type { SwipeProfile } from '@/lib/api/generated/model';
+import { useActionExecutor } from '@/hooks/actions/use-action-executor';
+import { shortKey } from '@/lib/actions/types';
 
 const PAGE_SIZE = 20;
 
@@ -12,81 +14,106 @@ export type PoolFetcher = (
   offset: number
 ) => Promise<SwipeProfile[]>;
 
-export function useDiscover(
-  fetchPool: PoolFetcher,
-  userId: string | null,
-  initialPool: SwipeProfile[]
-) {
-  const [pool, setPool] = useState(initialPool);
-  const [index, setIndex] = useState(0);
+type Params = {
+  /** The swipe query's key — the optimistic deck mutates its cached array. */
+  queryKey: QueryKey;
+  /** The cached pool (from the parent's suspense query); the head is the current card. */
+  pool: SwipeProfile[];
+  fetchPool: PoolFetcher;
+  userId: string | null;
+};
 
-  const offsetRef = useRef(initialPool.length);
-  const loadingMoreRef = useRef(false);
+/**
+ * The swipe deck, driven entirely by the react-query cache. The current card is the
+ * head of the cached pool; a swipe optimistically drops the head via setQueryData
+ * (free optimism + rollback) and routes the decision through the action executor
+ * (which records it + invalidates the side-effects — matches/decisions/etc., but NOT
+ * the pool, so the deck isn't refetched mid-swipe). No hand-rolled index/pool state.
+ */
+export function useDiscover({ queryKey, pool, fetchPool, userId }: Params) {
+  const queryClient = useQueryClient();
+  const executor = useActionExecutor({ actionGroup: 'dating_profile_swipe_actions' });
+
   const swipingRef = useRef(false);
+  const loadingMoreRef = useRef(false);
+  const offsetRef = useRef(pool.length);
+
+  const card = pool[0] ?? null;
+
+  function removeTop() {
+    queryClient.setQueryData<SwipeProfile[]>(queryKey, (old) => (old ?? []).slice(1));
+  }
 
   async function loadMore() {
     if (!userId || loadingMoreRef.current) return;
     loadingMoreRef.current = true;
     const data = await fetchPool(userId, PAGE_SIZE, offsetRef.current);
     if (data.length > 0) {
-      setPool((prev) => [...prev, ...data]);
+      queryClient.setQueryData<SwipeProfile[]>(queryKey, (old) => [...(old ?? []), ...data]);
       offsetRef.current += data.length;
     }
     loadingMoreRef.current = false;
   }
 
-  async function decide(
-    card: SwipeProfile,
-    decision: DecisionType
-  ): Promise<{ matched: boolean } | { error: true }> {
-    try {
-      // Like/pass on the target DatingProfile (profileId). A like covers both a
-      // direct decision and acting on a winger's suggestion; a mutual match comes
-      // back as the new match id in `created_id`.
-      const res =
-        decision === 'approved' ? await likeProfile(card.profileId) : await passProfile(card.profileId);
-      return { matched: res.created_id != null };
-    } catch {
-      return { error: true };
-    }
+  function actionFor(c: SwipeProfile, key: string) {
+    return (c.actions ?? []).find((a) => shortKey(a.action) === key);
   }
 
   async function like(): Promise<LikeResult> {
-    if (!userId || swipingRef.current) return 'error';
-    const card = pool[index];
-    if (!card) return 'error';
+    const c = pool[0];
+    if (!c || swipingRef.current) return 'error';
+    const action = actionFor(c, 'like');
+    if (!action) return 'error';
     swipingRef.current = true;
-
-    // Optimistic advance; trigger prefetch when nearing the end
-    const newIndex = index + 1;
-    setIndex(newIndex);
-    if (newIndex >= pool.length - 3) loadMore();
-
-    const result = await decide(card, 'approved');
-    swipingRef.current = false;
-
-    if ('error' in result) {
-      // Roll back on failure
-      setIndex((prev) => prev - 1);
+    const snapshot = queryClient.getQueryData<SwipeProfile[]>(queryKey);
+    removeTop();
+    if (pool.length - 1 <= 3) loadMore();
+    try {
+      const res = await executor.executeAction(action, undefined, { objectId: c.profileId, silent: true });
+      swipingRef.current = false;
+      return res.created_id != null ? 'match' : 'liked';
+    } catch {
+      queryClient.setQueryData(queryKey, snapshot); // roll back the optimistic removal
+      swipingRef.current = false;
       return 'error';
     }
-    return result.matched ? 'match' : 'liked';
   }
 
   async function pass(): Promise<void> {
-    if (!userId || swipingRef.current) return;
-    const card = pool[index];
-    if (!card) return;
+    const c = pool[0];
+    if (!c || swipingRef.current) return;
+    const action = actionFor(c, 'pass');
+    if (!action) return;
     swipingRef.current = true;
-
-    // Optimistic advance; trigger prefetch when nearing the end
-    const newIndex = index + 1;
-    setIndex(newIndex);
-    if (newIndex >= pool.length - 3) loadMore();
-
-    await decide(card, 'declined');
+    const snapshot = queryClient.getQueryData<SwipeProfile[]>(queryKey);
+    removeTop();
+    if (pool.length - 1 <= 3) loadMore();
+    try {
+      await executor.executeAction(action, undefined, { objectId: c.profileId, silent: true });
+    } catch {
+      queryClient.setQueryData(queryKey, snapshot);
+    }
     swipingRef.current = false;
   }
 
-  return { pool, index, like, pass };
+  async function report(reason: string): Promise<void> {
+    const c = pool[0];
+    if (!c) return;
+    const action = actionFor(c, 'report');
+    if (!action) return;
+    const snapshot = queryClient.getQueryData<SwipeProfile[]>(queryKey);
+    removeTop();
+    if (pool.length - 1 <= 3) loadMore();
+    try {
+      await executor.executeAction(
+        action,
+        { action: action.action, data: { reason } },
+        { objectId: c.profileId, silent: true }
+      );
+    } catch {
+      queryClient.setQueryData(queryKey, snapshot);
+    }
+  }
+
+  return { card, like, pass, report };
 }

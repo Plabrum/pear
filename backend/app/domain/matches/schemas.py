@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-from uuid import UUID
-
 from app.domain.dating_profiles.enums import City, Interest
+from app.platform.actions.schemas import ActionableList
 from app.platform.base.schemas import BaseSchema
+from app.utils.sqids import Sqid
 
 # ── GET /matches ─────────────────────────────────────────────────────────────
 
 
 class MatchSummaryOther(BaseSchema):
-    id: UUID
+    id: Sqid
     chosenName: str | None
     dateOfBirth: str | None
     age: int | None
@@ -19,8 +19,8 @@ class MatchSummaryOther(BaseSchema):
     firstPhoto: str | None
 
 
-class MatchSummary(BaseSchema):
-    matchId: UUID
+class MatchSummary(ActionableList):
+    matchId: Sqid
     createdAt: str
     hasMessages: bool
     other: MatchSummaryOther
@@ -33,23 +33,23 @@ MatchesResponse = list[MatchSummary]
 
 
 class MatchSheetWinger(BaseSchema):
-    id: UUID
+    id: Sqid
     chosenName: str | None
 
 
 class MatchSheetWingNote(BaseSchema):
     note: str
-    suggestedBy: UUID | None
+    suggestedBy: Sqid | None
     winger: MatchSheetWinger | None
 
 
 class MatchSheetPromptTemplate(BaseSchema):
-    id: UUID
+    id: Sqid
     question: str
 
 
 class MatchSheetPrompt(BaseSchema):
-    id: UUID
+    id: Sqid
     answer: str
     template: MatchSheetPromptTemplate | None
 

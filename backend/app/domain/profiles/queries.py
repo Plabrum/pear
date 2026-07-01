@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from uuid import UUID
-
 from sqlalchemy import asc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
@@ -11,19 +9,20 @@ from app.domain.photos.models import ProfilePhoto
 from app.domain.profiles.models import Profile
 from app.domain.profiles.transformers import PhotoBundle, PromptBundle, ResponseBundle
 from app.domain.prompts.models import ProfilePrompt, PromptResponse, PromptTemplate
+from app.utils.sqids import Sqid
 
 
-async def fetch_profile(db: AsyncSession, user_id: UUID) -> Profile | None:
+async def fetch_profile(db: AsyncSession, user_id: Sqid) -> Profile | None:
     return (await db.execute(select(Profile).where(Profile.id == user_id).limit(1))).scalar_one_or_none()
 
 
-async def fetch_dating_profile_base(db: AsyncSession, user_id: UUID) -> DatingProfile | None:
+async def fetch_dating_profile_base(db: AsyncSession, user_id: Sqid) -> DatingProfile | None:
     return (
         await db.execute(select(DatingProfile).where(DatingProfile.user_id == user_id).limit(1))
     ).scalar_one_or_none()
 
 
-async def _fetch_photos(db: AsyncSession, dating_profile_id: UUID, *, approved_only: bool = False) -> PhotoBundle:
+async def _fetch_photos(db: AsyncSession, dating_profile_id: Sqid, *, approved_only: bool = False) -> PhotoBundle:
     suggester = aliased(Profile)
     stmt = (
         select(ProfilePhoto, suggester.chosen_name)
@@ -40,7 +39,7 @@ async def _fetch_photos(db: AsyncSession, dating_profile_id: UUID, *, approved_o
     return [(photo, name) for photo, name in rows]
 
 
-async def _fetch_prompts(db: AsyncSession, dating_profile_id: UUID) -> PromptBundle:
+async def _fetch_prompts(db: AsyncSession, dating_profile_id: Sqid) -> PromptBundle:
     prompt_rows = (
         await db.execute(
             select(ProfilePrompt, PromptTemplate.question)
@@ -63,7 +62,7 @@ async def _fetch_prompts(db: AsyncSession, dating_profile_id: UUID) -> PromptBun
         )
     ).all()
 
-    by_prompt: dict[UUID, ResponseBundle] = {}
+    by_prompt: dict[Sqid, ResponseBundle] = {}
     for response, author_obj in response_rows:
         by_prompt.setdefault(response.profile_prompt_id, []).append((response, author_obj))
 
@@ -71,7 +70,7 @@ async def _fetch_prompts(db: AsyncSession, dating_profile_id: UUID) -> PromptBun
 
 
 async def fetch_own_dating_profile(
-    db: AsyncSession, user_id: UUID
+    db: AsyncSession, user_id: Sqid
 ) -> tuple[DatingProfile, PhotoBundle, PromptBundle] | None:
     base = await fetch_dating_profile_base(db, user_id)
     if base is None:
@@ -82,7 +81,7 @@ async def fetch_own_dating_profile(
 
 
 async def fetch_public_profile(
-    db: AsyncSession, user_id: UUID
+    db: AsyncSession, user_id: Sqid
 ) -> tuple[Profile, DatingProfile | None, PhotoBundle, PromptBundle] | None:
     profile = await fetch_profile(db, user_id)
     if profile is None:

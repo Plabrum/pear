@@ -2,11 +2,10 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Linking from 'expo-linking';
 import {
-  appleSignIn as clientAppleSignIn,
-  getAccessToken,
+  signInWithApple as clientSignInWithApple,
   logout as clientLogout,
-  magicLinkRequest as clientMagicLinkRequest,
-  magicLinkVerify as clientMagicLinkVerify,
+  requestMagicLink as clientRequestMagicLink,
+  verifyMagicLink as clientVerifyMagicLink,
   restoreSession,
   type AuthUser,
 } from '@/lib/auth-client';
@@ -41,9 +40,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setSessionState(toSession(user));
   }
 
-  // Mount-only: hydrate from the stored refresh token + wire the magic-link
-  // deep link. Both are genuine external events (app launch + inbound URL),
-  // which fall under the allowed mount-only effect exception.
+  // Mount-only: hydrate the session from the stored cookie (via me()) + wire the
+  // magic-link deep link. Both are genuine external events (app launch + inbound
+  // URL), which fall under the allowed mount-only effect exception.
   useEffect(() => {
     let active = true;
 
@@ -54,7 +53,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const token = queryParams?.token;
       if (typeof token !== 'string') return false;
       try {
-        const user = await clientMagicLinkVerify(token);
+        const user = await clientVerifyMagicLink(token);
         if (active) setSession(user);
         return true;
       } catch {
@@ -117,7 +116,7 @@ export function useAuthActions() {
   return {
     async signInWithApple(identityToken: string, fullName?: string): Promise<AuthResult> {
       try {
-        const user = await clientAppleSignIn(identityToken, fullName);
+        const user = await clientSignInWithApple(identityToken, fullName);
         setSession(user);
         return { error: null };
       } catch (e) {
@@ -126,7 +125,7 @@ export function useAuthActions() {
     },
     async requestMagicLink(email: string): Promise<AuthResult> {
       try {
-        await clientMagicLinkRequest(email);
+        await clientRequestMagicLink(email);
         return { error: null };
       } catch (e) {
         return { error: e instanceof Error ? e : new Error('Failed to send magic link') };
@@ -134,7 +133,7 @@ export function useAuthActions() {
     },
     async verifyMagicLink(token: string): Promise<AuthResult> {
       try {
-        const user = await clientMagicLinkVerify(token);
+        const user = await clientVerifyMagicLink(token);
         setSession(user);
         return { error: null };
       } catch (e) {
@@ -162,6 +161,3 @@ export function useAuth() {
     signOut: ctx.signOut,
   };
 }
-
-// Re-export the in-memory access token getter for any direct callers.
-export { getAccessToken };

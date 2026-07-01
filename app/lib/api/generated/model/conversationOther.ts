@@ -6,6 +6,7 @@
  */
 
 export interface ConversationOther {
+  /** SQID-encoded identifier */
   id: string;
   chosenName: string | null;
 }

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
-from uuid import uuid4
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,7 +16,10 @@ from app.domain.contacts.enums import WingpersonStatus
 from app.domain.contacts.models import Contact
 from app.domain.contacts.queries import (
     fetch_active_wingpeople,
+    fetch_active_wingperson_contacts,
+    fetch_incoming_invitation_contacts,
     fetch_incoming_invitations,
+    fetch_sent_invitation_contacts,
     fetch_sent_invitations,
     fetch_weekly_counts,
     fetch_winging_for,
@@ -26,6 +28,7 @@ from app.domain.contacts.queries import (
 from app.domain.contacts.schemas import InviteWingpersonData
 from app.domain.contacts.transformers import (
     WingingForTabRow,
+    row_to_incoming_invitation,
     row_to_sent_invitation,
     row_to_winging_for,
     row_to_wingperson,
@@ -35,10 +38,13 @@ from app.domain.dating_profiles.enums import Interest
 from app.domain.profiles.enums import Gender
 from app.platform.actions.base import EmptyActionData
 from app.platform.actions.deps import ActionDeps
+from app.platform.actions.enums import ActionGroupType
+from app.platform.actions.hydrate import actions_for, resolve_group
 from app.platform.auth.principal import User
 from app.platform.state_machine.machine import StateMachineService
 from app.platform.state_machine.roles import Role
 from tests.fixtures.graph import DomainGraph
+from tests.fixtures.ids import fake_id
 from tests.fixtures.media import local_media
 
 # `asyncio_mode = "auto"` (pyproject.toml) runs `async def test_*` without a marker.
@@ -129,7 +135,7 @@ async def test_fetch_winging_for_tabs_only_active_edges(graph: DomainGraph, db_s
 
 
 def test_rows_to_winging_for_tabs_dedupes_preserving_order() -> None:
-    d1, d2 = uuid4(), uuid4()
+    d1, d2 = fake_id(), fake_id()
     rows = [
         WingingForTabRow(id=d1, chosen_name="Dana", created_at=datetime(2026, 1, 3, tzinfo=UTC)),
         WingingForTabRow(id=d2, chosen_name="Drew", created_at=datetime(2026, 1, 2, tzinfo=UTC)),
@@ -171,6 +177,87 @@ async def test_weekly_counts_counts_recent_suggestions(graph: DomainGraph, db_se
     assert counts == {str(graph.contact.id): 1}
 
 
+# ── Reads: hydrated `actions` field (gating projected onto the roster) ────────────
+
+
+async def test_wingperson_actions_for_owner_dater(graph: DomainGraph, db_session: AsyncSession) -> None:
+    # The dater owns one ACTIVE contact; they may [remove] it (no accept/decline —
+    # those are winger-only and only while INVITED).
+    rows = await fetch_active_wingpeople(db_session, graph.dater_a.id)
+    contacts = await fetch_active_wingperson_contacts(db_session, graph.dater_a.id)
+    group = resolve_group(ActionGroupType.CONTACT_ACTIONS)
+    deps = _deps(db_session, user_id=graph.dater_a.id, role=Role.DATER)
+
+    dto = row_to_wingperson(rows[0], local_media(), actions_for(group, deps, contacts[rows[0].id]))
+    assert [a.action for a in dto.actions] == ["contact_actions__remove"]
+    assert all(a.action_group_type is ActionGroupType.CONTACT_ACTIONS for a in dto.actions)
+    # The remove action carries its target state (ACTIVE -> REMOVED).
+    remove = next(a for a in dto.actions if a.action == "contact_actions__remove")
+    assert remove.target_state == WingpersonStatus.REMOVED.value
+
+
+async def test_incoming_invitation_actions_for_winger(graph: DomainGraph, db_session: AsyncSession) -> None:
+    # An INVITED contact addressed to the winger -> the winger sees [accept, decline].
+    invited = Contact(
+        user_id=graph.dater_c.id,
+        phone_number="+15555550010",
+        winger_id=graph.winger.id,
+        wingperson_status=WingpersonStatus.INVITED,
+    )
+    db_session.add(invited)
+    await db_session.flush()
+
+    rows = await fetch_incoming_invitations(db_session, graph.winger.id)
+    contacts = await fetch_incoming_invitation_contacts(db_session, graph.winger.id)
+    group = resolve_group(ActionGroupType.CONTACT_ACTIONS)
+    deps = _deps(db_session, user_id=graph.winger.id, role=Role.WINGER)
+
+    dto = row_to_incoming_invitation(rows[0], actions_for(group, deps, contacts[rows[0].id]))
+    assert sorted(a.action for a in dto.actions) == ["contact_actions__accept", "contact_actions__decline"]
+    assert all(a.action_group_type is ActionGroupType.CONTACT_ACTIONS for a in dto.actions)
+
+
+async def test_sent_invitation_actions_for_dater(graph: DomainGraph, db_session: AsyncSession) -> None:
+    # An INVITED contact the dater sent -> the dater may [remove] (cancel) it. Accept
+    # / decline are winger-only, so they do not appear for the sending dater.
+    invited = Contact(
+        user_id=graph.dater_c.id,
+        phone_number="+15555550011",
+        winger_id=graph.winger.id,
+        wingperson_status=WingpersonStatus.INVITED,
+    )
+    db_session.add(invited)
+    await db_session.flush()
+
+    rows = await fetch_sent_invitations(db_session, graph.dater_c.id)
+    contacts = await fetch_sent_invitation_contacts(db_session, graph.dater_c.id)
+    group = resolve_group(ActionGroupType.CONTACT_ACTIONS)
+    deps = _deps(db_session, user_id=graph.dater_c.id, role=Role.DATER)
+
+    dto = row_to_sent_invitation(rows[0], actions_for(group, deps, contacts[rows[0].id]))
+    assert [a.action for a in dto.actions] == ["contact_actions__remove"]
+
+
+async def test_winging_for_is_not_actionable(graph: DomainGraph, db_session: AsyncSession) -> None:
+    # The `wingingFor` bucket is the winger's view of daters they swipe for. It stays
+    # a plain (non-`Actionable`) row — the contacts machine offers nothing to the
+    # winger on an ACTIVE edge — so the schema has no `actions` field at all.
+    rows = await fetch_winging_for(db_session, graph.winger.id)
+    dto = row_to_winging_for(rows[0], local_media())
+    assert not hasattr(dto, "actions")
+
+
+async def test_action_fetchers_key_by_contact_id_and_scope(graph: DomainGraph, db_session: AsyncSession) -> None:
+    # The active-contacts fetcher returns the dater's ACTIVE contact keyed by id;
+    # the incoming/sent buckets are empty for a dater with only an active edge.
+    active = await fetch_active_wingperson_contacts(db_session, graph.dater_a.id)
+    assert set(active) == {graph.contact.id}
+    assert active[graph.contact.id].wingperson_status == WingpersonStatus.ACTIVE
+
+    assert await fetch_incoming_invitation_contacts(db_session, graph.dater_a.id) == {}
+    assert await fetch_sent_invitation_contacts(db_session, graph.dater_a.id) == {}
+
+
 # ── Actions: happy path ─────────────────────────────────────────────────────────
 
 
@@ -186,8 +273,8 @@ async def test_invite_inserts_and_links_existing_profile_and_pushes(
     deps = _deps(db_session, user_id=graph.dater_c.id, role=Role.DATER, push_send=push_send)
     data = InviteWingpersonData(phoneNumber=graph.winger.phone_number or "")
 
-    assert InviteWingperson.is_available(deps) is True
-    result = await InviteWingperson.execute(data, db_session, deps)
+    assert InviteWingperson.is_available(deps.user, deps) is True
+    result = await InviteWingperson.execute(data, db_session, deps.user, deps)
 
     assert result.created_id is not None
     contact = (await db_session.execute(select(Contact).where(Contact.id == result.created_id))).scalar_one()
@@ -204,7 +291,7 @@ async def test_invite_unknown_phone_leaves_winger_unlinked_no_push(
     deps = _deps(db_session, user_id=graph.dater_c.id, role=Role.DATER, push_send=push_send)
     data = InviteWingpersonData(phoneNumber="+19998887777")  # no matching profile
 
-    result = await InviteWingperson.execute(data, db_session, deps)
+    result = await InviteWingperson.execute(data, db_session, deps.user, deps)
     contact = (await db_session.execute(select(Contact).where(Contact.id == result.created_id))).scalar_one()
     assert contact.winger_id is None
     push_send.assert_not_awaited()
@@ -221,8 +308,8 @@ async def test_accept_invite_transitions_to_active(graph: DomainGraph, db_sessio
     await db_session.flush()
 
     deps = _deps(db_session, user_id=graph.winger.id, role=Role.WINGER)
-    assert AcceptInvite.is_available(invited, deps) is True
-    result = await AcceptInvite.execute(invited, EmptyActionData(), db_session, deps)
+    assert AcceptInvite.is_available(invited, deps.user, deps) is True
+    result = await AcceptInvite.execute(invited, EmptyActionData(), db_session, deps.user, deps)
 
     assert result.message == "Invitation accepted"
     assert invited.wingperson_status == WingpersonStatus.ACTIVE
@@ -241,16 +328,16 @@ async def test_decline_invite_transitions_to_removed(graph: DomainGraph, db_sess
     await db_session.flush()
 
     deps = _deps(db_session, user_id=graph.winger.id, role=Role.WINGER)
-    assert DeclineInvite.is_available(invited, deps) is True
-    await DeclineInvite.execute(invited, EmptyActionData(), db_session, deps)
+    assert DeclineInvite.is_available(invited, deps.user, deps) is True
+    await DeclineInvite.execute(invited, EmptyActionData(), db_session, deps.user, deps)
     assert invited.wingperson_status == WingpersonStatus.REMOVED
 
 
 async def test_remove_active_wingperson_transitions_to_removed(graph: DomainGraph, db_session: AsyncSession) -> None:
     # The graph's contact is ACTIVE and owned by dater_a.
     deps = _deps(db_session, user_id=graph.dater_a.id, role=Role.DATER)
-    assert RemoveWingperson.is_available(graph.contact, deps) is True
-    await RemoveWingperson.execute(graph.contact, EmptyActionData(), db_session, deps)
+    assert RemoveWingperson.is_available(graph.contact, deps.user, deps) is True
+    await RemoveWingperson.execute(graph.contact, EmptyActionData(), db_session, deps.user, deps)
     assert graph.contact.wingperson_status == WingpersonStatus.REMOVED
 
 
@@ -269,16 +356,16 @@ async def test_accept_denied_for_dater(graph: DomainGraph, db_session: AsyncSess
 
     # The dater (not the winger) cannot accept their own outgoing invite.
     deps = _deps(db_session, user_id=graph.dater_c.id, role=Role.DATER)
-    assert AcceptInvite.is_available(invited, deps) is False
+    assert AcceptInvite.is_available(invited, deps.user, deps) is False
 
 
 async def test_accept_denied_for_already_active_contact(graph: DomainGraph, db_session: AsyncSession) -> None:
     # The winger cannot re-accept a contact that is already ACTIVE.
     deps = _deps(db_session, user_id=graph.winger.id, role=Role.WINGER)
-    assert AcceptInvite.is_available(graph.contact, deps) is False
+    assert AcceptInvite.is_available(graph.contact, deps.user, deps) is False
 
 
 async def test_remove_denied_for_winger(graph: DomainGraph, db_session: AsyncSession) -> None:
     # The winger cannot remove a contact — only the owning dater can.
     deps = _deps(db_session, user_id=graph.winger.id, role=Role.WINGER)
-    assert RemoveWingperson.is_available(graph.contact, deps) is False
+    assert RemoveWingperson.is_available(graph.contact, deps.user, deps) is False

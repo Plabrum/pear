@@ -20,18 +20,14 @@ import type {
 import type {
   AppleIn,
   AuthAppleAppleSignIn400,
-  AuthLogoutLogout400,
   AuthMagicLinkRequestMagicLinkRequest400,
   AuthMagicLinkVerifyMagicLinkVerify400,
   AuthMagicLinkVerifyMagicLinkVerifyRedirect400,
   AuthMagicLinkVerifyMagicLinkVerifyRedirectParams,
-  AuthRefreshRefresh400,
-  LogoutIn,
   MagicLinkRequestIn,
   MagicLinkVerifyIn,
   MeOut,
-  RefreshIn,
-  SessionOut,
+  UserOut,
 } from '../model';
 
 import { pearFetch } from '../../http';
@@ -39,124 +35,28 @@ import { pearFetch } from '../../http';
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 /**
- * @summary Refresh
- */
-export const getAuthRefreshRefreshUrl = () => {
-  return `/auth/refresh`;
-};
-
-export const authRefreshRefresh = async (
-  refreshIn: RefreshIn,
-  options?: RequestInit
-): Promise<unknown> => {
-  return pearFetch<unknown>(getAuthRefreshRefreshUrl(), {
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(refreshIn),
-  });
-};
-
-export const getAuthRefreshRefreshMutationOptions = <
-  TError = AuthRefreshRefresh400,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof authRefreshRefresh>>,
-    TError,
-    { data: RefreshIn },
-    TContext
-  >;
-  request?: SecondParameter<typeof pearFetch>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof authRefreshRefresh>>,
-  TError,
-  { data: RefreshIn },
-  TContext
-> => {
-  const mutationKey = ['authRefreshRefresh'];
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof authRefreshRefresh>>,
-    { data: RefreshIn }
-  > = (props) => {
-    const { data } = props ?? {};
-
-    return authRefreshRefresh(data, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type AuthRefreshRefreshMutationResult = NonNullable<
-  Awaited<ReturnType<typeof authRefreshRefresh>>
->;
-export type AuthRefreshRefreshMutationBody = RefreshIn;
-export type AuthRefreshRefreshMutationError = AuthRefreshRefresh400;
-
-/**
- * @summary Refresh
- */
-export const useAuthRefreshRefresh = <TError = AuthRefreshRefresh400, TContext = unknown>(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof authRefreshRefresh>>,
-      TError,
-      { data: RefreshIn },
-      TContext
-    >;
-    request?: SecondParameter<typeof pearFetch>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof authRefreshRefresh>>,
-  TError,
-  { data: RefreshIn },
-  TContext
-> => {
-  return useMutation(getAuthRefreshRefreshMutationOptions(options), queryClient);
-};
-/**
  * @summary Logout
  */
 export const getAuthLogoutLogoutUrl = () => {
   return `/auth/logout`;
 };
 
-export const authLogoutLogout = async (
-  logoutIn: LogoutIn,
-  options?: RequestInit
-): Promise<void> => {
+export const authLogoutLogout = async (options?: RequestInit): Promise<void> => {
   return pearFetch<void>(getAuthLogoutLogoutUrl(), {
     ...options,
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(logoutIn),
   });
 };
 
-export const getAuthLogoutLogoutMutationOptions = <
-  TError = AuthLogoutLogout400,
-  TContext = unknown,
->(options?: {
+export const getAuthLogoutLogoutMutationOptions = <TError = unknown, TContext = unknown>(options?: {
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof authLogoutLogout>>,
     TError,
-    { data: LogoutIn },
+    void,
     TContext
   >;
   request?: SecondParameter<typeof pearFetch>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof authLogoutLogout>>,
-  TError,
-  { data: LogoutIn },
-  TContext
-> => {
+}): UseMutationOptions<Awaited<ReturnType<typeof authLogoutLogout>>, TError, void, TContext> => {
   const mutationKey = ['authLogoutLogout'];
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
@@ -164,13 +64,8 @@ export const getAuthLogoutLogoutMutationOptions = <
       : { ...options, mutation: { ...options.mutation, mutationKey } }
     : { mutation: { mutationKey }, request: undefined };
 
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof authLogoutLogout>>,
-    { data: LogoutIn }
-  > = (props) => {
-    const { data } = props ?? {};
-
-    return authLogoutLogout(data, requestOptions);
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof authLogoutLogout>>, void> = () => {
+    return authLogoutLogout(requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -179,29 +74,24 @@ export const getAuthLogoutLogoutMutationOptions = <
 export type AuthLogoutLogoutMutationResult = NonNullable<
   Awaited<ReturnType<typeof authLogoutLogout>>
 >;
-export type AuthLogoutLogoutMutationBody = LogoutIn;
-export type AuthLogoutLogoutMutationError = AuthLogoutLogout400;
+
+export type AuthLogoutLogoutMutationError = unknown;
 
 /**
  * @summary Logout
  */
-export const useAuthLogoutLogout = <TError = AuthLogoutLogout400, TContext = unknown>(
+export const useAuthLogoutLogout = <TError = unknown, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof authLogoutLogout>>,
       TError,
-      { data: LogoutIn },
+      void,
       TContext
     >;
     request?: SecondParameter<typeof pearFetch>;
   },
   queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof authLogoutLogout>>,
-  TError,
-  { data: LogoutIn },
-  TContext
-> => {
+): UseMutationResult<Awaited<ReturnType<typeof authLogoutLogout>>, TError, void, TContext> => {
   return useMutation(getAuthLogoutLogoutMutationOptions(options), queryClient);
 };
 /**
@@ -298,8 +188,8 @@ export const getAuthAppleAppleSignInUrl = () => {
 export const authAppleAppleSignIn = async (
   appleIn: AppleIn,
   options?: RequestInit
-): Promise<SessionOut> => {
-  return pearFetch<SessionOut>(getAuthAppleAppleSignInUrl(), {
+): Promise<UserOut> => {
+  return pearFetch<UserOut>(getAuthAppleAppleSignInUrl(), {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -629,8 +519,8 @@ export const getAuthMagicLinkVerifyMagicLinkVerifyUrl = () => {
 export const authMagicLinkVerifyMagicLinkVerify = async (
   magicLinkVerifyIn: MagicLinkVerifyIn,
   options?: RequestInit
-): Promise<SessionOut> => {
-  return pearFetch<SessionOut>(getAuthMagicLinkVerifyMagicLinkVerifyUrl(), {
+): Promise<UserOut> => {
+  return pearFetch<UserOut>(getAuthMagicLinkVerifyMagicLinkVerifyUrl(), {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },

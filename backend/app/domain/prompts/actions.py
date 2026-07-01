@@ -32,6 +32,7 @@ from app.platform.actions.base import (
 from app.platform.actions.deps import ActionDeps
 from app.platform.actions.enums import ActionGroupType, ActionIcon
 from app.platform.actions.schemas import ActionExecutionResponse
+from app.platform.auth.principal import User
 from app.platform.state_machine.roles import Role
 
 # ── Action groups ───────────────────────────────────────────────────────────────
@@ -50,13 +51,13 @@ class PromptResponseActionKey(StrEnum):
 
 profile_prompt_actions = action_group_factory(
     ActionGroupType.PROFILE_PROMPT_ACTIONS,
-    default_invalidation="profile_prompts",
+    default_invalidation="/profile-prompts",
     model_type=ProfilePrompt,
 )
 
 prompt_response_actions = action_group_factory(
     ActionGroupType.PROMPT_RESPONSE_ACTIONS,
-    default_invalidation="prompt_responses",
+    default_invalidation="/prompt-responses",
     model_type=PromptResponse,
 )
 
@@ -75,15 +76,16 @@ class CreateProfilePrompt(BaseTopLevelAction[CreateProfilePromptData]):
         cls,
         data: CreateProfilePromptData,
         transaction: AsyncSession,
+        user: User,
         deps: ActionDeps,
     ) -> ActionExecutionResponse:
-        dating_profile_id = await fetch_own_dating_profile_id(transaction, deps.user.id)
+        dating_profile_id = await fetch_own_dating_profile_id(transaction, user.id)
         if dating_profile_id is None:
             raise DatingProfileNotFoundError()
 
         prompt = ProfilePrompt(
             dating_profile_id=dating_profile_id,
-            owner_id=deps.user.id,
+            owner_id=user.id,
             prompt_template_id=data.promptTemplateId,
             answer=data.answer,
         )
@@ -91,7 +93,7 @@ class CreateProfilePrompt(BaseTopLevelAction[CreateProfilePromptData]):
         await transaction.flush()
         return ActionExecutionResponse(
             message="Prompt added",
-            invalidate_queries=["profile_prompts", "dating_profiles"],
+            invalidate_queries=["/profile-prompts", "/dating-profiles/me"],
             created_id=prompt.id,
         )
 
@@ -106,9 +108,9 @@ class DeleteProfilePrompt(BaseObjectAction[ProfilePrompt, EmptyActionData]):
     icon = ActionIcon.TRASH
 
     @classmethod
-    def is_available(cls, obj: ProfilePrompt, deps: ActionDeps) -> bool:
+    def is_available(cls, obj: ProfilePrompt, user: User, deps: ActionDeps) -> bool:
         # Only the owning dater may delete a prompt — flat column compare on owner_id.
-        return deps.user.role is Role.DATER and obj.owner_id == deps.user.id
+        return user.role is Role.DATER and obj.owner_id == user.id
 
     @classmethod
     async def execute(
@@ -116,6 +118,7 @@ class DeleteProfilePrompt(BaseObjectAction[ProfilePrompt, EmptyActionData]):
         obj: ProfilePrompt,
         data: EmptyActionData,
         transaction: AsyncSession,
+        user: User,
         deps: ActionDeps,
     ) -> ActionExecutionResponse:
         # Soft delete (the codebase hides `deleted_at IS NOT NULL` from every SELECT)
@@ -124,7 +127,7 @@ class DeleteProfilePrompt(BaseObjectAction[ProfilePrompt, EmptyActionData]):
         await transaction.flush()
         return ActionExecutionResponse(
             message="Prompt deleted",
-            invalidate_queries=["profile_prompts", "dating_profiles"],
+            invalidate_queries=["/profile-prompts", "/dating-profiles/me"],
         )
 
 
@@ -142,13 +145,14 @@ class CreatePromptResponse(BaseTopLevelAction[CreatePromptResponseData]):
         cls,
         data: CreatePromptResponseData,
         transaction: AsyncSession,
+        user: User,
         deps: ActionDeps,
     ) -> ActionExecutionResponse:
         owner_id = await fetch_profile_prompt_owner(transaction, data.profilePromptId)
         if owner_id is None:
             raise ProfilePromptNotFoundError()
 
-        caller_id = deps.user.id
+        caller_id = user.id
         if owner_id != caller_id:
             winger = await is_active_wingperson(transaction, owner_id, caller_id)
             matched = await is_matched_with(transaction, caller_id, owner_id)
@@ -165,7 +169,7 @@ class CreatePromptResponse(BaseTopLevelAction[CreatePromptResponseData]):
         await transaction.flush()
         return ActionExecutionResponse(
             message="Comment added",
-            invalidate_queries=["prompt_responses", "profile_prompts"],
+            invalidate_queries=["/prompt-responses", "/profile-prompts"],
             created_id=response.id,
         )
 
@@ -181,14 +185,11 @@ class ApprovePromptResponse(BaseObjectAction[PromptResponse, EmptyActionData]):
     target_state = ApprovalState.APPROVED
 
     @classmethod
-    def is_available(cls, obj: PromptResponse, deps: ActionDeps) -> bool:
+    def is_available(cls, obj: PromptResponse, user: User, deps: ActionDeps) -> bool:
         # Only the profile-owning dater may approve, and only while pending —
         # ownership is a flat column compare on profile_owner_id.
         return (
-            deps.user.role is Role.DATER
-            and not obj.is_approved
-            and not obj.is_rejected
-            and obj.profile_owner_id == deps.user.id
+            user.role is Role.DATER and not obj.is_approved and not obj.is_rejected and obj.profile_owner_id == user.id
         )
 
     @classmethod
@@ -197,6 +198,7 @@ class ApprovePromptResponse(BaseObjectAction[PromptResponse, EmptyActionData]):
         obj: PromptResponse,
         data: EmptyActionData,
         transaction: AsyncSession,
+        user: User,
         deps: ActionDeps,
     ) -> ActionExecutionResponse:
         # Drive the approval through the state machine (logs + emits an event)
@@ -206,12 +208,12 @@ class ApprovePromptResponse(BaseObjectAction[PromptResponse, EmptyActionData]):
             prompt_response_approval_machine,
             adapt(obj),
             ApprovalState.APPROVED,
-            actor=deps.user,
+            actor=user,
         )
         await transaction.flush()
         return ActionExecutionResponse(
             message="Comment approved",
-            invalidate_queries=["prompt_responses", "profile_prompts"],
+            invalidate_queries=["/prompt-responses", "/profile-prompts"],
         )
 
 
@@ -225,10 +227,10 @@ class DeletePromptResponse(BaseObjectAction[PromptResponse, EmptyActionData]):
     icon = ActionIcon.TRASH
 
     @classmethod
-    def is_available(cls, obj: PromptResponse, deps: ActionDeps) -> bool:
+    def is_available(cls, obj: PromptResponse, user: User, deps: ActionDeps) -> bool:
         # The author may delete their own comment; the profile owner may delete a
         # comment on their profile — both flat column compares on the row.
-        return obj.user_id == deps.user.id or obj.profile_owner_id == deps.user.id
+        return obj.user_id == user.id or obj.profile_owner_id == user.id
 
     @classmethod
     async def execute(
@@ -236,6 +238,7 @@ class DeletePromptResponse(BaseObjectAction[PromptResponse, EmptyActionData]):
         obj: PromptResponse,
         data: EmptyActionData,
         transaction: AsyncSession,
+        user: User,
         deps: ActionDeps,
     ) -> ActionExecutionResponse:
         # Soft delete — the soft-delete SELECT filter hides the row afterward,
@@ -244,5 +247,5 @@ class DeletePromptResponse(BaseObjectAction[PromptResponse, EmptyActionData]):
         await transaction.flush()
         return ActionExecutionResponse(
             message="Comment deleted",
-            invalidate_queries=["prompt_responses", "profile_prompts"],
+            invalidate_queries=["/prompt-responses", "/profile-prompts"],
         )

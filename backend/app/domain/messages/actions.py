@@ -22,6 +22,7 @@ from app.platform.actions.base import (
 from app.platform.actions.deps import ActionDeps
 from app.platform.actions.enums import ActionGroupType, ActionIcon
 from app.platform.actions.schemas import ActionExecutionResponse
+from app.platform.auth.principal import User
 
 # ── Action group ──────────────────────────────────────────────────────────────
 
@@ -33,14 +34,14 @@ class MessageActionKey(StrEnum):
 
 message_actions = action_group_factory(
     ActionGroupType.MESSAGE_ACTIONS,
-    default_invalidation="messages",
+    default_invalidation="/conversations",
     model_type=Match,
 )
 
 
-def _viewer_in_match(match: Match, deps: ActionDeps) -> bool:
+def _viewer_in_match(match: Match, user: User) -> bool:
     """The actor must be one of the two matched users."""
-    return deps.user.id in (match.user_a_id, match.user_b_id)
+    return user.id in (match.user_a_id, match.user_b_id)
 
 
 # ── POST /matches/{matchId}/messages ──────────────────────────────────────────
@@ -53,8 +54,8 @@ class SendMessage(BaseObjectAction[Match, SendMessageData]):
     icon = ActionIcon.SEND
 
     @classmethod
-    def is_available(cls, obj: Match, deps: ActionDeps) -> bool:
-        return _viewer_in_match(obj, deps)
+    def is_available(cls, obj: Match, user: User, deps: ActionDeps) -> bool:
+        return _viewer_in_match(obj, user)
 
     @classmethod
     async def execute(
@@ -62,9 +63,10 @@ class SendMessage(BaseObjectAction[Match, SendMessageData]):
         obj: Match,
         data: SendMessageData,
         transaction: AsyncSession,
+        user: User,
         deps: ActionDeps,
     ) -> ActionExecutionResponse:
-        viewer_id = deps.user.id
+        viewer_id = user.id
         row = await insert_message(transaction, obj.id, viewer_id, data.body)
 
         # Push the recipient: "New message from <name>: <preview>".
@@ -89,7 +91,7 @@ class SendMessage(BaseObjectAction[Match, SendMessageData]):
 
         return ActionExecutionResponse(
             message="Message sent",
-            invalidate_queries=["messages", "conversations"],
+            invalidate_queries=["/messages", "/conversations"],
             created_id=row.id,
         )
 
@@ -104,8 +106,8 @@ class MarkMessagesRead(BaseObjectAction[Match, EmptyActionData]):
     icon = ActionIcon.CHECK
 
     @classmethod
-    def is_available(cls, obj: Match, deps: ActionDeps) -> bool:
-        return _viewer_in_match(obj, deps)
+    def is_available(cls, obj: Match, user: User, deps: ActionDeps) -> bool:
+        return _viewer_in_match(obj, user)
 
     @classmethod
     async def execute(
@@ -113,10 +115,11 @@ class MarkMessagesRead(BaseObjectAction[Match, EmptyActionData]):
         obj: Match,
         data: EmptyActionData,
         transaction: AsyncSession,
+        user: User,
         deps: ActionDeps,
     ) -> ActionExecutionResponse:
-        updated = await mark_messages_read(transaction, obj.id, deps.user.id)
+        updated = await mark_messages_read(transaction, obj.id, user.id)
         return ActionExecutionResponse(
             message=f"Marked {updated} message(s) read",
-            invalidate_queries=["messages", "conversations"],
+            invalidate_queries=["/messages", "/conversations"],
         )

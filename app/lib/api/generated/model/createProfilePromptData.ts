@@ -6,6 +6,7 @@
  */
 
 export interface CreateProfilePromptData {
+  /** SQID-encoded identifier */
   promptTemplateId: string;
   answer: string;
 }

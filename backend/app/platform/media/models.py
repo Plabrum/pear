@@ -1,10 +1,9 @@
-from uuid import UUID
-
 import sqlalchemy as sa
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.platform.media.enums import MediaState
 from app.platform.state_machine.models import StateMachineMixin
+from app.utils.sqids import Sqid, SqidType
 
 
 class Media(
@@ -23,7 +22,8 @@ class Media(
     __tablename__ = "media"
 
     # SQL: not null references profiles(id) on delete cascade
-    owner_id: Mapped[UUID] = mapped_column(
+    owner_id: Mapped[Sqid] = mapped_column(
+        SqidType,
         sa.ForeignKey("profiles.id", ondelete="CASCADE"),
         nullable=False,
         index=True,

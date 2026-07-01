@@ -1,21 +1,22 @@
-from uuid import UUID
-
 import sqlalchemy as sa
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.platform.base.models import BaseDBModel
+from app.utils.sqids import Sqid, SqidType
 
 
 class Match(BaseDBModel):
     __tablename__ = "matches"
 
     # SQL: not null references profiles(id) on delete cascade
-    user_a_id: Mapped[UUID] = mapped_column(
+    user_a_id: Mapped[Sqid] = mapped_column(
+        SqidType,
         sa.ForeignKey("profiles.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    user_b_id: Mapped[UUID] = mapped_column(
+    user_b_id: Mapped[Sqid] = mapped_column(
+        SqidType,
         sa.ForeignKey("profiles.id", ondelete="CASCADE"),
         nullable=False,
         index=True,

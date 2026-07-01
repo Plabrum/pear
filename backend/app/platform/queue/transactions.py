@@ -16,22 +16,17 @@ from app.platform.queue.registry import get_registry
 from app.platform.queue.types import AppContext
 
 
-def _quote_literal(value: str) -> str:
-    """Single-quote a string for inlining into a SET LOCAL statement."""
-    return "'" + value.replace("'", "''") + "'"
-
-
 @asynccontextmanager
 async def task_transaction(
     db_sessionmaker: async_sessionmaker[AsyncSession],
     role_type: TaskRoleType = TaskRoleType.SYSTEM,
     *,
-    user_id: str | None = None,
+    user_id: int | None = None,
 ) -> AsyncGenerator[AsyncSession]:
     """Async context manager that begins a transaction with RLS context.
 
     role_type=USER sets `app.user_id` so RLS policies scope to a single user
-    (requires the `user_id` kwarg — a UUID string) and pins `app.is_system_mode =
+    (requires the `user_id` kwarg — an int) and pins `app.is_system_mode =
     false`. role_type=SYSTEM runs trusted system-actor work with no user scope and
     `app.is_system_mode = true` (the honored RLS escape).
 
@@ -53,7 +48,7 @@ async def task_transaction(
                 if user_id is None:
                     raise ValueError("user_id is required for TaskRoleType.USER")
                 await session.execute(text("SET LOCAL app.is_system_mode = false"))
-                await session.execute(text(f"SET LOCAL app.user_id = {_quote_literal(user_id)}"))
+                await session.execute(text(f"SET LOCAL app.user_id = {int(user_id)}"))
             else:
                 # SYSTEM jobs run as the trusted system actor: the honored escape.
                 await session.execute(text("SET LOCAL app.is_system_mode = true"))
@@ -76,7 +71,7 @@ def with_transaction(
 
     Args:
         role_type: RLS context for the transaction (default: SYSTEM).
-            SYSTEM runs without a user scope. USER requires `user_id` (UUID str)
+            SYSTEM runs without a user scope. USER requires `user_id` (int)
             in the task kwargs.
 
     If `transaction` is already present in kwargs (e.g. passed by dispatch_task in

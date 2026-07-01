@@ -7,7 +7,9 @@
 import type { SuggestedPhotoStatus } from './suggestedPhotoStatus';
 
 export interface SuggestedPhoto {
+  /** SQID-encoded identifier */
   id: string;
+  /** SQID-encoded identifier */
   daterId: string;
   daterName: string;
   storageUrl: string;

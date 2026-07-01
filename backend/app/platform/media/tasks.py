@@ -1,7 +1,6 @@
 import io
 import logging
 from pathlib import PurePosixPath
-from uuid import UUID
 
 from PIL import Image
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -48,7 +47,7 @@ async def process_image(
     ctx: AppContext,
     *,
     transaction: AsyncSession,
-    media_id: str,
+    media_id: int,
 ) -> None:
     """Normalize an uploaded image to WebP and drive the Media state machine.
 
@@ -57,7 +56,7 @@ async def process_image(
     is logged and swallowed (state -> FAILED) so a bad upload never crashes the worker.
     """
     config = ctx["config"]
-    media = await transaction.get(Media, UUID(media_id))
+    media = await transaction.get(Media, media_id)
     if media is None:
         logger.error("[media] process_image: media %s not found", media_id)
         return

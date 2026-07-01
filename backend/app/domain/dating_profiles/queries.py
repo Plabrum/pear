@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from typing import Any
-from uuid import UUID
 
 from sqlalchemy import (
     Integer,
@@ -31,6 +30,7 @@ from app.domain.matches.models import Match
 from app.domain.photos.models import ProfilePhoto
 from app.domain.profiles.models import Profile
 from app.platform.media.queries import servable_key_expr
+from app.utils.sqids import Sqid
 
 # ── Shared scalar expressions ─────────────────────────────────────────────────
 
@@ -84,7 +84,7 @@ def photos_array_expr() -> ColumnElement[Any]:
 def build_preference_filters(
     viewer_dp: Any,
     *,
-    decided_actor_id: UUID,
+    decided_actor_id: Sqid,
 ) -> list[ColumnElement[bool]]:
     """The shared candidate preference/relevance filters.
 
@@ -133,13 +133,13 @@ def build_preference_filters(
 async def fetch_swipe_pool(
     db: AsyncSession,
     *,
-    viewer_id: UUID,
+    viewer_id: Sqid,
     page_size: int,
     page_offset: int,
     likes_you_only: bool = False,
     winger_only: bool = False,
-    filter_winger_id: UUID | None = None,
-    filter_dater_id: UUID | None = None,
+    filter_winger_id: Sqid | None = None,
+    filter_dater_id: Sqid | None = None,
 ) -> list[SwipeRow]:
     """The single parametrized swipe read on `DatingProfile`.
 
@@ -182,12 +182,12 @@ async def fetch_swipe_pool(
 async def _fetch_dater_context(
     db: AsyncSession,
     *,
-    viewer_id: UUID,
+    viewer_id: Sqid,
     page_size: int,
     page_offset: int,
     likes_you_only: bool,
     winger_only: bool,
-    filter_winger_id: UUID | None,
+    filter_winger_id: Sqid | None,
 ) -> list[SwipeRow]:
     """The dater-facing swipe pool (discover / likes-you / winger-only)."""
     vdp = aliased(DatingProfile, name="vdp")
@@ -307,8 +307,8 @@ async def _fetch_dater_context(
 async def _fetch_winger_context(
     db: AsyncSession,
     *,
-    winger_id: UUID,
-    dater_id: UUID,
+    winger_id: Sqid,
+    dater_id: Sqid,
     page_size: int,
     page_offset: int,
 ) -> list[SwipeRow]:
@@ -374,7 +374,7 @@ def _row_to_swipe(r: Any) -> SwipeRow:
 
 
 def _build_likes_you_filters(
-    viewer_id: UUID,
+    viewer_id: Sqid,
     *,
     lk: Any,
     vdp: Any,
@@ -426,7 +426,7 @@ def _build_likes_you_filters(
     return filters
 
 
-async def fetch_likes_you_count(db: AsyncSession, viewer_id: UUID) -> int:
+async def fetch_likes_you_count(db: AsyncSession, viewer_id: Sqid) -> int:
     """Count of the same likes-you pool surfaced by `fetch_swipe_pool(likesYouOnly)`."""
     lk = aliased(Decision, name="lk")
     vdp = aliased(DatingProfile, name="vdp")
@@ -449,7 +449,7 @@ async def fetch_likes_you_count(db: AsyncSession, viewer_id: UUID) -> int:
 # ── Authorization lookup (winger context gate) ────────────────────────────────
 
 
-async def is_active_wingperson(db: AsyncSession, winger_id: UUID, dater_id: UUID) -> bool:
+async def is_active_wingperson(db: AsyncSession, winger_id: Sqid, dater_id: Sqid) -> bool:
     """True when there is an ACTIVE contact (dater -> winger)."""
     stmt = (
         select(literal_column("1"))

@@ -1,6 +1,5 @@
 import logging
 from datetime import UTC, datetime
-from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -26,15 +25,15 @@ async def send_email(
     *,
     transaction: AsyncSession,
     email_client: BaseEmailClient,
-    message_id: str,
+    message_id: int,
 ) -> None:
     """Send a queued outbound message and transition it to SENT/FAILED.
 
-    ``message_id`` arrives as a UUID string (enqueued via dispatch_task). On
-    delivery failure the row is marked FAILED and an EmailSendError is raised —
-    a CommittableTaskError, so the FAILED state commits before the retry surfaces.
+    ``message_id`` arrives as an int (enqueued via dispatch_task). On delivery
+    failure the row is marked FAILED and an EmailSendError is raised — a
+    CommittableTaskError, so the FAILED state commits before the retry surfaces.
     """
-    record = await transaction.get(Message, UUID(message_id))
+    record = await transaction.get(Message, message_id)
     if record is None:
         raise ValueError(f"Message {message_id} not found")
 

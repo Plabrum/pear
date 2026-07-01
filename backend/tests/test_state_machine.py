@@ -1,6 +1,5 @@
 from typing import cast
 from unittest.mock import AsyncMock, MagicMock
-from uuid import uuid4
 
 import pytest
 
@@ -8,6 +7,7 @@ from app.platform.state_machine.exceptions import InvalidTransitionError
 from app.platform.state_machine.machine import STATE_MACHINE_REGISTRY, StateMachineService
 from app.platform.state_machine.models import StateTransitionLog
 from app.platform.state_machine.roles import Actor, Role
+from tests.fixtures.ids import fake_id
 from tests.fixtures.sample_domain.models import SampleStatus
 from tests.fixtures.sample_domain.state_machine import sample_machine
 
@@ -16,13 +16,13 @@ class FakeWidget:
     __tablename__ = "sample_widgets"
 
     def __init__(self, state: SampleStatus = SampleStatus.DRAFT) -> None:
-        self.id = uuid4()
+        self.id = fake_id()
         self.state = state
 
 
 class FakeActor:
     def __init__(self, role: Role) -> None:
-        self.id = uuid4()
+        self.id = fake_id()
         self.role = role
 
 

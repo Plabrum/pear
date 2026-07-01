@@ -6,6 +6,7 @@
  */
 
 export interface PromptsSchemasPromptResponseAuthor {
+  /** SQID-encoded identifier */
   id: string;
   chosenName: string | null;
   avatarUrl: string | null;

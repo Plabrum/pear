@@ -14,11 +14,11 @@ _ACTIVE_WINGPERSON_STATUS: str = WingpersonStatus.ACTIVE.name
 # true` => NULL when unset, so policies fail closed for unauthenticated sessions.
 CURRENT_USER_ID_SQL = """
 CREATE OR REPLACE FUNCTION public.current_user_id()
-RETURNS uuid
+RETURNS integer
 LANGUAGE sql
 STABLE
 AS $$
-  SELECT NULLIF(current_setting('app.user_id', true), '')::uuid
+  SELECT NULLIF(current_setting('app.user_id', true), '')::integer
 $$;
 """.strip()
 
@@ -46,7 +46,7 @@ $$;
 # True when the current user is an active wingperson for `_dater`. The status
 # compares against the `TextEnum` name (`'ACTIVE'`), interpolated from the enum.
 IS_ACTIVE_WINGPERSON_SQL = f"""
-CREATE OR REPLACE FUNCTION public.is_active_wingperson(_dater uuid)
+CREATE OR REPLACE FUNCTION public.is_active_wingperson(_dater integer)
 RETURNS boolean
 LANGUAGE sql
 STABLE
@@ -70,11 +70,11 @@ CURRENT_USER_ID_FN = PGFunction(
     schema="public",
     signature="current_user_id()",
     definition="""
-        returns uuid
+        returns integer
         language sql
         stable
         as $$
-          select nullif(current_setting('app.user_id', true), '')::uuid
+          select nullif(current_setting('app.user_id', true), '')::integer
         $$
     """,
 )
@@ -94,7 +94,7 @@ IS_SYSTEM_MODE_FN = PGFunction(
 
 IS_ACTIVE_WINGPERSON_FN = PGFunction(
     schema="public",
-    signature="is_active_wingperson(_dater uuid)",
+    signature="is_active_wingperson(_dater integer)",
     definition=f"""
         returns boolean
         language sql

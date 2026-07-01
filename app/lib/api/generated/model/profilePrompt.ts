@@ -4,14 +4,18 @@
  * Litestar API
  * OpenAPI spec version: 1.0.0
  */
+import type { ActionDTO } from './actionDTO';
 import type { PromptResponse } from './promptResponse';
 import type { PromptTemplate } from './promptTemplate';
 
 export interface ProfilePrompt {
+  /** SQID-encoded identifier */
   id: string;
+  /** SQID-encoded identifier */
   datingProfileId: string;
   answer: string;
   createdAt: string;
   template: PromptTemplate;
   responses: PromptResponse[];
+  actions?: ActionDTO[];
 }

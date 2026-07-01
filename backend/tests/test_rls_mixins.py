@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-from uuid import uuid4
-
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tests.fixtures.graph import ActingAs, DomainGraph
+from tests.fixtures.ids import fake_id
 from tests.fixtures.rls_mixin_domain.models import RlsOwnedThing, RlsWingThing
 
 # `asyncio_mode = "auto"` (pyproject.toml) runs `async def test_*` without a marker.
@@ -170,4 +169,4 @@ async def test_wingperson_scoped_insert_as_active_winger_allowed(
 
 async def test_seeded_row_uses_fresh_id() -> None:
     """Sanity: uuid4 ids stay distinct across calls (guards copy/paste seed bugs)."""
-    assert uuid4() != uuid4()
+    assert fake_id() != fake_id()

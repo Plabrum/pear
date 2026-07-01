@@ -5,7 +5,7 @@
  * OpenAPI spec version: 1.0.0
  */
 
-/**
- * @nullable
- */
-export type AuthRefreshRefresh400Extra = { [key: string]: unknown } | unknown[] | null;
+export interface DeclineForDaterData {
+  /** SQID-encoded identifier */
+  daterId: string;
+}

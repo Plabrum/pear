@@ -8,6 +8,7 @@ import type { MySuggestionStatus } from './mySuggestionStatus';
 
 export interface MySuggestion {
   id: string;
+  /** SQID-encoded identifier */
   daterId: string;
   daterName: string;
   suggestedName: string;

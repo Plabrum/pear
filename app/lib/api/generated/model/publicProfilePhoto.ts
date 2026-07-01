@@ -6,6 +6,7 @@
  */
 
 export interface PublicProfilePhoto {
+  /** SQID-encoded identifier */
   id: string;
   storageUrl: string;
   displayOrder: number;

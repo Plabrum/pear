@@ -11,11 +11,6 @@ from app.utils.deps import dep
 _push_clients: dict[int, BasePushClient] = {}
 
 
-def _active_config(request: Request) -> Config:
-    """The app's active config (shared via state); falls back to the module singleton."""
-    return getattr(request.app.state, "config", None) or config
-
-
 def _push_client_for(cfg: Config) -> BasePushClient:
     client = _push_clients.get(id(cfg))
     if client is None:
@@ -26,4 +21,4 @@ def _push_client_for(cfg: Config) -> BasePushClient:
 
 @dep("push", sync_to_thread=False)
 def provide_push(request: Request, transaction: AsyncSession) -> PushService:
-    return PushService(_push_client_for(_active_config(request)), transaction, request)
+    return PushService(_push_client_for(config), transaction, request)

@@ -21,6 +21,9 @@ from app.domain.prompts.transformers import (
     row_to_profile_prompt,
     row_to_prompt_template,
 )
+from app.platform.actions.deps import ActionDeps
+from app.platform.actions.enums import ActionGroupType
+from app.platform.actions.hydrate import resolve_group
 from app.platform.auth.guards import requires_session
 from app.platform.auth.principal import User
 from app.platform.media.service import MediaService
@@ -51,12 +54,21 @@ class ProfilePromptsController(Controller):
 
     @get("/me", operation_id="getApiProfilePromptsMe")
     async def own_prompts(
-        self, user: User, transaction: AsyncSession, media_service: MediaService
+        self,
+        user: User,
+        transaction: AsyncSession,
+        media_service: MediaService,
+        action_deps: ActionDeps,
     ) -> list[ProfilePrompt]:
         bundles = await fetch_own_profile_prompts(transaction, user.id)
         url_by_media = await media_service.resolve_urls(prompt_bundle_media_ids(bundles))
+        # Resolve each group once per request, outside the row loop. Each prompt
+        # carries its own actions (delete); each nested response its own (approve/delete).
+        prompt_group = resolve_group(ActionGroupType.PROFILE_PROMPT_ACTIONS)
+        response_group = resolve_group(ActionGroupType.PROMPT_RESPONSE_ACTIONS)
         return [
-            row_to_profile_prompt(prompt, question, responses, url_by_media) for prompt, question, responses in bundles
+            row_to_profile_prompt(prompt, question, responses, url_by_media, prompt_group, response_group, action_deps)
+            for prompt, question, responses in bundles
         ]
 
 

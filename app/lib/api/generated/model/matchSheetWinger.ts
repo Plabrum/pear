@@ -6,6 +6,7 @@
  */
 
 export interface MatchSheetWinger {
+  /** SQID-encoded identifier */
   id: string;
   chosenName: string | null;
 }

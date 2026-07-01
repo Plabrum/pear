@@ -7,7 +7,9 @@ import Svg, { Path } from 'react-native-svg';
 import type { OwnDatingProfile } from '@/lib/api/generated/model';
 import { useUploadProfilePhoto } from '@/hooks/use-upload-profile-photo';
 import { getPhotoUrl, pickAndResizePhoto } from '@/lib/photos';
-import { approvePhoto, rejectPhoto, reorderPhoto } from '@/lib/api/actions';
+import { reorderPhoto } from '@/lib/api/actions';
+import { useActionExecutor } from '@/hooks/actions/use-action-executor';
+import { shortKey, type ActionDTO } from '@/lib/actions/types';
 
 import { ScrollView, Text, Pressable, View } from '@/lib/tw';
 import { PhotoRect } from '@/components/ui/PhotoRect';
@@ -80,33 +82,39 @@ export function PhotosTab({ form, data, onRefresh }: Props) {
   const selfPhotos = photos.filter((p) => p.suggesterId === null && p.approvedAt !== null);
   const pending = photos.filter((p) => p.suggesterId !== null && p.approvedAt === null);
 
+  // Photo writes flow through the executor, driven by each photo's server actions[]
+  // (approve / reject / delete). `silent` keeps the quiet optimistic UX (form.setValue
+  // below); the executor handles invalidation + error toasts. Reorder stays a direct
+  // call (it's a hidden, batched action — not surfaced in actions[]).
+  const executor = useActionExecutor({ actionGroup: 'photo_actions' });
+  const photoAction = (photoId: string, key: string): ActionDTO | undefined =>
+    (photos.find((p) => p.id === photoId)?.actions ?? []).find((a) => shortKey(a.action) === key);
+
   const handleApprove = async (photoId: string) => {
+    const action = photoAction(photoId, 'approve');
+    if (!action) return;
     const prev = photos;
     const now = new Date().toISOString();
     form.setValue(
       'photos',
       photos.map((p) => (p.id === photoId ? { ...p, approvedAt: now } : p))
     );
-    try {
-      await approvePhoto(photoId);
-    } catch {
-      form.setValue('photos', prev);
-      toast.error('Could not approve photo.');
-    }
+    await executor
+      .executeAction(action, undefined, { objectId: photoId, silent: true })
+      .catch(() => form.setValue('photos', prev));
   };
 
   const handleReject = async (photoId: string) => {
+    const action = photoAction(photoId, 'reject');
+    if (!action) return;
     const prev = photos;
     form.setValue(
       'photos',
       photos.filter((p) => p.id !== photoId)
     );
-    try {
-      await rejectPhoto(photoId);
-    } catch {
-      form.setValue('photos', prev);
-      toast.error('Could not reject photo.');
-    }
+    await executor
+      .executeAction(action, undefined, { objectId: photoId, silent: true })
+      .catch(() => form.setValue('photos', prev));
   };
 
   const handleMoveUp = async (idx: number) => {
@@ -129,6 +137,8 @@ export function PhotosTab({ form, data, onRefresh }: Props) {
 
   const handleDelete = (idx: number) => {
     const photo = selfPhotos[idx];
+    const action = photoAction(photo.id, 'delete');
+    if (!action) return;
     Alert.alert('Delete Photo', "This can't be undone.", [
       { text: 'Cancel', style: 'cancel' },
       {
@@ -140,12 +150,9 @@ export function PhotosTab({ form, data, onRefresh }: Props) {
             'photos',
             photos.filter((p) => p.id !== photo.id)
           );
-          try {
-            await rejectPhoto(photo.id);
-          } catch {
-            form.setValue('photos', prev);
-            toast.error('Could not delete photo.');
-          }
+          await executor
+            .executeAction(action, undefined, { objectId: photo.id, silent: true })
+            .catch(() => form.setValue('photos', prev));
         },
       },
     ]);

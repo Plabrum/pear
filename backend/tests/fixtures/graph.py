@@ -3,7 +3,6 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from uuid import UUID
 
 import pytest
 from faker import Faker
@@ -33,8 +32,8 @@ __all__ = [
     "graph",
 ]
 
-# An `async with acting_as(<uuid>):` callable — switches the session's RLS actor.
-ActingAs = Callable[[UUID | str | None], "_ActorScope"]
+# An `async with acting_as(<id>):` callable — switches the session's RLS actor.
+ActingAs = Callable[[int | str | None], "_ActorScope"]
 
 # Deterministic so test failures are reproducible run-to-run.
 faker = Faker()
@@ -163,7 +162,7 @@ async def build_domain_graph(session: AsyncSession) -> DomainGraph:
     await session.flush()
 
     # ── Mutual match (ids ordered to satisfy ordered_match_ids CHECK) ────────
-    lo, hi = sorted([dater_a.id, dater_b.id], key=str)
+    lo, hi = sorted([dater_a.id, dater_b.id])
     match = Match(user_a_id=lo, user_b_id=hi)
     session.add(match)
     await session.flush()
@@ -275,20 +274,20 @@ async def graph(db_session: AsyncSession) -> DomainGraph:
 class _ActorScope:
     """Async context manager that runs a block as one RLS actor, then restores."""
 
-    def __init__(self, session: AsyncSession, actor: UUID | str | None) -> None:
+    def __init__(self, session: AsyncSession, actor: int | str | None) -> None:
         self._session = session
         # `None` => leave `app.user_id` UNSET (fail-closed test): no actor is
-        # established. Validate any non-None actor as a real UUID before inlining
+        # established. Validate any non-None actor as an int before inlining
         # (SET LOCAL rejects bind params), so this can never become an injection
         # vector.
-        self._actor = str(UUID(str(actor))) if actor is not None else None
+        self._actor = str(int(actor)) if actor is not None else None
 
     async def __aenter__(self) -> AsyncSession:
         # Drop the system-mode escape, then (optionally) establish the actor.
-        # `SET LOCAL` takes no bind parameters, so the validated UUID is inlined.
+        # `SET LOCAL` takes no bind parameters, so the validated int is inlined.
         await self._session.execute(text("SET LOCAL app.is_system_mode = false"))
         if self._actor is not None:
-            await self._session.execute(text(f"SET LOCAL app.user_id = '{self._actor}'"))
+            await self._session.execute(text(f"SET LOCAL app.user_id = {self._actor}"))
         else:
             # Explicitly clear any actor left over from a previous scope.
             await self._session.execute(text("SET LOCAL app.user_id = ''"))
@@ -315,7 +314,7 @@ def acting_as(db_session: AsyncSession) -> ActingAs:
     policies deny.
     """
 
-    def _scope(actor: UUID | str | None) -> _ActorScope:
+    def _scope(actor: int | str | None) -> _ActorScope:
         return _ActorScope(db_session, actor)
 
     return _scope

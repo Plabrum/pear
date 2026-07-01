@@ -1,13 +1,12 @@
 from enum import Enum
 from typing import Any
-from uuid import UUID
 
-import sqlalchemy as sa
 from sqlalchemy import Index, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, declared_attr, mapped_column
 
 from app.platform.base.models import BaseDBModel
+from app.utils.sqids import Sqid, SqidType
 from app.utils.textenum import TextEnum
 
 
@@ -65,16 +64,16 @@ class StateTransitionLog(BaseDBModel):
     """Append-only audit log. One row per completed transition.
 
     `actor_id` is nullable: SYSTEM-initiated transitions have no human actor.
-    `object_id` references the transitioned row by its UUID primary key.
+    `object_id` references the transitioned row by its integer primary key.
     """
 
     __tablename__ = "state_transition_logs"
 
     object_type: Mapped[str] = mapped_column(String, nullable=False)
-    object_id: Mapped[UUID] = mapped_column(sa.Uuid, nullable=False)
+    object_id: Mapped[Sqid] = mapped_column(SqidType, nullable=False)
     from_state: Mapped[str] = mapped_column(String, nullable=False)
     to_state: Mapped[str] = mapped_column(String, nullable=False)
-    actor_id: Mapped[UUID | None] = mapped_column(sa.Uuid, nullable=True)
+    actor_id: Mapped[Sqid | None] = mapped_column(SqidType, nullable=True)
     context: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
 
     __table_args__ = (Index("ix_stl_object_lookup", "object_type", "object_id"),)

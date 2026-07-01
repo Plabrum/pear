@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from unittest.mock import MagicMock
-
 from app.config import TestConfig
 from app.platform.media.client import (
     LocalMediaClient,
@@ -78,9 +76,7 @@ def test_media_client_is_local_in_testing() -> None:
     assert isinstance(build_media_client(TestConfig()), LocalMediaClient)
 
 
-def test_media_dep_uses_active_request_config() -> None:
-    # provide_media_client reads the request's active config; assert it returns a
-    # LocalMediaClient when that config is the (testing) one.
-    request = MagicMock()
-    request.app.state.config = TestConfig()
-    assert isinstance(provide_media_client(request), LocalMediaClient)
+def test_media_dep_uses_global_config() -> None:
+    # provide_media_client reads the module-global config; under ENV=testing that is
+    # the TestConfig, so it returns the fake LocalMediaClient (no AWS).
+    assert isinstance(provide_media_client(), LocalMediaClient)

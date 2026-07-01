@@ -1,11 +1,11 @@
 from enum import StrEnum, auto
-from uuid import UUID
 
 import sqlalchemy as sa
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.platform.base.rls_mixins import UserScopedMixin
 from app.platform.state_machine.models import StateMachineMixin
+from app.utils.sqids import Sqid, SqidType
 
 
 class SampleStatus(StrEnum):
@@ -23,6 +23,6 @@ class SampleWidget(
 
     # Owning user — `UserScopedMixin` registers the RLS policy that reads this.
     # Soft reference only (no FK): kept decoupled from the prod schema.
-    user_id: Mapped[UUID] = mapped_column(sa.Uuid, index=True, nullable=False)
+    user_id: Mapped[Sqid] = mapped_column(SqidType, index=True, nullable=False)
 
     name: Mapped[str] = mapped_column(sa.Text, nullable=False, default="untitled")

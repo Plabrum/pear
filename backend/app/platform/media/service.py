@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Sequence
-from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,6 +9,7 @@ from app.platform.media.client import BaseMediaClient
 from app.platform.media.enums import MediaState
 from app.platform.media.models import Media
 from app.platform.media.queries import fetch_media_by_ids
+from app.utils.sqids import Sqid
 
 # Image extensions we accept on an upload key. Anything else falls back to jpg.
 _ALLOWED_EXTS = {"jpg", "jpeg", "png", "webp", "heic", "heif"}
@@ -28,7 +28,7 @@ def _ext_from_filename(filename: str) -> str:
     return "jpg"
 
 
-def build_media_key(owner_id: UUID, filename: str) -> str:
+def build_media_key(owner_id: int, filename: str) -> str:
     """`<ownerId>/<uuid>.<ext>` — the original upload, rooted in the owner's folder."""
     return f"{owner_id}/{uuid.uuid4()}.{_ext_from_filename(filename)}"
 
@@ -40,7 +40,7 @@ class MediaService:
         self.transaction = transaction
         self.client = client
 
-    async def create_for_owner(self, owner_id: UUID, *, file_name: str, mime_type: str) -> Media:
+    async def create_for_owner(self, owner_id: int, *, file_name: str, mime_type: str) -> Media:
         """Create a PENDING Media owned by `owner_id` and return it (flushed for its id).
 
         The caller is responsible for authorizing `owner_id` (the route only ever
@@ -67,7 +67,7 @@ class MediaService:
         """A short-lived presigned GET URL for the best servable key of `media`."""
         return await self.client.presign_download(self._servable_key(media))
 
-    async def resolve_urls(self, media_ids: Sequence[UUID]) -> dict[UUID, str]:
+    async def resolve_urls(self, media_ids: Sequence[Sqid]) -> dict[Sqid, str]:
         """Resolve `{media.id: url}` for `media_ids`, subject to the caller's RLS scope.
 
         Reads each media row under the viewer's OWN scope: the media SELECT policy

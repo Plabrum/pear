@@ -7,6 +7,7 @@
 import type { Gender } from './gender';
 
 export interface WingerSummary {
+  /** SQID-encoded identifier */
   id: string;
   chosenName: string | null;
   gender: Gender | null;

@@ -33,134 +33,15 @@
         "deprecated": false
       }
     },
-    "/auth/refresh": {
-      "post": {
-        "tags": [
-          "auth"
-        ],
-        "summary": "Refresh",
-        "operationId": "AuthRefreshRefresh",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RefreshIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "description": "Document created, URL follows",
-            "headers": {},
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request syntax or unsupported method",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "status_code": {
-                      "type": "integer"
-                    },
-                    "detail": {
-                      "type": "string"
-                    },
-                    "extra": {
-                      "additionalProperties": {},
-                      "type": [
-                        "null",
-                        "object",
-                        "array"
-                      ]
-                    }
-                  },
-                  "type": "object",
-                  "required": [
-                    "detail",
-                    "status_code"
-                  ],
-                  "description": "Validation Exception",
-                  "examples": [
-                    {
-                      "status_code": 400,
-                      "detail": "Bad Request",
-                      "extra": {}
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "deprecated": false
-      }
-    },
     "/auth/logout": {
       "post": {
-        "tags": [
-          "auth"
-        ],
+        "tags": ["auth"],
         "summary": "Logout",
         "operationId": "AuthLogoutLogout",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/LogoutIn"
-              }
-            }
-          },
-          "required": true
-        },
         "responses": {
           "204": {
             "description": "Request fulfilled, nothing follows",
             "headers": {}
-          },
-          "400": {
-            "description": "Bad request syntax or unsupported method",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "status_code": {
-                      "type": "integer"
-                    },
-                    "detail": {
-                      "type": "string"
-                    },
-                    "extra": {
-                      "additionalProperties": {},
-                      "type": [
-                        "null",
-                        "object",
-                        "array"
-                      ]
-                    }
-                  },
-                  "type": "object",
-                  "required": [
-                    "detail",
-                    "status_code"
-                  ],
-                  "description": "Validation Exception",
-                  "examples": [
-                    {
-                      "status_code": 400,
-                      "detail": "Bad Request",
-                      "extra": {}
-                    }
-                  ]
-                }
-              }
-            }
           }
         },
         "deprecated": false
@@ -168,9 +49,7 @@
     },
     "/auth/me": {
       "get": {
-        "tags": [
-          "auth"
-        ],
+        "tags": ["auth"],
         "summary": "Me",
         "operationId": "AuthMeMe",
         "responses": {
@@ -191,9 +70,7 @@
     },
     "/auth/apple": {
       "post": {
-        "tags": [
-          "auth"
-        ],
+        "tags": ["auth"],
         "summary": "AppleSignIn",
         "operationId": "AuthAppleAppleSignIn",
         "requestBody": {
@@ -213,7 +90,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SessionOut"
+                  "$ref": "#/components/schemas/UserOut"
                 }
               }
             }
@@ -232,18 +109,11 @@
                     },
                     "extra": {
                       "additionalProperties": {},
-                      "type": [
-                        "null",
-                        "object",
-                        "array"
-                      ]
+                      "type": ["null", "object", "array"]
                     }
                   },
                   "type": "object",
-                  "required": [
-                    "detail",
-                    "status_code"
-                  ],
+                  "required": ["detail", "status_code"],
                   "description": "Validation Exception",
                   "examples": [
                     {
@@ -262,9 +132,7 @@
     },
     "/auth/magic-link/request": {
       "post": {
-        "tags": [
-          "auth"
-        ],
+        "tags": ["auth"],
         "summary": "MagicLinkRequest",
         "operationId": "AuthMagicLinkRequestMagicLinkRequest",
         "requestBody": {
@@ -296,18 +164,11 @@
                     },
                     "extra": {
                       "additionalProperties": {},
-                      "type": [
-                        "null",
-                        "object",
-                        "array"
-                      ]
+                      "type": ["null", "object", "array"]
                     }
                   },
                   "type": "object",
-                  "required": [
-                    "detail",
-                    "status_code"
-                  ],
+                  "required": ["detail", "status_code"],
                   "description": "Validation Exception",
                   "examples": [
                     {
@@ -326,9 +187,7 @@
     },
     "/auth/magic-link/verify": {
       "get": {
-        "tags": [
-          "auth"
-        ],
+        "tags": ["auth"],
         "summary": "MagicLinkVerifyRedirect",
         "operationId": "AuthMagicLinkVerifyMagicLinkVerifyRedirect",
         "parameters": [
@@ -372,18 +231,11 @@
                     },
                     "extra": {
                       "additionalProperties": {},
-                      "type": [
-                        "null",
-                        "object",
-                        "array"
-                      ]
+                      "type": ["null", "object", "array"]
                     }
                   },
                   "type": "object",
-                  "required": [
-                    "detail",
-                    "status_code"
-                  ],
+                  "required": ["detail", "status_code"],
                   "description": "Validation Exception",
                   "examples": [
                     {
@@ -400,9 +252,7 @@
         "deprecated": false
       },
       "post": {
-        "tags": [
-          "auth"
-        ],
+        "tags": ["auth"],
         "summary": "MagicLinkVerify",
         "operationId": "AuthMagicLinkVerifyMagicLinkVerify",
         "requestBody": {
@@ -422,7 +272,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SessionOut"
+                  "$ref": "#/components/schemas/UserOut"
                 }
               }
             }
@@ -441,18 +291,11 @@
                     },
                     "extra": {
                       "additionalProperties": {},
-                      "type": [
-                        "null",
-                        "object",
-                        "array"
-                      ]
+                      "type": ["null", "object", "array"]
                     }
                   },
                   "type": "object",
-                  "required": [
-                    "detail",
-                    "status_code"
-                  ],
+                  "required": ["detail", "status_code"],
                   "description": "Validation Exception",
                   "examples": [
                     {
@@ -471,9 +314,7 @@
     },
     "/api/actions/{action_group}": {
       "get": {
-        "tags": [
-          "actions"
-        ],
+        "tags": ["actions"],
         "summary": "ListActions",
         "operationId": "ApiActionsActionGroupListActions",
         "parameters": [
@@ -514,18 +355,11 @@
                     },
                     "extra": {
                       "additionalProperties": {},
-                      "type": [
-                        "null",
-                        "object",
-                        "array"
-                      ]
+                      "type": ["null", "object", "array"]
                     }
                   },
                   "type": "object",
-                  "required": [
-                    "detail",
-                    "status_code"
-                  ],
+                  "required": ["detail", "status_code"],
                   "description": "Validation Exception",
                   "examples": [
                     {
@@ -542,9 +376,7 @@
         "deprecated": false
       },
       "post": {
-        "tags": [
-          "actions"
-        ],
+        "tags": ["actions"],
         "summary": "ExecuteAction",
         "operationId": "ApiActionsActionGroupExecuteAction",
         "parameters": [
@@ -580,6 +412,9 @@
                     "$ref": "#/components/schemas/SuggestAction"
                   },
                   {
+                    "$ref": "#/components/schemas/DeclineForDaterAction"
+                  },
+                  {
                     "$ref": "#/components/schemas/ReportAction"
                   },
                   {
@@ -665,18 +500,11 @@
                     },
                     "extra": {
                       "additionalProperties": {},
-                      "type": [
-                        "null",
-                        "object",
-                        "array"
-                      ]
+                      "type": ["null", "object", "array"]
                     }
                   },
                   "type": "object",
-                  "required": [
-                    "detail",
-                    "status_code"
-                  ],
+                  "required": ["detail", "status_code"],
                   "description": "Validation Exception",
                   "examples": [
                     {
@@ -695,9 +523,7 @@
     },
     "/api/actions/{action_group}/{object_id}": {
       "get": {
-        "tags": [
-          "actions"
-        ],
+        "tags": ["actions"],
         "summary": "ListObjectActions",
         "operationId": "ApiActionsActionGroupObjectIdListObjectActions",
         "parameters": [
@@ -716,8 +542,10 @@
             "in": "path",
             "schema": {
               "type": "string",
-              "format": "uuid"
+              "description": "SQID-encoded identifier",
+              "example": "kmxpqdrv"
             },
+            "description": "SQID-encoded identifier",
             "required": true,
             "deprecated": false
           }
@@ -748,18 +576,11 @@
                     },
                     "extra": {
                       "additionalProperties": {},
-                      "type": [
-                        "null",
-                        "object",
-                        "array"
-                      ]
+                      "type": ["null", "object", "array"]
                     }
                   },
                   "type": "object",
-                  "required": [
-                    "detail",
-                    "status_code"
-                  ],
+                  "required": ["detail", "status_code"],
                   "description": "Validation Exception",
                   "examples": [
                     {
@@ -776,9 +597,7 @@
         "deprecated": false
       },
       "post": {
-        "tags": [
-          "actions"
-        ],
+        "tags": ["actions"],
         "summary": "ExecuteObjectAction",
         "operationId": "ApiActionsActionGroupObjectIdExecuteObjectAction",
         "parameters": [
@@ -797,8 +616,10 @@
             "in": "path",
             "schema": {
               "type": "string",
-              "format": "uuid"
+              "description": "SQID-encoded identifier",
+              "example": "kmxpqdrv"
             },
+            "description": "SQID-encoded identifier",
             "required": true,
             "deprecated": false
           }
@@ -822,6 +643,9 @@
                   },
                   {
                     "$ref": "#/components/schemas/SuggestAction"
+                  },
+                  {
+                    "$ref": "#/components/schemas/DeclineForDaterAction"
                   },
                   {
                     "$ref": "#/components/schemas/ReportAction"
@@ -909,18 +733,11 @@
                     },
                     "extra": {
                       "additionalProperties": {},
-                      "type": [
-                        "null",
-                        "object",
-                        "array"
-                      ]
+                      "type": ["null", "object", "array"]
                     }
                   },
                   "type": "object",
-                  "required": [
-                    "detail",
-                    "status_code"
-                  ],
+                  "required": ["detail", "status_code"],
                   "description": "Validation Exception",
                   "examples": [
                     {
@@ -939,9 +756,7 @@
     },
     "/api/profiles/me": {
       "get": {
-        "tags": [
-          "profiles"
-        ],
+        "tags": ["profiles"],
         "summary": "GetOwnProfile",
         "operationId": "getApiProfilesMe",
         "responses": {
@@ -962,9 +777,7 @@
     },
     "/api/profiles/{userId}": {
       "get": {
-        "tags": [
-          "profiles"
-        ],
+        "tags": ["profiles"],
         "summary": "GetPublicProfile",
         "operationId": "getApiProfilesUserId",
         "parameters": [
@@ -973,8 +786,10 @@
             "in": "path",
             "schema": {
               "type": "string",
-              "format": "uuid"
+              "description": "SQID-encoded identifier",
+              "example": "kmxpqdrv"
             },
+            "description": "SQID-encoded identifier",
             "required": true,
             "deprecated": false
           }
@@ -1005,18 +820,11 @@
                     },
                     "extra": {
                       "additionalProperties": {},
-                      "type": [
-                        "null",
-                        "object",
-                        "array"
-                      ]
+                      "type": ["null", "object", "array"]
                     }
                   },
                   "type": "object",
-                  "required": [
-                    "detail",
-                    "status_code"
-                  ],
+                  "required": ["detail", "status_code"],
                   "description": "Validation Exception",
                   "examples": [
                     {
@@ -1035,9 +843,7 @@
     },
     "/api/dating-profiles/me": {
       "get": {
-        "tags": [
-          "profiles"
-        ],
+        "tags": ["profiles"],
         "summary": "GetOwnDatingProfile",
         "operationId": "getApiDatingProfilesMe",
         "responses": {
@@ -1065,9 +871,7 @@
     },
     "/api/dating-profiles/swipe/count": {
       "get": {
-        "tags": [
-          "dating-profiles"
-        ],
+        "tags": ["dating-profiles"],
         "summary": "GetLikesYouCount",
         "operationId": "getApiDatingProfilesSwipeCount",
         "responses": {
@@ -1088,9 +892,7 @@
     },
     "/api/dating-profiles/swipe": {
       "get": {
-        "tags": [
-          "dating-profiles"
-        ],
+        "tags": ["dating-profiles"],
         "summary": "GetSwipe",
         "operationId": "getApiDatingProfilesSwipe",
         "parameters": [
@@ -1164,7 +966,8 @@
               "oneOf": [
                 {
                   "type": "string",
-                  "format": "uuid"
+                  "description": "SQID-encoded identifier",
+                  "example": "kmxpqdrv"
                 },
                 {
                   "type": "null"
@@ -1183,7 +986,8 @@
               "oneOf": [
                 {
                   "type": "string",
-                  "format": "uuid"
+                  "description": "SQID-encoded identifier",
+                  "example": "kmxpqdrv"
                 },
                 {
                   "type": "null"
@@ -1225,18 +1029,11 @@
                     },
                     "extra": {
                       "additionalProperties": {},
-                      "type": [
-                        "null",
-                        "object",
-                        "array"
-                      ]
+                      "type": ["null", "object", "array"]
                     }
                   },
                   "type": "object",
-                  "required": [
-                    "detail",
-                    "status_code"
-                  ],
+                  "required": ["detail", "status_code"],
                   "description": "Validation Exception",
                   "examples": [
                     {
@@ -1255,9 +1052,7 @@
     },
     "/api/wingpeople": {
       "get": {
-        "tags": [
-          "contacts"
-        ],
+        "tags": ["contacts"],
         "summary": "GetWingpeople",
         "operationId": "getApiWingpeople",
         "responses": {
@@ -1278,9 +1073,7 @@
     },
     "/api/winger-tabs": {
       "get": {
-        "tags": [
-          "contacts"
-        ],
+        "tags": ["contacts"],
         "summary": "GetWingerTabs",
         "operationId": "getApiWingerTabs",
         "responses": {
@@ -1304,9 +1097,7 @@
     },
     "/api/photos/me": {
       "get": {
-        "tags": [
-          "photos"
-        ],
+        "tags": ["photos"],
         "summary": "ListOwnPhotos",
         "operationId": "getApiPhotosMe",
         "responses": {
@@ -1330,9 +1121,7 @@
     },
     "/api/photos/suggested": {
       "get": {
-        "tags": [
-          "photos"
-        ],
+        "tags": ["photos"],
         "summary": "ListSuggestedPhotos",
         "operationId": "getApiPhotosSuggested",
         "parameters": [
@@ -1380,18 +1169,11 @@
                     },
                     "extra": {
                       "additionalProperties": {},
-                      "type": [
-                        "null",
-                        "object",
-                        "array"
-                      ]
+                      "type": ["null", "object", "array"]
                     }
                   },
                   "type": "object",
-                  "required": [
-                    "detail",
-                    "status_code"
-                  ],
+                  "required": ["detail", "status_code"],
                   "description": "Validation Exception",
                   "examples": [
                     {
@@ -1410,9 +1192,7 @@
     },
     "/api/prompt-templates": {
       "get": {
-        "tags": [
-          "prompts"
-        ],
+        "tags": ["prompts"],
         "summary": "ListTemplates",
         "operationId": "getApiPromptTemplates",
         "responses": {
@@ -1436,9 +1216,7 @@
     },
     "/api/prompt-templates/onboarding": {
       "get": {
-        "tags": [
-          "prompts"
-        ],
+        "tags": ["prompts"],
         "summary": "OnboardingTemplates",
         "operationId": "getApiPromptTemplatesOnboarding",
         "responses": {
@@ -1462,9 +1240,7 @@
     },
     "/api/profile-prompts/me": {
       "get": {
-        "tags": [
-          "prompts"
-        ],
+        "tags": ["prompts"],
         "summary": "OwnPrompts",
         "operationId": "getApiProfilePromptsMe",
         "responses": {
@@ -1488,9 +1264,7 @@
     },
     "/api/prompt-responses/me": {
       "get": {
-        "tags": [
-          "prompts"
-        ],
+        "tags": ["prompts"],
         "summary": "AuthoredResponses",
         "operationId": "getApiPromptResponsesMe",
         "parameters": [
@@ -1538,18 +1312,11 @@
                     },
                     "extra": {
                       "additionalProperties": {},
-                      "type": [
-                        "null",
-                        "object",
-                        "array"
-                      ]
+                      "type": ["null", "object", "array"]
                     }
                   },
                   "type": "object",
-                  "required": [
-                    "detail",
-                    "status_code"
-                  ],
+                  "required": ["detail", "status_code"],
                   "description": "Validation Exception",
                   "examples": [
                     {
@@ -1568,9 +1335,7 @@
     },
     "/api/decisions/my-suggestions": {
       "get": {
-        "tags": [
-          "decisions"
-        ],
+        "tags": ["decisions"],
         "summary": "GetMySuggestions",
         "operationId": "getApiDecisionsMySuggestions",
         "parameters": [
@@ -1618,18 +1383,11 @@
                     },
                     "extra": {
                       "additionalProperties": {},
-                      "type": [
-                        "null",
-                        "object",
-                        "array"
-                      ]
+                      "type": ["null", "object", "array"]
                     }
                   },
                   "type": "object",
-                  "required": [
-                    "detail",
-                    "status_code"
-                  ],
+                  "required": ["detail", "status_code"],
                   "description": "Validation Exception",
                   "examples": [
                     {
@@ -1646,37 +1404,9 @@
         "deprecated": false
       }
     },
-    "/api/decisions/pending-suggestions": {
-      "get": {
-        "tags": [
-          "decisions"
-        ],
-        "summary": "GetPendingSuggestions",
-        "operationId": "getApiDecisionsPendingSuggestions",
-        "responses": {
-          "200": {
-            "description": "Request fulfilled, document follows",
-            "headers": {},
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/PendingSuggestion"
-                  },
-                  "type": "array"
-                }
-              }
-            }
-          }
-        },
-        "deprecated": false
-      }
-    },
     "/api/matches/{matchId}/sheet": {
       "get": {
-        "tags": [
-          "matches"
-        ],
+        "tags": ["matches"],
         "summary": "GetMatchSheet",
         "operationId": "getApiMatchesMatchIdSheet",
         "parameters": [
@@ -1685,8 +1415,10 @@
             "in": "path",
             "schema": {
               "type": "string",
-              "format": "uuid"
+              "description": "SQID-encoded identifier",
+              "example": "kmxpqdrv"
             },
+            "description": "SQID-encoded identifier",
             "required": true,
             "deprecated": false
           }
@@ -1717,18 +1449,11 @@
                     },
                     "extra": {
                       "additionalProperties": {},
-                      "type": [
-                        "null",
-                        "object",
-                        "array"
-                      ]
+                      "type": ["null", "object", "array"]
                     }
                   },
                   "type": "object",
-                  "required": [
-                    "detail",
-                    "status_code"
-                  ],
+                  "required": ["detail", "status_code"],
                   "description": "Validation Exception",
                   "examples": [
                     {
@@ -1747,9 +1472,7 @@
     },
     "/api/matches": {
       "get": {
-        "tags": [
-          "matches"
-        ],
+        "tags": ["matches"],
         "summary": "ListMatches",
         "operationId": "getApiMatches",
         "responses": {
@@ -1773,9 +1496,7 @@
     },
     "/api/conversations": {
       "get": {
-        "tags": [
-          "messages"
-        ],
+        "tags": ["messages"],
         "summary": "ListConversations",
         "operationId": "getApiConversations",
         "responses": {
@@ -1799,9 +1520,7 @@
     },
     "/api/matches/{matchId}/messages": {
       "get": {
-        "tags": [
-          "messages"
-        ],
+        "tags": ["messages"],
         "summary": "ListMessages",
         "operationId": "getApiMatchesMatchIdMessages",
         "parameters": [
@@ -1810,8 +1529,10 @@
             "in": "path",
             "schema": {
               "type": "string",
-              "format": "uuid"
+              "description": "SQID-encoded identifier",
+              "example": "kmxpqdrv"
             },
+            "description": "SQID-encoded identifier",
             "required": true,
             "deprecated": false
           },
@@ -1869,18 +1590,11 @@
                     },
                     "extra": {
                       "additionalProperties": {},
-                      "type": [
-                        "null",
-                        "object",
-                        "array"
-                      ]
+                      "type": ["null", "object", "array"]
                     }
                   },
                   "type": "object",
-                  "required": [
-                    "detail",
-                    "status_code"
-                  ],
+                  "required": ["detail", "status_code"],
                   "description": "Validation Exception",
                   "examples": [
                     {
@@ -1899,9 +1613,7 @@
     },
     "/api/media/{media_id}": {
       "get": {
-        "tags": [
-          "media"
-        ],
+        "tags": ["media"],
         "summary": "GetOne",
         "operationId": "getApiMediaById",
         "parameters": [
@@ -1910,8 +1622,10 @@
             "in": "path",
             "schema": {
               "type": "string",
-              "format": "uuid"
+              "description": "SQID-encoded identifier",
+              "example": "kmxpqdrv"
             },
+            "description": "SQID-encoded identifier",
             "required": true,
             "deprecated": false
           }
@@ -1942,18 +1656,11 @@
                     },
                     "extra": {
                       "additionalProperties": {},
-                      "type": [
-                        "null",
-                        "object",
-                        "array"
-                      ]
+                      "type": ["null", "object", "array"]
                     }
                   },
                   "type": "object",
-                  "required": [
-                    "detail",
-                    "status_code"
-                  ],
+                  "required": ["detail", "status_code"],
                   "description": "Validation Exception",
                   "examples": [
                     {
@@ -1970,9 +1677,7 @@
         "deprecated": false
       },
       "delete": {
-        "tags": [
-          "media"
-        ],
+        "tags": ["media"],
         "summary": "DeleteOne",
         "operationId": "deleteApiMediaById",
         "parameters": [
@@ -1981,8 +1686,10 @@
             "in": "path",
             "schema": {
               "type": "string",
-              "format": "uuid"
+              "description": "SQID-encoded identifier",
+              "example": "kmxpqdrv"
             },
+            "description": "SQID-encoded identifier",
             "required": true,
             "deprecated": false
           }
@@ -2006,18 +1713,11 @@
                     },
                     "extra": {
                       "additionalProperties": {},
-                      "type": [
-                        "null",
-                        "object",
-                        "array"
-                      ]
+                      "type": ["null", "object", "array"]
                     }
                   },
                   "type": "object",
-                  "required": [
-                    "detail",
-                    "status_code"
-                  ],
+                  "required": ["detail", "status_code"],
                   "description": "Validation Exception",
                   "examples": [
                     {
@@ -2036,9 +1736,7 @@
     },
     "/api/media/upload-url": {
       "post": {
-        "tags": [
-          "media"
-        ],
+        "tags": ["media"],
         "summary": "UploadUrl",
         "operationId": "postApiMediaUploadUrl",
         "requestBody": {
@@ -2077,18 +1775,11 @@
                     },
                     "extra": {
                       "additionalProperties": {},
-                      "type": [
-                        "null",
-                        "object",
-                        "array"
-                      ]
+                      "type": ["null", "object", "array"]
                     }
                   },
                   "type": "object",
-                  "required": [
-                    "detail",
-                    "status_code"
-                  ],
+                  "required": ["detail", "status_code"],
                   "description": "Validation Exception",
                   "examples": [
                     {
@@ -2107,9 +1798,7 @@
     },
     "/api/media/{media_id}/uploaded": {
       "post": {
-        "tags": [
-          "media"
-        ],
+        "tags": ["media"],
         "summary": "Uploaded",
         "operationId": "postApiMediaUploaded",
         "parameters": [
@@ -2118,8 +1807,10 @@
             "in": "path",
             "schema": {
               "type": "string",
-              "format": "uuid"
+              "description": "SQID-encoded identifier",
+              "example": "kmxpqdrv"
             },
+            "description": "SQID-encoded identifier",
             "required": true,
             "deprecated": false
           }
@@ -2150,18 +1841,11 @@
                     },
                     "extra": {
                       "additionalProperties": {},
-                      "type": [
-                        "null",
-                        "object",
-                        "array"
-                      ]
+                      "type": ["null", "object", "array"]
                     }
                   },
                   "type": "object",
-                  "required": [
-                    "detail",
-                    "status_code"
-                  ],
+                  "required": ["detail", "status_code"],
                   "description": "Validation Exception",
                   "examples": [
                     {
@@ -2192,10 +1876,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "action",
-          "data"
-        ],
+        "required": ["action", "data"],
         "title": "AcceptInviteAction"
       },
       "ActionCTA": {
@@ -2208,10 +1889,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "label",
-          "path"
-        ],
+        "required": ["label", "path"],
         "title": "ActionCTA"
       },
       "ActionDTO": {
@@ -2283,11 +1961,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "action",
-          "action_group_type",
-          "label"
-        ],
+        "required": ["action", "action_group_type", "label"],
         "title": "ActionDTO"
       },
       "ActionExecutionResponse": {
@@ -2322,7 +1996,8 @@
             "oneOf": [
               {
                 "type": "string",
-                "format": "uuid"
+                "description": "SQID-encoded identifier",
+                "example": "kmxpqdrv"
               },
               {
                 "type": "null"
@@ -2361,9 +2036,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "actions"
-        ],
+        "required": ["actions"],
         "title": "ActionListResponse"
       },
       "AppleIn": {
@@ -2383,9 +2056,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "identityToken"
-        ],
+        "required": ["identityToken"],
         "title": "AppleIn"
       },
       "ApprovePhotoAction": {
@@ -2399,10 +2070,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "action",
-          "data"
-        ],
+        "required": ["action", "data"],
         "title": "ApprovePhotoAction"
       },
       "ApprovePromptResponseAction": {
@@ -2416,21 +2084,20 @@
           }
         },
         "type": "object",
-        "required": [
-          "action",
-          "data"
-        ],
+        "required": ["action", "data"],
         "title": "ApprovePromptResponseAction"
       },
       "AuthoredPromptResponse": {
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "daterId": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "daterName": {
             "type": "string"
@@ -2443,11 +2110,7 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "accepted",
-              "pending",
-              "not_accepted"
-            ]
+            "enum": ["accepted", "pending", "not_accepted"]
           },
           "createdAt": {
             "type": "string"
@@ -2467,17 +2130,15 @@
       },
       "City": {
         "type": "string",
-        "enum": [
-          "Boston",
-          "New York"
-        ],
+        "enum": ["Boston", "New York"],
         "title": "City"
       },
       "Conversation": {
         "properties": {
           "matchId": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "createdAt": {
             "type": "string"
@@ -2497,30 +2158,32 @@
           },
           "unreadCount": {
             "type": "integer"
+          },
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/ActionDTO"
+            },
+            "type": "array"
           }
         },
         "type": "object",
-        "required": [
-          "createdAt",
-          "lastMessage",
-          "matchId",
-          "other",
-          "unreadCount"
-        ],
+        "required": ["createdAt", "lastMessage", "matchId", "other", "unreadCount"],
         "title": "Conversation"
       },
       "ConversationLastMessage": {
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "body": {
             "type": "string"
           },
           "senderId": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "isRead": {
             "type": "boolean"
@@ -2530,20 +2193,15 @@
           }
         },
         "type": "object",
-        "required": [
-          "body",
-          "createdAt",
-          "id",
-          "isRead",
-          "senderId"
-        ],
+        "required": ["body", "createdAt", "id", "isRead", "senderId"],
         "title": "ConversationLastMessage"
       },
       "ConversationOther": {
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "chosenName": {
             "oneOf": [
@@ -2557,10 +2215,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "chosenName",
-          "id"
-        ],
+        "required": ["chosenName", "id"],
         "title": "ConversationOther"
       },
       "CopyToClipboardActionResult": {
@@ -2584,10 +2239,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "text",
-          "type"
-        ],
+        "required": ["text", "type"],
         "title": "CopyToClipboardActionResult"
       },
       "CreateDatingProfileAction": {
@@ -2601,10 +2253,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "action",
-          "data"
-        ],
+        "required": ["action", "data"],
         "title": "CreateDatingProfileAction"
       },
       "CreateDatingProfileData": {
@@ -2666,13 +2315,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "ageFrom",
-          "city",
-          "interestedGender",
-          "interests",
-          "religion"
-        ],
+        "required": ["ageFrom", "city", "interestedGender", "interests", "religion"],
         "title": "CreateDatingProfileData"
       },
       "CreatePhotoAction": {
@@ -2686,32 +2329,27 @@
           }
         },
         "type": "object",
-        "required": [
-          "action",
-          "data"
-        ],
+        "required": ["action", "data"],
         "title": "CreatePhotoAction"
       },
       "CreatePhotoData": {
         "properties": {
           "datingProfileId": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "mediaId": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "displayOrder": {
             "type": "integer"
           }
         },
         "type": "object",
-        "required": [
-          "datingProfileId",
-          "displayOrder",
-          "mediaId"
-        ],
+        "required": ["datingProfileId", "displayOrder", "mediaId"],
         "title": "CreatePhotoData"
       },
       "CreateProfilePromptAction": {
@@ -2725,27 +2363,22 @@
           }
         },
         "type": "object",
-        "required": [
-          "action",
-          "data"
-        ],
+        "required": ["action", "data"],
         "title": "CreateProfilePromptAction"
       },
       "CreateProfilePromptData": {
         "properties": {
           "promptTemplateId": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "answer": {
             "type": "string"
           }
         },
         "type": "object",
-        "required": [
-          "answer",
-          "promptTemplateId"
-        ],
+        "required": ["answer", "promptTemplateId"],
         "title": "CreateProfilePromptData"
       },
       "CreatePromptResponseAction": {
@@ -2759,34 +2392,30 @@
           }
         },
         "type": "object",
-        "required": [
-          "action",
-          "data"
-        ],
+        "required": ["action", "data"],
         "title": "CreatePromptResponseAction"
       },
       "CreatePromptResponseData": {
         "properties": {
           "profilePromptId": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "message": {
             "type": "string"
           }
         },
         "type": "object",
-        "required": [
-          "message",
-          "profilePromptId"
-        ],
+        "required": ["message", "profilePromptId"],
         "title": "CreatePromptResponseData"
       },
       "DaterSummary": {
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "chosenName": {
             "oneOf": [
@@ -2800,28 +2429,39 @@
           }
         },
         "type": "object",
-        "required": [
-          "chosenName",
-          "id"
-        ],
+        "required": ["chosenName", "id"],
         "title": "DaterSummary"
       },
       "DatingStatus": {
         "type": "string",
-        "enum": [
-          "open",
-          "break",
-          "winging"
-        ],
+        "enum": ["open", "break", "winging"],
         "title": "DatingStatus"
       },
-      "DecisionType": {
-        "type": "string",
-        "enum": [
-          "approved",
-          "declined"
-        ],
-        "title": "DecisionType"
+      "DeclineForDaterAction": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DeclineForDaterData"
+          },
+          "action": {
+            "type": "string",
+            "const": "dating_profile_swipe_actions__decline"
+          }
+        },
+        "type": "object",
+        "required": ["action", "data"],
+        "title": "DeclineForDaterAction"
+      },
+      "DeclineForDaterData": {
+        "properties": {
+          "daterId": {
+            "type": "string",
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
+          }
+        },
+        "type": "object",
+        "required": ["daterId"],
+        "title": "DeclineForDaterData"
       },
       "DeclineInviteAction": {
         "properties": {
@@ -2834,10 +2474,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "action",
-          "data"
-        ],
+        "required": ["action", "data"],
         "title": "DeclineInviteAction"
       },
       "DeletePhotoAction": {
@@ -2851,10 +2488,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "action",
-          "data"
-        ],
+        "required": ["action", "data"],
         "title": "DeletePhotoAction"
       },
       "DeleteProfilePromptAction": {
@@ -2868,10 +2502,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "action",
-          "data"
-        ],
+        "required": ["action", "data"],
         "title": "DeleteProfilePromptAction"
       },
       "DeletePromptResponseAction": {
@@ -2885,10 +2516,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "action",
-          "data"
-        ],
+        "required": ["action", "data"],
         "title": "DeletePromptResponseAction"
       },
       "DisabledReason": {
@@ -2908,9 +2536,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "message"
-        ],
+        "required": ["message"],
         "title": "DisabledReason"
       },
       "DownloadFileActionResult": {
@@ -2927,11 +2553,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "filename",
-          "type",
-          "url"
-        ],
+        "required": ["filename", "type", "url"],
         "title": "DownloadFileActionResult"
       },
       "EmptyActionData": {
@@ -2942,18 +2564,15 @@
       },
       "Gender": {
         "type": "string",
-        "enum": [
-          "Male",
-          "Female",
-          "Non-Binary"
-        ],
+        "enum": ["Male", "Female", "Non-Binary"],
         "title": "Gender"
       },
       "IncomingInvitation": {
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "createdAt": {
             "type": "string"
@@ -2967,14 +2586,16 @@
                 "type": "null"
               }
             ]
+          },
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/ActionDTO"
+            },
+            "type": "array"
           }
         },
         "type": "object",
-        "required": [
-          "createdAt",
-          "dater",
-          "id"
-        ],
+        "required": ["createdAt", "dater", "id"],
         "title": "IncomingInvitation"
       },
       "Interest": {
@@ -3010,10 +2631,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "action",
-          "data"
-        ],
+        "required": ["action", "data"],
         "title": "InviteWingpersonAction"
       },
       "InviteWingpersonData": {
@@ -3023,9 +2641,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "phoneNumber"
-        ],
+        "required": ["phoneNumber"],
         "title": "InviteWingpersonData"
       },
       "LikeAction": {
@@ -3039,10 +2655,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "action",
-          "data"
-        ],
+        "required": ["action", "data"],
         "title": "LikeAction"
       },
       "LikesYouCountResponse": {
@@ -3052,22 +2665,8 @@
           }
         },
         "type": "object",
-        "required": [
-          "count"
-        ],
+        "required": ["count"],
         "title": "LikesYouCountResponse"
-      },
-      "LogoutIn": {
-        "properties": {
-          "refreshToken": {
-            "type": "string"
-          }
-        },
-        "type": "object",
-        "required": [
-          "refreshToken"
-        ],
-        "title": "LogoutIn"
       },
       "MagicLinkRequestIn": {
         "properties": {
@@ -3076,9 +2675,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "email"
-        ],
+        "required": ["email"],
         "title": "MagicLinkRequestIn"
       },
       "MagicLinkVerifyIn": {
@@ -3088,9 +2685,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "token"
-        ],
+        "required": ["token"],
         "title": "MagicLinkVerifyIn"
       },
       "MarkMessagesReadAction": {
@@ -3104,10 +2699,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "action",
-          "data"
-        ],
+        "required": ["action", "data"],
         "title": "MarkMessagesReadAction"
       },
       "MatchSheet": {
@@ -3130,17 +2722,15 @@
           }
         },
         "type": "object",
-        "required": [
-          "prompts",
-          "wingNote"
-        ],
+        "required": ["prompts", "wingNote"],
         "title": "MatchSheet"
       },
       "MatchSheetPrompt": {
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "answer": {
             "type": "string"
@@ -3157,28 +2747,22 @@
           }
         },
         "type": "object",
-        "required": [
-          "answer",
-          "id",
-          "template"
-        ],
+        "required": ["answer", "id", "template"],
         "title": "MatchSheetPrompt"
       },
       "MatchSheetPromptTemplate": {
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "question": {
             "type": "string"
           }
         },
         "type": "object",
-        "required": [
-          "id",
-          "question"
-        ],
+        "required": ["id", "question"],
         "title": "MatchSheetPromptTemplate"
       },
       "MatchSheetWingNote": {
@@ -3190,7 +2774,8 @@
             "oneOf": [
               {
                 "type": "string",
-                "format": "uuid"
+                "description": "SQID-encoded identifier",
+                "example": "kmxpqdrv"
               },
               {
                 "type": "null"
@@ -3209,18 +2794,15 @@
           }
         },
         "type": "object",
-        "required": [
-          "note",
-          "suggestedBy",
-          "winger"
-        ],
+        "required": ["note", "suggestedBy", "winger"],
         "title": "MatchSheetWingNote"
       },
       "MatchSheetWinger": {
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "chosenName": {
             "oneOf": [
@@ -3234,17 +2816,15 @@
           }
         },
         "type": "object",
-        "required": [
-          "chosenName",
-          "id"
-        ],
+        "required": ["chosenName", "id"],
         "title": "MatchSheetWinger"
       },
       "MatchSummary": {
         "properties": {
           "matchId": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "createdAt": {
             "type": "string"
@@ -3254,22 +2834,24 @@
           },
           "other": {
             "$ref": "#/components/schemas/MatchSummaryOther"
+          },
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/ActionDTO"
+            },
+            "type": "array"
           }
         },
         "type": "object",
-        "required": [
-          "createdAt",
-          "hasMessages",
-          "matchId",
-          "other"
-        ],
+        "required": ["createdAt", "hasMessages", "matchId", "other"],
         "title": "MatchSummary"
       },
       "MatchSummaryOther": {
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "chosenName": {
             "oneOf": [
@@ -3358,16 +2940,15 @@
           }
         },
         "type": "object",
-        "required": [
-          "user"
-        ],
+        "required": ["user"],
         "title": "MeOut"
       },
       "MediaResponse": {
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "state": {
             "type": "string"
@@ -3377,26 +2958,25 @@
           }
         },
         "type": "object",
-        "required": [
-          "id",
-          "state",
-          "url"
-        ],
+        "required": ["id", "state", "url"],
         "title": "MediaResponse"
       },
       "Message": {
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "matchId": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "senderId": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "body": {
             "type": "string"
@@ -3419,22 +2999,15 @@
           }
         },
         "type": "object",
-        "required": [
-          "body",
-          "createdAt",
-          "id",
-          "isRead",
-          "matchId",
-          "sender",
-          "senderId"
-        ],
+        "required": ["body", "createdAt", "id", "isRead", "matchId", "sender", "senderId"],
         "title": "Message"
       },
       "MessageSender": {
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "chosenName": {
             "oneOf": [
@@ -3448,10 +3021,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "chosenName",
-          "id"
-        ],
+        "required": ["chosenName", "id"],
         "title": "MessageSender"
       },
       "MySuggestion": {
@@ -3461,7 +3031,8 @@
           },
           "daterId": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "daterName": {
             "type": "string"
@@ -3471,36 +3042,27 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "matched",
-              "pending",
-              "not_accepted"
-            ]
+            "enum": ["matched", "pending", "not_accepted"]
           },
           "createdAt": {
             "type": "string"
           }
         },
         "type": "object",
-        "required": [
-          "createdAt",
-          "daterId",
-          "daterName",
-          "id",
-          "status",
-          "suggestedName"
-        ],
+        "required": ["createdAt", "daterId", "daterName", "id", "status", "suggestedName"],
         "title": "MySuggestion"
       },
       "OwnDatingProfile": {
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "userId": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "bio": {
             "oneOf": [
@@ -3579,6 +3141,12 @@
           },
           "ripeness": {
             "type": "integer"
+          },
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/ActionDTO"
+            },
+            "type": "array"
           }
         },
         "type": "object",
@@ -3607,7 +3175,8 @@
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "storageUrl": {
             "type": "string"
@@ -3629,7 +3198,8 @@
             "oneOf": [
               {
                 "type": "string",
-                "format": "uuid"
+                "description": "SQID-encoded identifier",
+                "example": "kmxpqdrv"
               },
               {
                 "type": "null"
@@ -3645,24 +3215,24 @@
                 "type": "null"
               }
             ]
+          },
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/ActionDTO"
+            },
+            "type": "array"
           }
         },
         "type": "object",
-        "required": [
-          "approvedAt",
-          "displayOrder",
-          "id",
-          "storageUrl",
-          "suggester",
-          "suggesterId"
-        ],
+        "required": ["approvedAt", "displayOrder", "id", "storageUrl", "suggester", "suggesterId"],
         "title": "OwnProfilePhoto"
       },
       "OwnProfilePrompt": {
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "answer": {
             "type": "string"
@@ -3678,23 +3248,24 @@
               "$ref": "#/components/schemas/OwnPromptResponse"
             },
             "type": "array"
+          },
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/ActionDTO"
+            },
+            "type": "array"
           }
         },
         "type": "object",
-        "required": [
-          "answer",
-          "createdAt",
-          "id",
-          "responses",
-          "template"
-        ],
+        "required": ["answer", "createdAt", "id", "responses", "template"],
         "title": "OwnProfilePrompt"
       },
       "OwnPromptResponse": {
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "message": {
             "type": "string"
@@ -3704,7 +3275,8 @@
           },
           "userId": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "createdAt": {
             "type": "string"
@@ -3718,17 +3290,16 @@
                 "type": "null"
               }
             ]
+          },
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/ActionDTO"
+            },
+            "type": "array"
           }
         },
         "type": "object",
-        "required": [
-          "author",
-          "createdAt",
-          "id",
-          "isApproved",
-          "message",
-          "userId"
-        ],
+        "required": ["author", "createdAt", "id", "isApproved", "message", "userId"],
         "title": "OwnPromptResponse"
       },
       "PassAction": {
@@ -3742,77 +3313,20 @@
           }
         },
         "type": "object",
-        "required": [
-          "action",
-          "data"
-        ],
+        "required": ["action", "data"],
         "title": "PassAction"
-      },
-      "PendingSuggestion": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "recipientId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "note": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "createdAt": {
-            "type": "string"
-          },
-          "wingerId": {
-            "oneOf": [
-              {
-                "type": "string",
-                "format": "uuid"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "wingerName": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "type": "object",
-        "required": [
-          "createdAt",
-          "id",
-          "note",
-          "recipientId",
-          "wingerId",
-          "wingerName"
-        ],
-        "title": "PendingSuggestion"
       },
       "Photo": {
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "datingProfileId": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "storageUrl": {
             "type": "string"
@@ -3834,7 +3348,8 @@
             "oneOf": [
               {
                 "type": "string",
-                "format": "uuid"
+                "description": "SQID-encoded identifier",
+                "example": "kmxpqdrv"
               },
               {
                 "type": "null"
@@ -3850,6 +3365,12 @@
                 "type": "null"
               }
             ]
+          },
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/ActionDTO"
+            },
+            "type": "array"
           }
         },
         "type": "object",
@@ -3868,7 +3389,8 @@
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "chosenName": {
             "oneOf": [
@@ -3882,17 +3404,15 @@
           }
         },
         "type": "object",
-        "required": [
-          "chosenName",
-          "id"
-        ],
+        "required": ["chosenName", "id"],
         "title": "PhotoSuggester"
       },
       "PhotoSuggesterRef": {
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "chosenName": {
             "oneOf": [
@@ -3906,10 +3426,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "chosenName",
-          "id"
-        ],
+        "required": ["chosenName", "id"],
         "title": "PhotoSuggesterRef"
       },
       "PresignedUploadRequest": {
@@ -3923,16 +3440,15 @@
           }
         },
         "type": "object",
-        "required": [
-          "fileName"
-        ],
+        "required": ["fileName"],
         "title": "PresignedUploadRequest"
       },
       "PresignedUploadResponse": {
         "properties": {
           "mediaId": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "uploadUrl": {
             "type": "string"
@@ -3942,18 +3458,15 @@
           }
         },
         "type": "object",
-        "required": [
-          "key",
-          "mediaId",
-          "uploadUrl"
-        ],
+        "required": ["key", "mediaId", "uploadUrl"],
         "title": "PresignedUploadResponse"
       },
       "Profile": {
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "chosenName": {
             "oneOf": [
@@ -4017,6 +3530,12 @@
                 "type": "null"
               }
             ]
+          },
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/ActionDTO"
+            },
+            "type": "array"
           }
         },
         "type": "object",
@@ -4036,11 +3555,13 @@
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "datingProfileId": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "answer": {
             "type": "string"
@@ -4056,28 +3577,29 @@
               "$ref": "#/components/schemas/PromptResponse"
             },
             "type": "array"
+          },
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/ActionDTO"
+            },
+            "type": "array"
           }
         },
         "type": "object",
-        "required": [
-          "answer",
-          "createdAt",
-          "datingProfileId",
-          "id",
-          "responses",
-          "template"
-        ],
+        "required": ["answer", "createdAt", "datingProfileId", "id", "responses", "template"],
         "title": "ProfilePrompt"
       },
       "PromptResponse": {
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "profilePromptId": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "message": {
             "type": "string"
@@ -4087,7 +3609,8 @@
           },
           "userId": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "createdAt": {
             "type": "string"
@@ -4101,6 +3624,12 @@
                 "type": "null"
               }
             ]
+          },
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/ActionDTO"
+            },
+            "type": "array"
           }
         },
         "type": "object",
@@ -4119,41 +3648,38 @@
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "question": {
             "type": "string"
           }
         },
         "type": "object",
-        "required": [
-          "id",
-          "question"
-        ],
+        "required": ["id", "question"],
         "title": "PromptTemplate"
       },
       "PromptTemplateRef": {
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "question": {
             "type": "string"
           }
         },
         "type": "object",
-        "required": [
-          "id",
-          "question"
-        ],
+        "required": ["id", "question"],
         "title": "PromptTemplateRef"
       },
       "PublicDatingProfile": {
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "bio": {
             "oneOf": [
@@ -4188,25 +3714,24 @@
               "$ref": "#/components/schemas/PublicProfilePrompt"
             },
             "type": "array"
+          },
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/ActionDTO"
+            },
+            "type": "array"
           }
         },
         "type": "object",
-        "required": [
-          "bio",
-          "city",
-          "id",
-          "interests",
-          "photos",
-          "prompts",
-          "religion"
-        ],
+        "required": ["bio", "city", "id", "interests", "photos", "prompts", "religion"],
         "title": "PublicDatingProfile"
       },
       "PublicProfile": {
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "chosenName": {
             "oneOf": [
@@ -4237,22 +3762,24 @@
                 "type": "null"
               }
             ]
+          },
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/ActionDTO"
+            },
+            "type": "array"
           }
         },
         "type": "object",
-        "required": [
-          "avatarUrl",
-          "chosenName",
-          "datingProfile",
-          "id"
-        ],
+        "required": ["avatarUrl", "chosenName", "datingProfile", "id"],
         "title": "PublicProfile"
       },
       "PublicProfilePhoto": {
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "storageUrl": {
             "type": "string"
@@ -4274,7 +3801,8 @@
             "oneOf": [
               {
                 "type": "string",
-                "format": "uuid"
+                "description": "SQID-encoded identifier",
+                "example": "kmxpqdrv"
               },
               {
                 "type": "null"
@@ -4283,20 +3811,15 @@
           }
         },
         "type": "object",
-        "required": [
-          "approvedAt",
-          "displayOrder",
-          "id",
-          "storageUrl",
-          "suggesterId"
-        ],
+        "required": ["approvedAt", "displayOrder", "id", "storageUrl", "suggesterId"],
         "title": "PublicProfilePhoto"
       },
       "PublicProfilePrompt": {
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "answer": {
             "type": "string"
@@ -4309,12 +3832,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "answer",
-          "createdAt",
-          "id",
-          "template"
-        ],
+        "required": ["answer", "createdAt", "id", "template"],
         "title": "PublicProfilePrompt"
       },
       "RedirectActionResult": {
@@ -4328,23 +3846,8 @@
           }
         },
         "type": "object",
-        "required": [
-          "path",
-          "type"
-        ],
+        "required": ["path", "type"],
         "title": "RedirectActionResult"
-      },
-      "RefreshIn": {
-        "properties": {
-          "refreshToken": {
-            "type": "string"
-          }
-        },
-        "type": "object",
-        "required": [
-          "refreshToken"
-        ],
-        "title": "RefreshIn"
       },
       "RejectPhotoAction": {
         "properties": {
@@ -4357,10 +3860,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "action",
-          "data"
-        ],
+        "required": ["action", "data"],
         "title": "RejectPhotoAction"
       },
       "Religion": {
@@ -4390,10 +3890,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "action",
-          "data"
-        ],
+        "required": ["action", "data"],
         "title": "RemoveWingpersonAction"
       },
       "ReorderPhotoAction": {
@@ -4407,10 +3904,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "action",
-          "data"
-        ],
+        "required": ["action", "data"],
         "title": "ReorderPhotoAction"
       },
       "ReorderPhotoData": {
@@ -4420,9 +3914,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "displayOrder"
-        ],
+        "required": ["displayOrder"],
         "title": "ReorderPhotoData"
       },
       "ReportAction": {
@@ -4436,10 +3928,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "action",
-          "data"
-        ],
+        "required": ["action", "data"],
         "title": "ReportAction"
       },
       "ReportActionData": {
@@ -4449,9 +3938,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "reason"
-        ],
+        "required": ["reason"],
         "title": "ReportActionData"
       },
       "SendMessageAction": {
@@ -4465,10 +3952,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "action",
-          "data"
-        ],
+        "required": ["action", "data"],
         "title": "SendMessageAction"
       },
       "SendMessageData": {
@@ -4478,16 +3962,15 @@
           }
         },
         "type": "object",
-        "required": [
-          "body"
-        ],
+        "required": ["body"],
         "title": "SendMessageData"
       },
       "SentInvitation": {
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "createdAt": {
             "type": "string"
@@ -4504,36 +3987,17 @@
                 "type": "null"
               }
             ]
+          },
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/ActionDTO"
+            },
+            "type": "array"
           }
         },
         "type": "object",
-        "required": [
-          "createdAt",
-          "id",
-          "phoneNumber",
-          "winger"
-        ],
+        "required": ["createdAt", "id", "phoneNumber", "winger"],
         "title": "SentInvitation"
-      },
-      "SessionOut": {
-        "properties": {
-          "accessToken": {
-            "type": "string"
-          },
-          "refreshToken": {
-            "type": "string"
-          },
-          "user": {
-            "$ref": "#/components/schemas/UserOut"
-          }
-        },
-        "type": "object",
-        "required": [
-          "accessToken",
-          "refreshToken",
-          "user"
-        ],
-        "title": "SessionOut"
       },
       "SuggestAction": {
         "properties": {
@@ -4546,27 +4010,15 @@
           }
         },
         "type": "object",
-        "required": [
-          "action",
-          "data"
-        ],
+        "required": ["action", "data"],
         "title": "SuggestAction"
       },
       "SuggestActionData": {
         "properties": {
           "daterId": {
             "type": "string",
-            "format": "uuid"
-          },
-          "decision": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/DecisionType"
-              },
-              {
-                "type": "null"
-              }
-            ]
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "note": {
             "oneOf": [
@@ -4580,20 +4032,20 @@
           }
         },
         "type": "object",
-        "required": [
-          "daterId"
-        ],
+        "required": ["daterId"],
         "title": "SuggestActionData"
       },
       "SuggestedPhoto": {
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "daterId": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "daterName": {
             "type": "string"
@@ -4603,36 +4055,27 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "approved",
-              "pending",
-              "not_accepted"
-            ]
+            "enum": ["approved", "pending", "not_accepted"]
           },
           "createdAt": {
             "type": "string"
           }
         },
         "type": "object",
-        "required": [
-          "createdAt",
-          "daterId",
-          "daterName",
-          "id",
-          "status",
-          "storageUrl"
-        ],
+        "required": ["createdAt", "daterId", "daterName", "id", "status", "storageUrl"],
         "title": "SuggestedPhoto"
       },
       "SwipeProfile": {
         "properties": {
           "profileId": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "userId": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "chosenName": {
             "type": "string"
@@ -4702,7 +4145,8 @@
             "oneOf": [
               {
                 "type": "string",
-                "format": "uuid"
+                "description": "SQID-encoded identifier",
+                "example": "kmxpqdrv"
               },
               {
                 "type": "null"
@@ -4718,6 +4162,12 @@
                 "type": "null"
               }
             ]
+          },
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/ActionDTO"
+            },
+            "type": "array"
           }
         },
         "type": "object",
@@ -4750,10 +4200,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "action",
-          "data"
-        ],
+        "required": ["action", "data"],
         "title": "UpdateDatingProfileAction"
       },
       "UpdateDatingProfileData": {
@@ -4859,10 +4306,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "action",
-          "data"
-        ],
+        "required": ["action", "data"],
         "title": "UpdateProfileAction"
       },
       "UpdateProfileData": {
@@ -4925,7 +4369,8 @@
             "oneOf": [
               {
                 "type": "string",
-                "format": "uuid"
+                "description": "SQID-encoded identifier",
+                "example": "kmxpqdrv"
               },
               {
                 "type": "null"
@@ -4941,7 +4386,8 @@
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "role": {
             "oneOf": [
@@ -4965,25 +4411,20 @@
           }
         },
         "type": "object",
-        "required": [
-          "id",
-          "role"
-        ],
+        "required": ["id", "role"],
         "title": "UserOut"
       },
       "UserRole": {
         "type": "string",
-        "enum": [
-          "dater",
-          "winger"
-        ],
+        "enum": ["dater", "winger"],
         "title": "UserRole"
       },
       "WingerSummary": {
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "chosenName": {
             "oneOf": [
@@ -5017,19 +4458,15 @@
           }
         },
         "type": "object",
-        "required": [
-          "avatarUrl",
-          "chosenName",
-          "gender",
-          "id"
-        ],
+        "required": ["avatarUrl", "chosenName", "gender", "id"],
         "title": "WingerSummary"
       },
       "WingingForDater": {
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "chosenName": {
             "oneOf": [
@@ -5076,20 +4513,15 @@
           }
         },
         "type": "object",
-        "required": [
-          "avatarUrl",
-          "bio",
-          "chosenName",
-          "id",
-          "interests"
-        ],
+        "required": ["avatarUrl", "bio", "chosenName", "id", "interests"],
         "title": "WingingForDater"
       },
       "WingingForRow": {
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "createdAt": {
             "type": "string"
@@ -5106,28 +4538,22 @@
           }
         },
         "type": "object",
-        "required": [
-          "createdAt",
-          "dater",
-          "id"
-        ],
+        "required": ["createdAt", "dater", "id"],
         "title": "WingingForRow"
       },
       "WingingForTab": {
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "name": {
             "type": "string"
           }
         },
         "type": "object",
-        "required": [
-          "id",
-          "name"
-        ],
+        "required": ["id", "name"],
         "title": "WingingForTab"
       },
       "WingpeopleResponse": {
@@ -5164,20 +4590,15 @@
           }
         },
         "type": "object",
-        "required": [
-          "invitations",
-          "sentInvitations",
-          "weeklyCounts",
-          "wingingFor",
-          "wingpeople"
-        ],
+        "required": ["invitations", "sentInvitations", "weeklyCounts", "wingingFor", "wingpeople"],
         "title": "WingpeopleResponse"
       },
       "Wingperson": {
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "createdAt": {
             "type": "string"
@@ -5191,21 +4612,24 @@
                 "type": "null"
               }
             ]
+          },
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/ActionDTO"
+            },
+            "type": "array"
           }
         },
         "type": "object",
-        "required": [
-          "createdAt",
-          "id",
-          "winger"
-        ],
+        "required": ["createdAt", "id", "winger"],
         "title": "Wingperson"
       },
       "profiles_schemas_PromptResponseAuthor": {
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "chosenName": {
             "oneOf": [
@@ -5229,18 +4653,15 @@
           }
         },
         "type": "object",
-        "required": [
-          "avatarUrl",
-          "chosenName",
-          "id"
-        ],
+        "required": ["avatarUrl", "chosenName", "id"],
         "title": "PromptResponseAuthor"
       },
       "prompts_schemas_PromptResponseAuthor": {
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
           },
           "chosenName": {
             "oneOf": [
@@ -5264,13 +4685,22 @@
           }
         },
         "type": "object",
-        "required": [
-          "avatarUrl",
-          "chosenName",
-          "id"
-        ],
+        "required": ["avatarUrl", "chosenName", "id"],
         "title": "PromptResponseAuthor"
       }
+    },
+    "securitySchemes": {
+      "sessionCookie": {
+        "type": "apiKey",
+        "description": "Session cookie authentication.",
+        "name": "session",
+        "in": "cookie"
+      }
     }
-  }
+  },
+  "security": [
+    {
+      "sessionCookie": []
+    }
+  ]
 }

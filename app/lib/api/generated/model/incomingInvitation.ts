@@ -4,10 +4,13 @@
  * Litestar API
  * OpenAPI spec version: 1.0.0
  */
+import type { ActionDTO } from './actionDTO';
 import type { DaterSummary } from './daterSummary';
 
 export interface IncomingInvitation {
+  /** SQID-encoded identifier */
   id: string;
   createdAt: string;
   dater: DaterSummary | null;
+  actions?: ActionDTO[];
 }

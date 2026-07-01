@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from uuid import uuid4
-
 import pytest
 from sqlalchemy import func, select, text
 from sqlalchemy.exc import DBAPIError, ProgrammingError
@@ -18,6 +16,7 @@ from app.domain.photos.models import ProfilePhoto
 from app.domain.profiles.models import Profile
 from app.domain.prompts.models import ProfilePrompt, PromptResponse
 from tests.fixtures.graph import ActingAs, DomainGraph
+from tests.fixtures.ids import fake_id
 
 # `asyncio_mode = "auto"` (pyproject.toml) runs `async def test_*` without a marker.
 
@@ -171,7 +170,7 @@ async def test_winger_cannot_insert_decision_for_unrelated_dater(graph: DomainGr
             s,
             "decisions",
             {
-                "id": uuid4(),
+                "id": fake_id(),
                 "actor_id": graph.dater_c.id,
                 "recipient_id": graph.dater_b.id,
                 "decision": None,
@@ -192,7 +191,7 @@ async def test_winger_cannot_impersonate_dater_decision(graph: DomainGraph, acti
             s,
             "decisions",
             {
-                "id": uuid4(),
+                "id": fake_id(),
                 "actor_id": graph.dater_a.id,
                 "recipient_id": graph.dater_c.id,
                 "decision": DecisionType.APPROVED.name,  # TextEnum stores .name
@@ -219,7 +218,7 @@ async def test_non_participant_cannot_send_message(graph: DomainGraph, acting_as
         await _assert_rls_denies_insert(
             s,
             "messages",
-            {"id": uuid4(), "match_id": graph.match.id, "sender_id": graph.dater_c.id, "body": "intruder"},
+            {"id": fake_id(), "match_id": graph.match.id, "sender_id": graph.dater_c.id, "body": "intruder"},
         )
 
 
@@ -229,7 +228,7 @@ async def test_cannot_send_message_as_another_sender(graph: DomainGraph, acting_
         await _assert_rls_denies_insert(
             s,
             "messages",
-            {"id": uuid4(), "match_id": graph.match.id, "sender_id": graph.dater_b.id, "body": "forged"},
+            {"id": fake_id(), "match_id": graph.match.id, "sender_id": graph.dater_b.id, "body": "forged"},
         )
 
 
@@ -287,7 +286,7 @@ async def test_photo_write_denied_off_floor(graph: DomainGraph, acting_as: Actin
             s,
             "profile_photos",
             {
-                "id": uuid4(),
+                "id": fake_id(),
                 "dating_profile_id": graph.dating_profile_a.id,
                 "owner_id": graph.dater_a.id,
                 "media_id": graph.pending_media.id,
@@ -316,7 +315,7 @@ async def test_prompt_write_denied_off_floor(graph: DomainGraph, acting_as: Acti
             s,
             "profile_prompts",
             {
-                "id": uuid4(),
+                "id": fake_id(),
                 "dating_profile_id": graph.dating_profile_a.id,
                 "owner_id": graph.dater_a.id,
                 "prompt_template_id": template_id,
@@ -333,7 +332,7 @@ async def test_prompt_response_insert_must_be_self_authored(graph: DomainGraph, 
             s,
             "prompt_responses",
             {
-                "id": uuid4(),
+                "id": fake_id(),
                 "user_id": graph.dater_a.id,  # not the actor -> WITH CHECK fails
                 "profile_owner_id": graph.dater_c.id,
                 "profile_prompt_id": graph.profile_prompt.id,
@@ -374,7 +373,7 @@ async def test_no_relationship_sees_only_public_profiles(graph: DomainGraph, act
     A brand-new authed actor with no graph ties sees ALL profiles (public) yet
     nothing relationship-scoped: no contacts, decisions, matches, or messages.
     """
-    stranger = uuid4()
+    stranger = fake_id()
     async with acting_as(stranger) as s:
         # Public profile rows are readable...
         profile_ids = await _ids(s, Profile)
@@ -389,13 +388,13 @@ async def test_no_relationship_sees_only_public_profiles(graph: DomainGraph, act
 
 async def test_stranger_cannot_write_to_unrelated_profile(graph: DomainGraph, acting_as: ActingAs) -> None:
     """A stranger cannot create a contact owned by someone else (user_id = me clause)."""
-    stranger = uuid4()
+    stranger = fake_id()
     async with acting_as(stranger) as s:
         await _assert_rls_denies_insert(
             s,
             "contacts",
             {
-                "id": uuid4(),
+                "id": fake_id(),
                 "user_id": graph.dater_a.id,  # not the stranger -> WITH CHECK fails
                 "phone_number": "+15555550000",
                 "winger_id": None,
@@ -452,5 +451,5 @@ async def test_unset_actor_cannot_insert(graph: DomainGraph, acting_as: ActingAs
         await _assert_rls_denies_insert(
             s,
             "messages",
-            {"id": uuid4(), "match_id": graph.match.id, "sender_id": graph.dater_a.id, "body": "no actor"},
+            {"id": fake_id(), "match_id": graph.match.id, "sender_id": graph.dater_a.id, "body": "no actor"},
         )

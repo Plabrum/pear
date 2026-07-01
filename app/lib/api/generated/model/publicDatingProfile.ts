@@ -4,6 +4,7 @@
  * Litestar API
  * OpenAPI spec version: 1.0.0
  */
+import type { ActionDTO } from './actionDTO';
 import type { City } from './city';
 import type { Interest } from './interest';
 import type { PublicProfilePhoto } from './publicProfilePhoto';
@@ -11,6 +12,7 @@ import type { PublicProfilePrompt } from './publicProfilePrompt';
 import type { Religion } from './religion';
 
 export interface PublicDatingProfile {
+  /** SQID-encoded identifier */
   id: string;
   bio: string | null;
   city: City;
@@ -18,4 +20,5 @@ export interface PublicDatingProfile {
   religion: Religion;
   photos: PublicProfilePhoto[];
   prompts: PublicProfilePrompt[];
+  actions?: ActionDTO[];
 }

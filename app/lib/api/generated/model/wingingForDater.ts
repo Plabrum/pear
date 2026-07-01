@@ -7,6 +7,7 @@
 import type { Interest } from './interest';
 
 export interface WingingForDater {
+  /** SQID-encoded identifier */
   id: string;
   chosenName: string | null;
   avatarUrl: string | null;

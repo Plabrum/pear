@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from uuid import UUID
-
 from litestar import Controller, Router, get
 from litestar.exceptions import NotFoundException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,9 +12,13 @@ from app.domain.matches.queries import (
 )
 from app.domain.matches.schemas import MatchSheet, MatchSummary
 from app.domain.matches.transformers import build_match_sheet, row_to_match
+from app.platform.actions.deps import ActionDeps
+from app.platform.actions.enums import ActionGroupType
+from app.platform.actions.hydrate import resolve_group
 from app.platform.auth.guards import requires_session
 from app.platform.auth.principal import User
 from app.platform.media.client import BaseMediaClient
+from app.utils.sqids import Sqid
 
 
 class MatchesController(Controller):
@@ -25,12 +27,17 @@ class MatchesController(Controller):
     path = "/matches"
 
     @get("/", operation_id="getApiMatches")
-    async def list_matches(self, user: User, transaction: AsyncSession, media: BaseMediaClient) -> list[MatchSummary]:
+    async def list_matches(
+        self, user: User, transaction: AsyncSession, media: BaseMediaClient, action_deps: ActionDeps
+    ) -> list[MatchSummary]:
         rows = await fetch_matches(transaction, user.id)
-        return [await row_to_match(r, media) for r in rows]
+        # The MESSAGE_ACTIONS group is bound to the Match model (defined in the
+        # messages domain); resolve it by enum once per request, not per row.
+        message_group = resolve_group(ActionGroupType.MESSAGE_ACTIONS)
+        return [await row_to_match(r, media, message_group, action_deps) for r in rows]
 
-    @get("/{matchId:uuid}/sheet", operation_id="getApiMatchesMatchIdSheet")
-    async def get_match_sheet(self, matchId: UUID, user: User, transaction: AsyncSession) -> MatchSheet:
+    @get("/{matchId:str}/sheet", operation_id="getApiMatchesMatchIdSheet")
+    async def get_match_sheet(self, matchId: Sqid, user: User, transaction: AsyncSession) -> MatchSheet:
         other_user_id = await fetch_match_other_user_id(transaction, user.id, matchId)
         if other_user_id is None:
             raise NotFoundException("Match not found")

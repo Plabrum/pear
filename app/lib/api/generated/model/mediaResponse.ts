@@ -6,6 +6,7 @@
  */
 
 export interface MediaResponse {
+  /** SQID-encoded identifier */
   id: string;
   state: string;
   url: string;

@@ -1,5 +1,4 @@
 import logging
-from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,6 +13,7 @@ from app.platform.queue.enums import TaskName, TaskRoleType
 from app.platform.queue.registry import task
 from app.platform.queue.transactions import with_transaction
 from app.platform.queue.types import AppContext
+from app.utils.sqids import Sqid
 
 logger = logging.getLogger(__name__)
 
@@ -31,8 +31,8 @@ async def form_match(
     ctx: AppContext,
     *,
     transaction: AsyncSession,
-    actor_id: str,
-    recipient_id: str,
+    actor_id: Sqid,
+    recipient_id: Sqid,
 ) -> None:
     """Idempotently form the match for a mutually-approved pair, then push both sides.
 
@@ -47,15 +47,15 @@ async def form_match(
       * else -> a no-op (the second approval hasn't landed; the pair's later like
         will enqueue this again).
     """
-    a = UUID(actor_id)
-    b = UUID(recipient_id)
+    a = actor_id
+    b = recipient_id
 
     if await find_mutual_match(transaction, a, b) is not None:
         return
     if not await both_sides_approved(transaction, a, b):
         return
 
-    lo, hi = (a, b) if str(a) < str(b) else (b, a)
+    lo, hi = (a, b) if a < b else (b, a)
     match = Match(user_a_id=lo, user_b_id=hi)
     transaction.add(match)
     await transaction.flush()

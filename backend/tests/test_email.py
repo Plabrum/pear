@@ -1,6 +1,5 @@
 import logging
 from unittest.mock import AsyncMock, MagicMock
-from uuid import UUID, uuid4
 
 import pytest
 from litestar.plugins.jinja import JinjaTemplateEngine
@@ -13,6 +12,7 @@ from app.platform.comms.enums import MessageDirection, MessageState
 from app.platform.comms.models.messages import Message
 from app.platform.comms.service.emails import EmailService
 from app.platform.queue.enums import TaskName
+from tests.fixtures.ids import fake_id
 
 
 def _email_service(transaction: AsyncSession) -> tuple[EmailService, MagicMock]:
@@ -36,7 +36,7 @@ async def test_send_magic_link_renders_and_enqueues(
     monkeypatch.setattr("app.platform.comms.service.emails.dispatch_task", fake_dispatch)
 
     service, _ = _email_service(db_session)
-    user_id = uuid4()
+    user_id = fake_id()
 
     message_id = await service.send_magic_link_email(
         to_email="dater@example.com",
@@ -55,9 +55,9 @@ async def test_send_magic_link_renders_and_enqueues(
     assert row.body_html and "abc123" in row.body_html
     assert row.body_text and "abc123" in row.body_text
 
-    # The SEND_EMAIL task was dispatched with the message id (as a UUID string).
+    # The SEND_EMAIL task was dispatched with the message id (as an int).
     assert captured["task_name"] == TaskName.SEND_EMAIL
-    assert UUID(captured["kwargs"]["message_id"]) == message_id
+    assert captured["kwargs"]["message_id"] == message_id
 
 
 async def test_send_email_validates_address(

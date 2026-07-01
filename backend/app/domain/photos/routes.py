@@ -7,6 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.domain.photos.queries import fetch_own_photos, fetch_suggested_photos
 from app.domain.photos.schemas import OwnPhotosResponse, SuggestedPhotosResponse
 from app.domain.photos.transformers import photos_to_dtos, suggested_photo_to_dto
+from app.platform.actions.deps import ActionDeps
+from app.platform.actions.enums import ActionGroupType
+from app.platform.actions.hydrate import resolve_group
 from app.platform.auth.guards import requires_session
 from app.platform.auth.principal import User
 from app.platform.media.client import BaseMediaClient
@@ -20,16 +23,18 @@ class PhotosController(Controller):
 
     @get("/me", operation_id="getApiPhotosMe")
     async def list_own_photos(
-        self, user: User, transaction: AsyncSession, media_service: MediaService
+        self, user: User, transaction: AsyncSession, media_service: MediaService, action_deps: ActionDeps
     ) -> OwnPhotosResponse:
         """The caller's OWN photos (pending + approved — the editor shows both).
 
         Ownership satisfies the media SELECT policy, so the URLs are resolved under
         the caller's own scope in one batched pass keyed by each photo's media_id.
+        Each photo carries the actions available on it (approve/reject/delete).
         """
         rows = await fetch_own_photos(transaction, user.id)
         url_by_media = await media_service.resolve_urls([photo.media_id for photo, _ in rows])
-        return photos_to_dtos(rows, url_by_media)
+        photo_group = resolve_group(ActionGroupType.PHOTO_ACTIONS)
+        return photos_to_dtos(rows, url_by_media, photo_group, action_deps)
 
     @get("/suggested", operation_id="getApiPhotosSuggested")
     async def list_suggested_photos(

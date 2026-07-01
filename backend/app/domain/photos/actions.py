@@ -28,6 +28,7 @@ from app.platform.actions.base import (
 from app.platform.actions.deps import ActionDeps
 from app.platform.actions.enums import ActionGroupType, ActionIcon
 from app.platform.actions.schemas import ActionExecutionResponse
+from app.platform.auth.principal import User
 
 # ── Action group ───────────────────────────────────────────────────────────────
 
@@ -42,7 +43,7 @@ class PhotoActionKey(StrEnum):
 
 photo_actions = action_group_factory(
     ActionGroupType.PHOTO_ACTIONS,
-    default_invalidation="photos",
+    default_invalidation="/photos",
     model_type=ProfilePhoto,
 )
 
@@ -61,14 +62,15 @@ class CreatePhoto(BaseTopLevelAction[CreatePhotoData]):
         cls,
         data: CreatePhotoData,
         transaction: AsyncSession,
+        user: User,
         deps: ActionDeps,
     ) -> ActionExecutionResponse:
         owner_id = await fetch_dating_profile_owner(transaction, data.datingProfileId)
         if owner_id is None:
             raise DatingProfileNotFoundError()
 
-        is_owner = owner_id == deps.user.id
-        if not is_owner and not await is_active_wingperson(transaction, owner_id, deps.user.id):
+        is_owner = owner_id == user.id
+        if not is_owner and not await is_active_wingperson(transaction, owner_id, user.id):
             raise NotDaterOrWingpersonError()
 
         photo = ProfilePhoto(
@@ -76,7 +78,7 @@ class CreatePhoto(BaseTopLevelAction[CreatePhotoData]):
             owner_id=owner_id,
             media_id=data.mediaId,
             display_order=data.displayOrder,
-            suggester_id=None if is_owner else deps.user.id,
+            suggester_id=None if is_owner else user.id,
             # Self-uploads are auto-approved; winger suggestions start pending.
             approved_at=datetime.now(tz=UTC) if is_owner else None,
         )
@@ -84,7 +86,7 @@ class CreatePhoto(BaseTopLevelAction[CreatePhotoData]):
         await transaction.flush()
 
         if not is_owner:
-            dater_token, suggester_name = await fetch_dater_push_and_suggester_name(transaction, owner_id, deps.user.id)
+            dater_token, suggester_name = await fetch_dater_push_and_suggester_name(transaction, owner_id, user.id)
             if dater_token:
                 await deps.push.send(
                     dater_token,
@@ -94,7 +96,7 @@ class CreatePhoto(BaseTopLevelAction[CreatePhotoData]):
 
         return ActionExecutionResponse(
             message="Photo added",
-            invalidate_queries=["photos"],
+            invalidate_queries=["/photos", "/dating-profiles/me"],
             created_id=photo.id,
         )
 
@@ -110,10 +112,10 @@ class ApprovePhoto(BaseObjectAction[ProfilePhoto, EmptyActionData]):
     target_state = PhotoApprovalState.APPROVED
 
     @classmethod
-    def is_available(cls, obj: ProfilePhoto, deps: ActionDeps) -> bool:
+    def is_available(cls, obj: ProfilePhoto, user: User, deps: ActionDeps) -> bool:
         # Owner (dater) only, and only while the photo is still pending. Ownership
         # is a flat column compare now that owner_id rides on the row.
-        return derive_state(obj) is PhotoApprovalState.PENDING and obj.owner_id == deps.user.id
+        return derive_state(obj) is PhotoApprovalState.PENDING and obj.owner_id == user.id
 
     @classmethod
     async def execute(
@@ -121,18 +123,19 @@ class ApprovePhoto(BaseObjectAction[ProfilePhoto, EmptyActionData]):
         obj: ProfilePhoto,
         data: EmptyActionData,
         transaction: AsyncSession,
+        user: User,
         deps: ActionDeps,
     ) -> ActionExecutionResponse:
         await deps.state_machine_service.transition(
             photo_approval_machine,
             obj,
             PhotoApprovalState.APPROVED,
-            actor=deps.user,
+            actor=user,
         )
         await transaction.flush()
         return ActionExecutionResponse(
             message="Photo approved",
-            invalidate_queries=["photos"],
+            invalidate_queries=["/photos", "/dating-profiles/me"],
         )
 
 
@@ -147,9 +150,9 @@ class RejectPhoto(BaseObjectAction[ProfilePhoto, EmptyActionData]):
     target_state = PhotoApprovalState.REJECTED
 
     @classmethod
-    def is_available(cls, obj: ProfilePhoto, deps: ActionDeps) -> bool:
+    def is_available(cls, obj: ProfilePhoto, user: User, deps: ActionDeps) -> bool:
         # Owner (dater) only, only while pending — flat column compare on owner_id.
-        return derive_state(obj) is PhotoApprovalState.PENDING and obj.owner_id == deps.user.id
+        return derive_state(obj) is PhotoApprovalState.PENDING and obj.owner_id == user.id
 
     @classmethod
     async def execute(
@@ -157,6 +160,7 @@ class RejectPhoto(BaseObjectAction[ProfilePhoto, EmptyActionData]):
         obj: ProfilePhoto,
         data: EmptyActionData,
         transaction: AsyncSession,
+        user: User,
         deps: ActionDeps,
     ) -> ActionExecutionResponse:
         # The machine's RejectedState.on_enter sets rejected_at. We never assign the
@@ -165,7 +169,7 @@ class RejectPhoto(BaseObjectAction[ProfilePhoto, EmptyActionData]):
             photo_approval_machine,
             obj,
             PhotoApprovalState.REJECTED,
-            actor=deps.user,
+            actor=user,
         )
         await transaction.flush()
         # The rejection ROW stays (it feeds the winger-activity rejection feed). The
@@ -173,7 +177,7 @@ class RejectPhoto(BaseObjectAction[ProfilePhoto, EmptyActionData]):
         # by the media domain (DELETE /media/{id}) — this domain no longer touches storage.
         return ActionExecutionResponse(
             message="Photo rejected",
-            invalidate_queries=["photos"],
+            invalidate_queries=["/photos", "/dating-profiles/me"],
         )
 
 
@@ -188,10 +192,10 @@ class DeletePhoto(BaseObjectAction[ProfilePhoto, EmptyActionData]):
     confirmation_message = "Delete this photo?"
 
     @classmethod
-    def is_available(cls, obj: ProfilePhoto, deps: ActionDeps) -> bool:
+    def is_available(cls, obj: ProfilePhoto, user: User, deps: ActionDeps) -> bool:
         # Dater (owner) OR the wingperson who suggested it may delete the photo —
         # both flat column compares now that owner_id rides on the row.
-        return obj.owner_id == deps.user.id or obj.suggester_id == deps.user.id
+        return obj.owner_id == user.id or obj.suggester_id == user.id
 
     @classmethod
     async def execute(
@@ -199,6 +203,7 @@ class DeletePhoto(BaseObjectAction[ProfilePhoto, EmptyActionData]):
         obj: ProfilePhoto,
         data: EmptyActionData,
         transaction: AsyncSession,
+        user: User,
         deps: ActionDeps,
     ) -> ActionExecutionResponse:
         await transaction.delete(obj)
@@ -207,7 +212,7 @@ class DeletePhoto(BaseObjectAction[ProfilePhoto, EmptyActionData]):
         # deleted via the media domain's DELETE /media/{id}, which owns storage cleanup.
         return ActionExecutionResponse(
             message="Photo deleted",
-            invalidate_queries=["photos"],
+            invalidate_queries=["/photos", "/dating-profiles/me"],
         )
 
 
@@ -222,9 +227,9 @@ class ReorderPhoto(BaseObjectAction[ProfilePhoto, ReorderPhotoData]):
     is_hidden = True  # mechanical drag-reorder, not a surfaced menu action
 
     @classmethod
-    def is_available(cls, obj: ProfilePhoto, deps: ActionDeps) -> bool:
+    def is_available(cls, obj: ProfilePhoto, user: User, deps: ActionDeps) -> bool:
         # Owner (dater) only — flat column compare on owner_id.
-        return obj.owner_id == deps.user.id
+        return obj.owner_id == user.id
 
     @classmethod
     async def execute(
@@ -232,11 +237,12 @@ class ReorderPhoto(BaseObjectAction[ProfilePhoto, ReorderPhotoData]):
         obj: ProfilePhoto,
         data: ReorderPhotoData,
         transaction: AsyncSession,
+        user: User,
         deps: ActionDeps,
     ) -> ActionExecutionResponse:
         obj.display_order = data.displayOrder
         await transaction.flush()
         return ActionExecutionResponse(
             message="Photo reordered",
-            invalidate_queries=["photos"],
+            invalidate_queries=["/photos", "/dating-profiles/me"],
         )

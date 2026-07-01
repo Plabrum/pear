@@ -11,6 +11,7 @@ from app.platform.actions.base import (
 from app.platform.actions.deps import ActionDeps
 from app.platform.actions.enums import ActionGroupType, ActionIcon
 from app.platform.actions.schemas import ActionExecutionResponse
+from app.platform.auth.principal import User
 from tests.fixtures.sample_domain.models import SampleStatus, SampleWidget
 from tests.fixtures.sample_domain.state_machine import sample_machine
 
@@ -34,7 +35,7 @@ class ActivateWidget(BaseObjectAction[SampleWidget, EmptyActionData]):
     target_state = SampleStatus.ACTIVE
 
     @classmethod
-    def is_available(cls, obj: SampleWidget, deps: ActionDeps) -> bool:
+    def is_available(cls, obj: SampleWidget, user: User, deps: ActionDeps) -> bool:
         # Only a draft widget can be activated — proves state gating.
         return obj.state == SampleStatus.DRAFT
 
@@ -44,13 +45,14 @@ class ActivateWidget(BaseObjectAction[SampleWidget, EmptyActionData]):
         obj: SampleWidget,
         data: EmptyActionData,
         transaction: AsyncSession,
+        user: User,
         deps: ActionDeps,
     ) -> ActionExecutionResponse:
         await deps.state_machine_service.transition(
             sample_machine,
             obj,
             SampleStatus.ACTIVE,
-            actor=deps.user,
+            actor=user,
         )
         return ActionExecutionResponse(
             message="Widget activated",

@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 from dataclasses import asdict, is_dataclass
 from typing import Any
-from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -26,7 +25,7 @@ async def emit_event(
     session: AsyncSession,
     event_type: EventType,
     obj: BaseDBModel,
-    user_id: UUID | None,
+    user_id: int | None,
     event_data: EventDataTypes = None,
 ) -> Event:
     """Persist an Event row in the caller's transaction and return it.

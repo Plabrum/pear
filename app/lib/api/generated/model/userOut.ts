@@ -7,6 +7,7 @@
 import type { UserRole } from './userRole';
 
 export interface UserOut {
+  /** SQID-encoded identifier */
   id: string;
   role: UserRole | null;
   chosenName?: string | null;

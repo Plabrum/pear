@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import io
 from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import uuid4
 
 import pytest
 from PIL import Image
@@ -20,6 +19,7 @@ from app.platform.media.service import MediaService
 from app.platform.media.tasks import process_image
 from app.platform.state_machine.roles import Role
 from tests.fixtures.graph import ActingAs, DomainGraph
+from tests.fixtures.ids import fake_id
 from tests.fixtures.media import local_media
 
 # `asyncio_mode = "auto"` (pyproject.toml) runs `async def test_*` without a marker.
@@ -66,7 +66,7 @@ async def test_process_image_reencodes_to_webp_and_reaches_ready(
     await client.upload(media.file_key, data_fn(), content_type="image/jpeg")
 
     ctx = {"config": TestConfig(), "media_client": client}
-    await process_image(ctx, transaction=db_session, media_id=str(media.id))
+    await process_image(ctx, transaction=db_session, media_id=int(media.id))
 
     refreshed = (await db_session.execute(select(Media).where(Media.id == media.id))).scalar_one()
     assert refreshed.state is MediaState.READY
@@ -86,7 +86,7 @@ async def test_process_image_missing_bytes_marks_failed(graph: DomainGraph, db_s
     # Empty store -> download raises MediaError -> task swallows and marks FAILED.
     client = local_media()
     ctx = {"config": TestConfig(), "media_client": client}
-    await process_image(ctx, transaction=db_session, media_id=str(media.id))
+    await process_image(ctx, transaction=db_session, media_id=int(media.id))
 
     refreshed = (await db_session.execute(select(Media).where(Media.id == media.id))).scalar_one()
     assert refreshed.state is MediaState.FAILED
@@ -223,10 +223,10 @@ async def test_route_uploaded_enqueues_processing(graph: DomainGraph, db_session
         resp = await MediaController.uploaded.fn(_SELF, media.id, MagicMock(), _user(graph.dater_a.id), db_session)
     assert resp.id == media.id
     dispatched.assert_awaited_once()
-    # media_id arg is the row id as a string.
+    # media_id arg is the row id as an int.
     await_args = dispatched.await_args
     assert await_args is not None
-    assert await_args.kwargs["media_id"] == str(media.id)
+    assert await_args.kwargs["media_id"] == int(media.id)
 
 
 async def test_route_uploaded_denied_for_non_owner(graph: DomainGraph, db_session: AsyncSession) -> None:
@@ -265,4 +265,4 @@ async def test_route_delete_removes_file_and_row(graph: DomainGraph, db_session:
 async def test_route_get_one_missing_raises(graph: DomainGraph, db_session: AsyncSession) -> None:
     client = local_media()
     with pytest.raises(MediaNotFoundError):
-        await MediaController.get_one.fn(_SELF, uuid4(), db_session, client)
+        await MediaController.get_one.fn(_SELF, fake_id(), db_session, client)

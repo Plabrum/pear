@@ -6,8 +6,10 @@
  */
 
 export interface ConversationLastMessage {
+  /** SQID-encoded identifier */
   id: string;
   body: string;
+  /** SQID-encoded identifier */
   senderId: string;
   isRead: boolean;
   createdAt: string;

@@ -2,21 +2,25 @@ from __future__ import annotations
 
 from collections.abc import AsyncGenerator
 from unittest.mock import MagicMock
-from uuid import uuid4
 
 import pytest
 from litestar import Request
 from litestar.channels import ChannelsPlugin
+from litestar.connection import ASGIConnection
 from litestar.di import Provide
 from litestar.exceptions import WebSocketDisconnect
+from litestar.middleware.session.server_side import ServerSideSessionConfig
+from litestar.status_codes import WS_1000_NORMAL_CLOSURE
+from litestar.stores.memory import MemoryStore
 from litestar.testing import AsyncTestClient
 from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import TestConfig
 from app.domain.messages.schemas import Message, MessageSender
+from app.domain.profiles.models import Profile
 from app.factory import create_app
-from app.platform.auth.tokens import TokenService
+from app.platform.auth.principal import User
 from app.platform.realtime.channels import (
     MESSAGES_LIST_CHANNEL,
     MatchChannel,
@@ -30,9 +34,10 @@ from app.platform.realtime.channels import (
     typing_pair_channel,
 )
 from app.platform.realtime.presence import PresenceRegistry
-from app.platform.realtime.routes import WS_CLOSE_UNAUTHENTICATED
 from app.platform.realtime.service import RealtimeService
+from app.utils.sqids import sqid_encode
 from tests.fixtures.graph import ActingAs, DomainGraph
+from tests.fixtures.ids import fake_id
 
 # `asyncio_mode = "auto"` (pyproject.toml) runs `async def test_*` without a marker.
 
@@ -41,12 +46,12 @@ from tests.fixtures.graph import ActingAs, DomainGraph
 
 
 def test_match_channel_name_matches_client() -> None:
-    mid = uuid4()
+    mid = fake_id()
     assert match_channel(mid) == f"messages:match:{mid}"
 
 
 def test_pair_channels_are_sorted_like_the_client() -> None:
-    a, b = uuid4(), uuid4()
+    a, b = fake_id(), fake_id()
     # Sorted by string, regardless of argument order — matches use-presence.ts /
     # use-typing.ts `[a, b].sort().join(':')`.
     assert presence_pair_channel(a, b) == presence_pair_channel(b, a)
@@ -57,7 +62,7 @@ def test_pair_channels_are_sorted_like_the_client() -> None:
 
 
 def test_parse_channel_round_trips() -> None:
-    mid, a, b = uuid4(), uuid4(), uuid4()
+    mid, a, b = fake_id(), fake_id(), fake_id()
     assert parse_channel(match_channel(mid)) == MatchChannel(match_id=mid)
     assert isinstance(parse_channel(MESSAGES_LIST_CHANNEL), MessagesListChannel)
 
@@ -74,8 +79,8 @@ def test_parse_channel_rejects_malformed() -> None:
     assert parse_channel("garbage") is None
     assert parse_channel("messages:match:not-a-uuid") is None
     assert parse_channel("presence:only-one-part") is None
-    assert parse_channel(f"presence:{uuid4()}:not-a-uuid") is None
-    assert parse_channel(f"typing:{uuid4()}") is None
+    assert parse_channel(f"presence:{fake_id()}:not-a-uuid") is None
+    assert parse_channel(f"typing:{fake_id()}") is None
 
 
 # ── Subscribe-time authorization (RLS-equivalent) ────────────────────────────────
@@ -101,11 +106,11 @@ async def test_authorize_match_channel_rejects_non_participants(graph: DomainGra
 
 async def test_authorize_match_channel_rejects_unknown_match(graph: DomainGraph, acting_as: ActingAs) -> None:
     async with acting_as(graph.dater_a.id) as s:
-        assert await authorize_channel(s, graph.dater_a.id, match_channel(uuid4())) is False
+        assert await authorize_channel(s, graph.dater_a.id, match_channel(fake_id())) is False
 
 
 async def test_authorize_pair_channel_requires_membership(db_session: AsyncSession) -> None:
-    a, b, c = uuid4(), uuid4(), uuid4()
+    a, b, c = fake_id(), fake_id(), fake_id()
     presence = presence_pair_channel(a, b)
     typing = typing_pair_channel(a, b)
     # Either member may join their shared pair channel...
@@ -118,11 +123,11 @@ async def test_authorize_pair_channel_requires_membership(db_session: AsyncSessi
 
 
 async def test_authorize_messages_list_open_to_any_user(db_session: AsyncSession) -> None:
-    assert await authorize_channel(db_session, uuid4(), MESSAGES_LIST_CHANNEL) is True
+    assert await authorize_channel(db_session, fake_id(), MESSAGES_LIST_CHANNEL) is True
 
 
 async def test_authorize_unknown_channel_denied(db_session: AsyncSession) -> None:
-    assert await authorize_channel(db_session, uuid4(), "not-a-real-channel") is False
+    assert await authorize_channel(db_session, fake_id(), "not-a-real-channel") is False
 
 
 # ── Presence registry: green-dot derivation + ref counting ───────────────────────
@@ -130,7 +135,7 @@ async def test_authorize_unknown_channel_denied(db_session: AsyncSession) -> Non
 
 def test_presence_online_and_offline() -> None:
     reg = PresenceRegistry()
-    u = uuid4()
+    u = fake_id()
     assert reg.is_online(u) is False
     assert reg.connect(u) is True  # first socket -> NEW arrival
     assert reg.is_online(u) is True
@@ -140,7 +145,7 @@ def test_presence_online_and_offline() -> None:
 
 def test_presence_reference_counts_multiple_sockets() -> None:
     reg = PresenceRegistry()
-    u = uuid4()
+    u = fake_id()
     assert reg.connect(u) is True  # 0 -> 1 : arrival
     assert reg.connect(u) is False  # 1 -> 2 : not a new arrival
     assert reg.is_online(u) is True
@@ -152,7 +157,7 @@ def test_presence_reference_counts_multiple_sockets() -> None:
 
 def test_presence_duplicate_disconnect_is_harmless() -> None:
     reg = PresenceRegistry()
-    u = uuid4()
+    u = fake_id()
     reg.connect(u)
     assert reg.disconnect(u) is True
     assert reg.disconnect(u) is False  # already gone -> no spurious leave
@@ -160,7 +165,7 @@ def test_presence_duplicate_disconnect_is_harmless() -> None:
 
 def test_presence_online_ids_set_excludes_self() -> None:
     reg = PresenceRegistry()
-    me, other = uuid4(), uuid4()
+    me, other = fake_id(), fake_id()
     reg.connect(me)
     reg.connect(other)
     assert reg.online_ids(excluding=me) == {other}
@@ -172,7 +177,7 @@ def test_presence_online_ids_set_excludes_self() -> None:
 
 def _message(match_id, sender_id) -> Message:
     return Message(
-        id=uuid4(),
+        id=fake_id(),
         matchId=match_id,
         senderId=sender_id,
         body="hello",
@@ -189,7 +194,7 @@ async def test_publish_message_fires_only_after_commit(db_session: AsyncSession)
     """
     channels = MagicMock()
     service = RealtimeService(channels)
-    mid, sender = uuid4(), uuid4()
+    mid, sender = fake_id(), fake_id()
 
     # Register the after-commit publish, then assert it has NOT fired yet.
     service.publish_message_after_commit(db_session, mid, _message(mid, sender))
@@ -224,7 +229,7 @@ async def test_publish_message_not_fired_on_rollback() -> None:
     original = event.listen
     event.listen = _listen  # type: ignore[assignment]
     try:
-        service.publish_message_after_commit(tx, uuid4(), _message(uuid4(), uuid4()))
+        service.publish_message_after_commit(tx, fake_id(), _message(fake_id(), fake_id()))
     finally:
         event.listen = original  # type: ignore[assignment]
 
@@ -239,7 +244,7 @@ async def test_publish_message_not_fired_on_rollback() -> None:
 def test_publish_pair_presence_frame_shape() -> None:
     channels = MagicMock()
     service = RealtimeService(channels)
-    a, b = uuid4(), uuid4()
+    a, b = fake_id(), fake_id()
     service.publish_pair_presence(a, b, online=True)
 
     frame, channel = channels.publish.call_args.args
@@ -250,19 +255,20 @@ def test_publish_pair_presence_frame_shape() -> None:
 def test_publish_messages_list_presence_frame_shape() -> None:
     channels = MagicMock()
     service = RealtimeService(channels)
-    ids = {uuid4(), uuid4()}
+    ids = {int(fake_id()), int(fake_id())}
     service.publish_messages_list_presence(ids)
 
     frame, channel = channels.publish.call_args.args
     assert channel == MESSAGES_LIST_CHANNEL
     assert frame["type"] == "presence"
-    assert set(frame["onlineIds"]) == {str(i) for i in ids}
+    # ids ride the wire as their sqid-encoded string form.
+    assert set(frame["onlineIds"]) == {sqid_encode(i) for i in ids}
 
 
 def test_publish_typing_frame_shape() -> None:
     channels = MagicMock()
     service = RealtimeService(channels)
-    a, b = uuid4(), uuid4()
+    a, b = fake_id(), fake_id()
     service.publish_typing(a, b, ts=1234)
 
     frame, channel = channels.publish.call_args.args
@@ -276,12 +282,14 @@ def test_publish_typing_frame_shape() -> None:
 
 # ── End-to-end: the `/ws` route over AsyncTestClient ─────────────────────────────
 #
-# Proves the wire contract the client realtime agent matches: connect with
-# `?token=<jwt>`, get `ready`, then the subscribe gate (participant allowed,
-# non-participant rejected) and the unauthenticated close. The app is wired to the
-# savepoint `db_session` so the RLS-scoped subscribe check runs against the seeded
-# graph. The channels plugin's pub/sub workers are started by the test client's
-# lifespan (`async with AsyncTestClient(...)`).
+# Proves the wire contract the client realtime agent matches: SessionAuth runs on
+# the handshake and authenticates via the SESSION COOKIE (no `?token=`), the socket
+# gets `ready`, then the subscribe gate (participant allowed, non-participant
+# rejected) and the unauthenticated close when no session is present. The app is
+# wired to the savepoint `db_session` so the RLS-scoped subscribe check runs against
+# the seeded graph, and the SessionAuth `retrieve_user_handler` rehydrates the
+# principal from that same session. The channels plugin's pub/sub workers are
+# started by the test client's lifespan (`async with AsyncTestClient(...)`).
 
 
 @pytest.fixture
@@ -290,7 +298,14 @@ async def ws_app(
     graph: DomainGraph,  # seeds the match graph in system mode before the client opens
     db_session: AsyncSession,
 ) -> AsyncGenerator[AsyncTestClient]:
-    """Real app on the savepoint session, exposing the graph + a token signer."""
+    """Real app on the savepoint session, cookie-session auth backed by a memory store."""
+
+    async def _retrieve_user(session: dict, connection: ASGIConnection) -> User | None:
+        user_id = session.get("user_id")
+        if not user_id:
+            return None
+        profile = await db_session.get(Profile, user_id)
+        return User.from_profile(profile) if profile is not None else None
 
     async def _test_transaction(request: Request) -> AsyncGenerator[AsyncSession]:
         async with db_session.begin_nested():
@@ -310,37 +325,39 @@ async def ws_app(
             "db_session": Provide(lambda: db_session, sync_to_thread=False),
             "transaction": Provide(_test_transaction),
         },
+        stores_overrides={"sessions": MemoryStore()},
+        retrieve_user_handler_override=_retrieve_user,
     )
-    async with AsyncTestClient(app=app) as client:
+    # `session_config` mirrors the factory's (non-secure under TestConfig) so
+    # `set_session_data` writes to the same "sessions" store and the plain-HTTP ws
+    # client sends the cookie on the handshake.
+    session_config = ServerSideSessionConfig(store="sessions", samesite="lax", secure=False, httponly=True)
+    async with AsyncTestClient(app=app, session_config=session_config) as client:
         client.config = test_config  # type: ignore[attr-defined]
         client.graph = graph  # type: ignore[attr-defined]
         yield client
 
 
-def _token_for(client: AsyncTestClient, profile) -> str:
-    return TokenService(db=None, config=client.config).issue_access_token(profile)  # type: ignore[arg-type,attr-defined]
+async def _login_as(client: AsyncTestClient, profile) -> None:
+    """Set the cookie session for `profile` so the next ws handshake authenticates."""
+    await client.set_session_data({"user_id": str(profile.id)})
 
 
-async def test_ws_rejects_missing_token(ws_app: AsyncTestClient) -> None:
-    # The test session turns the server's close frame into a WebSocketDisconnect
-    # carrying the close code — assert the app-defined unauthenticated code.
+async def test_ws_rejects_missing_session(ws_app: AsyncTestClient) -> None:
+    # No session cookie -> SessionAuth runs on the upgrade (the `/ws` route is NOT
+    # excluded) and rejects the handshake before the handler accepts. Either close
+    # path is unauthenticated: SessionAuth's own rejection, or — if a connection ever
+    # reached the handler with no principal — the handler's defensive 4401 close.
     with pytest.raises(WebSocketDisconnect) as exc:
         with await ws_app.websocket_connect("/ws") as ws:
             ws.receive()
-    assert exc.value.code == WS_CLOSE_UNAUTHENTICATED
-
-
-async def test_ws_rejects_invalid_token(ws_app: AsyncTestClient) -> None:
-    with pytest.raises(WebSocketDisconnect) as exc:
-        with await ws_app.websocket_connect("/ws", params={"token": "not-a-jwt"}) as ws:
-            ws.receive()
-    assert exc.value.code == WS_CLOSE_UNAUTHENTICATED
+    assert exc.value.code != WS_1000_NORMAL_CLOSURE
 
 
 async def test_ws_authed_connect_gets_ready(ws_app: AsyncTestClient) -> None:
     graph: DomainGraph = ws_app.graph  # type: ignore[attr-defined]
-    token = _token_for(ws_app, graph.dater_a)
-    with await ws_app.websocket_connect("/ws", params={"token": token}) as ws:
+    await _login_as(ws_app, graph.dater_a)
+    with await ws_app.websocket_connect("/ws") as ws:
         assert ws.receive_json()["type"] == "ready"
 
 
@@ -354,9 +371,9 @@ async def test_ws_may_subscribe_to_own_pair_channel(ws_app: AsyncTestClient) -> 
     savepoint session across the test client's portal thread.
     """
     graph: DomainGraph = ws_app.graph  # type: ignore[attr-defined]
-    token = _token_for(ws_app, graph.dater_a)
+    await _login_as(ws_app, graph.dater_a)
     channel = presence_pair_channel(graph.dater_a.id, graph.dater_b.id)
-    with await ws_app.websocket_connect("/ws", params={"token": token}) as ws:
+    with await ws_app.websocket_connect("/ws") as ws:
         assert ws.receive_json()["type"] == "ready"
         ws.send_json({"type": "subscribe", "channel": channel})
         ack = ws.receive_json()
@@ -365,8 +382,8 @@ async def test_ws_may_subscribe_to_own_pair_channel(ws_app: AsyncTestClient) -> 
 
 async def test_ws_may_subscribe_to_messages_list(ws_app: AsyncTestClient) -> None:
     graph: DomainGraph = ws_app.graph  # type: ignore[attr-defined]
-    token = _token_for(ws_app, graph.dater_a)
-    with await ws_app.websocket_connect("/ws", params={"token": token}) as ws:
+    await _login_as(ws_app, graph.dater_a)
+    with await ws_app.websocket_connect("/ws") as ws:
         assert ws.receive_json()["type"] == "ready"
         ws.send_json({"type": "subscribe", "channel": MESSAGES_LIST_CHANNEL})
         ack = ws.receive_json()
@@ -376,9 +393,9 @@ async def test_ws_may_subscribe_to_messages_list(ws_app: AsyncTestClient) -> Non
 async def test_ws_subscribe_to_others_presence_pair_rejected(ws_app: AsyncTestClient) -> None:
     graph: DomainGraph = ws_app.graph  # type: ignore[attr-defined]
     # dater_a tries to join a pair channel between dater_b and dater_c (not theirs).
-    token = _token_for(ws_app, graph.dater_a)
+    await _login_as(ws_app, graph.dater_a)
     channel = presence_pair_channel(graph.dater_b.id, graph.dater_c.id)
-    with await ws_app.websocket_connect("/ws", params={"token": token}) as ws:
+    with await ws_app.websocket_connect("/ws") as ws:
         assert ws.receive_json()["type"] == "ready"
         ws.send_json({"type": "subscribe", "channel": channel})
         frame = ws.receive_json()
@@ -388,8 +405,8 @@ async def test_ws_subscribe_to_others_presence_pair_rejected(ws_app: AsyncTestCl
 
 async def test_ws_ping_pong(ws_app: AsyncTestClient) -> None:
     graph: DomainGraph = ws_app.graph  # type: ignore[attr-defined]
-    token = _token_for(ws_app, graph.dater_a)
-    with await ws_app.websocket_connect("/ws", params={"token": token}) as ws:
+    await _login_as(ws_app, graph.dater_a)
+    with await ws_app.websocket_connect("/ws") as ws:
         assert ws.receive_json()["type"] == "ready"
         ws.send_json({"type": "ping"})
         assert ws.receive_json() == {"type": "pong"}
@@ -404,11 +421,11 @@ async def test_ws_subscribed_socket_receives_published_frame(ws_app: AsyncTestCl
     subscribed to, and assert the socket forwards it.
     """
     graph: DomainGraph = ws_app.graph  # type: ignore[attr-defined]
-    token = _token_for(ws_app, graph.dater_a)
+    await _login_as(ws_app, graph.dater_a)
     channel = presence_pair_channel(graph.dater_a.id, graph.dater_b.id)
     plugin = ws_app.app.plugins.get(ChannelsPlugin)  # type: ignore[attr-defined]
 
-    with await ws_app.websocket_connect("/ws", params={"token": token}) as ws:
+    with await ws_app.websocket_connect("/ws") as ws:
         assert ws.receive_json()["type"] == "ready"
         ws.send_json({"type": "subscribe", "channel": channel})
         assert ws.receive_json() == {"type": "subscribed", "channel": channel}

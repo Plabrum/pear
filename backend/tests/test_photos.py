@@ -3,7 +3,6 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import cast
 from unittest.mock import AsyncMock, MagicMock
-from uuid import uuid4
 
 import pytest
 from sqlalchemy import select
@@ -15,6 +14,7 @@ from app.domain.photos.actions import (
     DeletePhoto,
     RejectPhoto,
     ReorderPhoto,
+    photo_actions,
 )
 from app.domain.photos.enums import PhotoApprovalState
 from app.domain.photos.exceptions import (
@@ -34,6 +34,7 @@ from app.platform.media.service import MediaService
 from app.platform.state_machine.machine import StateMachineService
 from app.platform.state_machine.roles import Role
 from tests.fixtures.graph import ActingAs, DomainGraph
+from tests.fixtures.ids import fake_id
 from tests.fixtures.media import local_media
 
 # `asyncio_mode = "auto"` (pyproject.toml) runs `async def test_*` without a marker.
@@ -68,7 +69,7 @@ async def test_list_own_photos_ordered_with_suggester(graph: DomainGraph, db_ses
     # The route resolves every photo's media_id in one batched pass under the
     # caller's own scope (ownership satisfies the media SELECT policy).
     url_by_media = await MediaService(db_session, local_media()).resolve_urls([photo.media_id for photo, _ in rows])
-    dtos = photos_to_dtos(rows, url_by_media)
+    dtos = photos_to_dtos(rows, url_by_media, photo_actions, _deps(db_session, user_id=graph.dater_a.id))
 
     # graph seeds 1 approved (self) + 1 pending (winger-suggested) photo.
     assert [d.displayOrder for d in dtos] == [0, 1]
@@ -200,7 +201,7 @@ async def test_create_photo_self_upload_auto_approved(graph: DomainGraph, db_ses
         mediaId=media.id,
         displayOrder=2,
     )
-    result = await CreatePhoto.execute(data, db_session, deps)
+    result = await CreatePhoto.execute(data, db_session, deps.user, deps)
 
     assert result.created_id is not None
     photo = await _get_photo(db_session, result.created_id)
@@ -221,7 +222,7 @@ async def test_create_photo_winger_suggestion_pending_and_pushes(graph: DomainGr
         mediaId=media.id,
         displayOrder=3,
     )
-    result = await CreatePhoto.execute(data, db_session, deps)
+    result = await CreatePhoto.execute(data, db_session, deps.user, deps)
 
     photo = await _get_photo(db_session, result.created_id)
     assert photo is not None
@@ -238,18 +239,18 @@ async def test_create_photo_denied_for_non_wingperson(graph: DomainGraph, db_ses
     deps = _deps(db_session, user_id=graph.dater_c.id)
     data = CreatePhotoData(
         datingProfileId=graph.dating_profile_a.id,
-        mediaId=uuid4(),
+        mediaId=fake_id(),
         displayOrder=9,
     )
     with pytest.raises(NotDaterOrWingpersonError):
-        await CreatePhoto.execute(data, db_session, deps)
+        await CreatePhoto.execute(data, db_session, deps.user, deps)
 
 
 async def test_create_photo_missing_dating_profile(graph: DomainGraph, db_session: AsyncSession) -> None:
     deps = _deps(db_session, user_id=graph.dater_a.id)
-    data = CreatePhotoData(datingProfileId=uuid4(), mediaId=uuid4(), displayOrder=0)
+    data = CreatePhotoData(datingProfileId=fake_id(), mediaId=fake_id(), displayOrder=0)
     with pytest.raises(DatingProfileNotFoundError):
-        await CreatePhoto.execute(data, db_session, deps)
+        await CreatePhoto.execute(data, db_session, deps.user, deps)
 
 
 # ── Actions: approve / reject (state machine) ────────────────────────────────────
@@ -259,8 +260,8 @@ async def test_approve_photo_happy_path(graph: DomainGraph, db_session: AsyncSes
     deps = _deps(db_session, user_id=graph.dater_a.id)
     photo = graph.pending_photo
 
-    assert ApprovePhoto.is_available(photo, deps) is True
-    result = await ApprovePhoto.execute(photo, EmptyActionData(), db_session, deps)
+    assert ApprovePhoto.is_available(photo, deps.user, deps) is True
+    result = await ApprovePhoto.execute(photo, EmptyActionData(), db_session, deps.user, deps)
 
     assert result.message == "Photo approved"
     refreshed = await _get_photo(db_session, photo.id)
@@ -272,7 +273,7 @@ async def test_approve_photo_happy_path(graph: DomainGraph, db_session: AsyncSes
 async def test_approve_photo_unavailable_when_already_approved(graph: DomainGraph, db_session: AsyncSession) -> None:
     deps = _deps(db_session, user_id=graph.dater_a.id)
     # The seeded approved photo is no longer pending -> gate denies.
-    assert ApprovePhoto.is_available(graph.approved_photo, deps) is False
+    assert ApprovePhoto.is_available(graph.approved_photo, deps.user, deps) is False
 
 
 async def test_approve_photo_denied_for_non_owner(graph: DomainGraph, db_session: AsyncSession) -> None:
@@ -280,15 +281,15 @@ async def test_approve_photo_denied_for_non_owner(graph: DomainGraph, db_session
     # is_available (owner_id compare), so the action is simply not offered — a
     # request would surface as 403 from ActionGroup.trigger, never reach execute.
     deps = _deps(db_session, user_id=graph.winger.id, role=Role.WINGER)
-    assert ApprovePhoto.is_available(graph.pending_photo, deps) is False
+    assert ApprovePhoto.is_available(graph.pending_photo, deps.user, deps) is False
 
 
 async def test_reject_photo_happy_path(graph: DomainGraph, db_session: AsyncSession) -> None:
     deps = _deps(db_session, user_id=graph.dater_a.id)
     photo = graph.pending_photo
 
-    assert RejectPhoto.is_available(photo, deps) is True
-    result = await RejectPhoto.execute(photo, EmptyActionData(), db_session, deps)
+    assert RejectPhoto.is_available(photo, deps.user, deps) is True
+    result = await RejectPhoto.execute(photo, EmptyActionData(), db_session, deps.user, deps)
 
     assert result.message == "Photo rejected"
     refreshed = await _get_photo(db_session, photo.id)
@@ -305,8 +306,8 @@ async def test_delete_photo_by_owner(graph: DomainGraph, db_session: AsyncSessio
     deps = _deps(db_session, user_id=graph.dater_a.id)
     photo_id = graph.approved_photo.id
 
-    assert DeletePhoto.is_available(graph.approved_photo, deps) is True
-    result = await DeletePhoto.execute(graph.approved_photo, EmptyActionData(), db_session, deps)
+    assert DeletePhoto.is_available(graph.approved_photo, deps.user, deps) is True
+    result = await DeletePhoto.execute(graph.approved_photo, EmptyActionData(), db_session, deps.user, deps)
     assert result.message == "Photo deleted"
     assert await _get_photo(db_session, photo_id) is None
 
@@ -316,15 +317,15 @@ async def test_delete_photo_by_suggester(graph: DomainGraph, db_session: AsyncSe
     deps = _deps(db_session, user_id=graph.winger.id, role=Role.WINGER)
     photo_id = graph.pending_photo.id
 
-    assert DeletePhoto.is_available(graph.pending_photo, deps) is True
-    await DeletePhoto.execute(graph.pending_photo, EmptyActionData(), db_session, deps)
+    assert DeletePhoto.is_available(graph.pending_photo, deps.user, deps) is True
+    await DeletePhoto.execute(graph.pending_photo, EmptyActionData(), db_session, deps.user, deps)
     assert await _get_photo(db_session, photo_id) is None
 
 
 async def test_delete_photo_denied_for_unrelated_user(graph: DomainGraph, db_session: AsyncSession) -> None:
     # Neither owner nor suggester -> is_available denies (would be 403, not execute).
     deps = _deps(db_session, user_id=graph.dater_c.id)
-    assert DeletePhoto.is_available(graph.approved_photo, deps) is False
+    assert DeletePhoto.is_available(graph.approved_photo, deps.user, deps) is False
 
 
 # ── Actions: reorder ─────────────────────────────────────────────────────────────
@@ -334,8 +335,8 @@ async def test_reorder_photo_by_owner(graph: DomainGraph, db_session: AsyncSessi
     deps = _deps(db_session, user_id=graph.dater_a.id)
     data = ReorderPhotoData(displayOrder=5)
 
-    assert ReorderPhoto.is_available(graph.approved_photo, deps) is True
-    result = await ReorderPhoto.execute(graph.approved_photo, data, db_session, deps)
+    assert ReorderPhoto.is_available(graph.approved_photo, deps.user, deps) is True
+    result = await ReorderPhoto.execute(graph.approved_photo, data, db_session, deps.user, deps)
     assert result.message == "Photo reordered"
     refreshed = await _get_photo(db_session, graph.approved_photo.id)
     assert refreshed is not None
@@ -345,7 +346,7 @@ async def test_reorder_photo_by_owner(graph: DomainGraph, db_session: AsyncSessi
 async def test_reorder_photo_denied_for_non_owner(graph: DomainGraph, db_session: AsyncSession) -> None:
     # Not the owner -> is_available denies (would be 403, never reaches execute).
     deps = _deps(db_session, user_id=graph.dater_c.id)
-    assert ReorderPhoto.is_available(graph.pending_photo, deps) is False
+    assert ReorderPhoto.is_available(graph.pending_photo, deps.user, deps) is False
 
 
 # ── Matched viewer: approved photo URL under the viewer's OWN scope (no system) ──

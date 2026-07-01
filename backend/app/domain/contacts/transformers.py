@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from uuid import UUID
 
 from app.domain.contacts.schemas import (
     DaterSummary,
@@ -16,7 +15,9 @@ from app.domain.contacts.schemas import (
 )
 from app.domain.dating_profiles.enums import Interest
 from app.domain.profiles.enums import Gender
+from app.platform.actions.schemas import ActionDTO
 from app.platform.media.client import BaseMediaClient
+from app.utils.sqids import Sqid
 
 
 def _iso(value: datetime | None) -> str:
@@ -33,9 +34,9 @@ def _avatar_url(key: str | None, media: BaseMediaClient) -> str | None:
 
 @dataclass
 class WingpersonRow:
-    id: UUID
+    id: Sqid
     created_at: datetime
-    winger_id: UUID | None
+    winger_id: Sqid | None
     winger_chosen_name: str | None
     winger_gender: Gender | None
     winger_avatar_url: str | None
@@ -43,17 +44,17 @@ class WingpersonRow:
 
 @dataclass
 class IncomingInvitationRow:
-    id: UUID
+    id: Sqid
     created_at: datetime
-    dater_id: UUID | None
+    dater_id: Sqid | None
     dater_chosen_name: str | None
 
 
 @dataclass
 class WingingForDaterRow:
-    id: UUID
+    id: Sqid
     created_at: datetime
-    dater_id: UUID | None
+    dater_id: Sqid | None
     dater_chosen_name: str | None
     dater_avatar_url: str | None
     dater_interests: list[Interest] | None
@@ -62,10 +63,10 @@ class WingingForDaterRow:
 
 @dataclass
 class SentInvitationRow:
-    id: UUID
+    id: Sqid
     created_at: datetime
     phone_number: str
-    winger_id: UUID | None
+    winger_id: Sqid | None
     winger_chosen_name: str | None
 
 
@@ -73,7 +74,7 @@ class SentInvitationRow:
 class WingingForTabRow:
     """A dater the caller actively wings for — the minimal `{id, name}` tab projection."""
 
-    id: UUID
+    id: Sqid
     chosen_name: str | None
     created_at: datetime | None
 
@@ -81,7 +82,7 @@ class WingingForTabRow:
 # ── Row -> struct mappers ────────────────────────────────────────────────────
 
 
-def row_to_wingperson(row: WingpersonRow, media: BaseMediaClient) -> Wingperson:
+def row_to_wingperson(row: WingpersonRow, media: BaseMediaClient, actions: list[ActionDTO] | None = None) -> Wingperson:
     return Wingperson(
         id=row.id,
         createdAt=_iso(row.created_at),
@@ -95,14 +96,18 @@ def row_to_wingperson(row: WingpersonRow, media: BaseMediaClient) -> Wingperson:
             if row.winger_id is not None
             else None
         ),
+        actions=actions or [],
     )
 
 
-def row_to_incoming_invitation(row: IncomingInvitationRow) -> IncomingInvitation:
+def row_to_incoming_invitation(
+    row: IncomingInvitationRow, actions: list[ActionDTO] | None = None
+) -> IncomingInvitation:
     return IncomingInvitation(
         id=row.id,
         createdAt=_iso(row.created_at),
         dater=(DaterSummary(id=row.dater_id, chosenName=row.dater_chosen_name) if row.dater_id is not None else None),
+        actions=actions or [],
     )
 
 
@@ -124,7 +129,7 @@ def row_to_winging_for(row: WingingForDaterRow, media: BaseMediaClient) -> Wingi
     )
 
 
-def row_to_sent_invitation(row: SentInvitationRow) -> SentInvitation:
+def row_to_sent_invitation(row: SentInvitationRow, actions: list[ActionDTO] | None = None) -> SentInvitation:
     return SentInvitation(
         id=row.id,
         createdAt=_iso(row.created_at),
@@ -132,6 +137,7 @@ def row_to_sent_invitation(row: SentInvitationRow) -> SentInvitation:
         winger=(
             DaterSummary(id=row.winger_id, chosenName=row.winger_chosen_name) if row.winger_id is not None else None
         ),
+        actions=actions or [],
     )
 
 
