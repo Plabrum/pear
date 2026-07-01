@@ -1,0 +1,44 @@
+name: iOS Native Project Drift Check
+
+# Guards the invariant from docs/migration/09-off-eas.md (9a): the committed app/ios/
+# native project must always equal what `expo prebuild` would generate from
+# app.config.js. If they diverge, Xcode Cloud silently builds a stale project.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "app/**"
+
+jobs:
+  drift-check:
+    name: Check ios/ matches app.config.js
+    runs-on: macos-14
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Intentionally NOT --clean: `expo prebuild -p ios --clean` wipes ios/ and
+      # regenerates project.pbxproj with fresh random UUIDs every run (confirmed
+      # non-deterministic even with zero config changes), which would make this
+      # check fail on every PR regardless of drift. The incremental prebuild below
+      # merges into the already-checked-out ios/ and is idempotent — verified stable
+      # across repeated runs with no source changes.
+      - name: Regenerate native iOS project (incremental)
+        run: npx expo prebuild -p ios
+
+      - name: Fail on drift
+        run: |
+          if ! git diff --exit-code -- ios/; then
+            echo "::error::Committed app/ios/ does not match 'expo prebuild -p ios' output. Regenerate locally with 'expo prebuild -p ios --clean' and commit ios/ after any app.config.js native change."
+            exit 1
+          fi

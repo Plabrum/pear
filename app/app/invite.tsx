@@ -3,7 +3,7 @@ import { Redirect } from 'expo-router';
 import { useSession } from '@/context/auth';
 
 // In-memory handoff for the winger-invite deep link. The deep link
-// (`wingmate://invite`) opens the app; if the user still needs to log in, we
+// (`pear://invite`) opens the app; if the user still needs to log in, we
 // remember the intent here and the root gate (app/_layout.tsx) consumes it
 // after auth to land them on the wingpeople screen. This lives for the process
 // lifetime, which spans the launch -> login flow of a single invite tap — no

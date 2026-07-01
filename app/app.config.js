@@ -3,7 +3,7 @@ const { version } = require('./package.json');
 module.exports = {
   expo: {
     name: 'Pear',
-    slug: 'wingmate',
+    slug: 'pear',
     version,
     orientation: 'portrait',
     icon: './assets/images/icon.png',
@@ -11,7 +11,7 @@ module.exports = {
     userInterfaceStyle: 'light',
     ios: {
       supportsTablet: true,
-      bundleIdentifier: 'com.plabrum.wingmate',
+      bundleIdentifier: 'com.plabrum.pear',
       entitlements: {
         'com.apple.developer.applesignin': ['Default'],
         'aps-environment': 'production',

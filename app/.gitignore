@@ -40,9 +40,17 @@ yarn-error.*
 
 app-example
 
-# generated native folders
-/ios
+# android — pure CNG, generated on demand
 /android
+
+# ios/ — committed native project for Xcode Cloud (see docs/migration/09-off-eas.md 9a).
+# Regenerate with `expo prebuild -p ios --clean` after any app.config.js native change;
+# a CI drift-guard fails PRs where the committed tree no longer matches that output.
+ios/Pods/
+ios/build/
+ios/DerivedData/
+ios/*.xcuserstate
+**/xcuserdata/
 
 # local builds
 /builds

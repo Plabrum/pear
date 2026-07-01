@@ -12,7 +12,7 @@ export function WingInviteStep({ onFinish }: { onFinish: () => void }) {
   async function shareLink() {
     try {
       await Share.share({
-        message: 'Be my wingperson on Pear: https://pearwingmate.app/invite',
+        message: 'Be my wingperson on Pear: https://usepear.app/invite',
       });
     } catch {
       // user cancelled
