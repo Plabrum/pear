@@ -7,6 +7,8 @@
 import type { ActionDTO } from './actionDTO';
 import type { City } from './city';
 import type { DatingStatus } from './datingStatus';
+import type { DiscoverPhoto } from './discoverPhoto';
+import type { DiscoverPrompt } from './discoverPrompt';
 import type { Gender } from './gender';
 import type { Interest } from './interest';
 import type { WingSuggestion } from './wingSuggestion';
@@ -23,8 +25,9 @@ export interface SwipeProfile {
   bio: string | null;
   datingStatus: DatingStatus;
   interests: Interest[];
-  photos: string[];
+  photos: DiscoverPhoto[];
   firstPhoto: string | null;
   suggestions: WingSuggestion[];
+  prompts: DiscoverPrompt[];
   actions?: ActionDTO[];
 }

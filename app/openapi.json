@@ -2982,6 +2982,65 @@
         "required": ["message"],
         "title": "DisabledReason"
       },
+      "DiscoverPhoto": {
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "pickedByName": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": ["pickedByName", "url"],
+        "title": "DiscoverPhoto"
+      },
+      "DiscoverPrompt": {
+        "properties": {
+          "question": {
+            "type": "string"
+          },
+          "answer": {
+            "type": "string"
+          },
+          "responses": {
+            "items": {
+              "$ref": "#/components/schemas/DiscoverPromptResponse"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object",
+        "required": ["answer", "question", "responses"],
+        "title": "DiscoverPrompt"
+      },
+      "DiscoverPromptResponse": {
+        "properties": {
+          "wingerName": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": ["message", "wingerName"],
+        "title": "DiscoverPromptResponse"
+      },
       "DownloadFileActionResult": {
         "properties": {
           "url": {
@@ -4682,7 +4741,7 @@
           },
           "photos": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/DiscoverPhoto"
             },
             "type": "array"
           },
@@ -4699,6 +4758,12 @@
           "suggestions": {
             "items": {
               "$ref": "#/components/schemas/WingSuggestion"
+            },
+            "type": "array"
+          },
+          "prompts": {
+            "items": {
+              "$ref": "#/components/schemas/DiscoverPrompt"
             },
             "type": "array"
           },
@@ -4721,6 +4786,7 @@
           "interests",
           "photos",
           "profileId",
+          "prompts",
           "suggestions",
           "userId"
         ],

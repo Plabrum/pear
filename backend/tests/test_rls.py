@@ -306,7 +306,8 @@ async def test_cannot_send_message_as_another_sender(graph: DomainGraph, acting_
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Row 4 — Unapproved photos / prompt_responses: owner + suggester only.
+# Row 4 — Photos / prompt_responses: read floor coarsened to any authenticated
+# actor; approval/party filtering lives in the app query layer.
 # ─────────────────────────────────────────────────────────────────────────────
 
 
@@ -325,22 +326,17 @@ async def test_photo_read_floor_is_any_authenticated_actor(graph: DomainGraph, a
             assert graph.pending_photo.id in visible
 
 
-async def test_prompt_response_unapproved_owner_and_suggester_only(graph: DomainGraph, acting_as: ActingAs) -> None:
-    """prompt_responses SELECT: author (user_id=me) OR the prompt's profile owner.
-
-    The pending response was authored by the winger on dater_a's prompt:
-    - winger (author) sees it,
-    - dater_a (profile owner) sees it,
-    - dater_c (unrelated) does not.
+async def test_prompt_response_read_floor_is_any_authenticated_actor(graph: DomainGraph, acting_as: ActingAs) -> None:
+    """prompt_responses SELECT floor coarsened to USING (current_user_id() IS NOT NULL),
+    mirroring profile_photos — discover surfaces a candidate's approved winger
+    commentary to a swiper who is neither the author nor the profile owner.
+    Approval filtering moved to the app query layer (only APPROVED responses are
+    ever selected for a non-party reader). At the DB floor, ANY signed-in actor
+    reads every response row regardless of party or approval state.
     """
-    async with acting_as(graph.winger.id) as s:
-        assert graph.prompt_response.id in await _ids(s, PromptResponse)
-
-    async with acting_as(graph.dater_a.id) as s:
-        assert graph.prompt_response.id in await _ids(s, PromptResponse)
-
-    async with acting_as(graph.dater_c.id) as s:
-        assert graph.prompt_response.id not in await _ids(s, PromptResponse)
+    for actor in (graph.winger.id, graph.dater_a.id, graph.dater_c.id):
+        async with acting_as(actor) as s:
+            assert graph.prompt_response.id in await _ids(s, PromptResponse)
 
 
 async def test_photo_write_denied_off_floor(graph: DomainGraph, acting_as: ActingAs) -> None:

@@ -21,7 +21,7 @@ from sqlalchemy.sql.elements import ColumnElement
 from app.domain.contacts.queries import is_active_wingperson as contacts_is_active_wingperson
 from app.domain.dating_profiles.enums import DatingStatus
 from app.domain.dating_profiles.models import DatingProfile
-from app.domain.dating_profiles.transformers import SwipeRow, WingSuggestionRow
+from app.domain.dating_profiles.transformers import PhotoRow, PromptResponseRow, PromptRow, SwipeRow, WingSuggestionRow
 from app.domain.decisions.enums import DecisionState
 from app.domain.decisions.models import Decision
 from app.domain.matches.models import Match
@@ -29,6 +29,8 @@ from app.domain.photos.enums import PhotoApprovalState
 from app.domain.photos.models import ProfilePhoto
 from app.domain.profiles.enums import UserRole
 from app.domain.profiles.models import Profile
+from app.domain.prompts.enums import ApprovalState
+from app.domain.prompts.models import ProfilePrompt, PromptResponse, PromptTemplate
 from app.platform.media.queries import servable_key_expr
 from app.utils.sqids import Sqid
 
@@ -115,17 +117,81 @@ def has_pending_suggestion_expr(viewer_id: Sqid) -> ColumnElement[bool]:
     )
 
 
-def photos_array_expr() -> ColumnElement[Any]:
-    """Correlated subquery: all approved photo URLs ordered by display_order
-    (`coalesce(array_agg(... order by ...), '{}')`).
+def photos_with_pick_expr() -> ColumnElement[Any]:
+    """Correlated subquery: all approved photos ordered by display_order, each as
+    `{key, pickedByName}` — `key` is the raw storage key (presigned at transform
+    time), `pickedByName` is the suggesting winger's chosen name, or NULL for a
+    self-uploaded photo.
     """
-    ordered_keys = aggregate_order_by(servable_key_expr(ProfilePhoto.media_id), ProfilePhoto.display_order)
+    picker = aliased(Profile, name="photo_picker")
+    ordered = aggregate_order_by(
+        func.json_build_object(
+            "key",
+            servable_key_expr(ProfilePhoto.media_id),
+            "pickedByName",
+            picker.chosen_name,
+        ),
+        ProfilePhoto.display_order,
+    )
     return (
-        select(func.coalesce(func.array_agg(ordered_keys), literal_column("'{}'")))
+        select(func.coalesce(func.json_agg(ordered), literal_column("'[]'::json")))
+        .select_from(ProfilePhoto)
+        .outerjoin(picker, picker.id == ProfilePhoto.suggester_id)
         .where(
             ProfilePhoto.dating_profile_id == DatingProfile.id,
             ProfilePhoto.state == PhotoApprovalState.APPROVED,
         )
+        .correlate(DatingProfile)
+        .scalar_subquery()
+    )
+
+
+def prompts_with_responses_expr() -> ColumnElement[Any]:
+    """Correlated subquery: the candidate's prompts, each `{question, answer,
+    responses}` where `responses` is a nested `json_agg` of every APPROVED
+    PromptResponse on that prompt — `{wingerName, message}`, oldest first.
+
+    Only APPROVED responses are ever selected here (the query layer's job, per
+    `PromptResponse`'s coarsened-to-Authenticated read floor — see its model
+    docstring), so an unapproved comment is never exposed to a swiper.
+    """
+    responder = aliased(Profile, name="response_author")
+    ordered_responses = aggregate_order_by(
+        func.json_build_object(
+            "wingerName",
+            responder.chosen_name,
+            "message",
+            PromptResponse.message,
+        ),
+        PromptResponse.created_at,
+    )
+    responses = (
+        select(func.coalesce(func.json_agg(ordered_responses), literal_column("'[]'::json")))
+        .select_from(PromptResponse)
+        .outerjoin(responder, responder.id == PromptResponse.user_id)
+        .where(
+            PromptResponse.profile_prompt_id == ProfilePrompt.id,
+            PromptResponse.state == ApprovalState.APPROVED,
+        )
+        .correlate(ProfilePrompt)
+        .scalar_subquery()
+    )
+    ordered_prompts = aggregate_order_by(
+        func.json_build_object(
+            "question",
+            PromptTemplate.question,
+            "answer",
+            ProfilePrompt.answer,
+            "responses",
+            responses,
+        ),
+        ProfilePrompt.created_at,
+    )
+    return (
+        select(func.coalesce(func.json_agg(ordered_prompts), literal_column("'[]'::json")))
+        .select_from(ProfilePrompt)
+        .join(PromptTemplate, PromptTemplate.id == ProfilePrompt.prompt_template_id)
+        .where(ProfilePrompt.dating_profile_id == DatingProfile.id)
         .correlate(DatingProfile)
         .scalar_subquery()
     )
@@ -271,7 +337,8 @@ async def _fetch_dater_context(
     vdp = aliased(DatingProfile, name="vdp")
 
     age = age_expr()
-    photos = photos_array_expr()
+    photos = photos_with_pick_expr()
+    prompts = prompts_with_responses_expr()
     suggestions = wing_suggestions_expr(viewer_id)
     has_suggestion = has_pending_suggestion_expr(viewer_id)
 
@@ -344,6 +411,7 @@ async def _fetch_dater_context(
             DatingProfile.state.label("dating_status"),
             DatingProfile.interests.label("interests"),
             photos.label("photos"),
+            prompts.label("prompts"),
             suggestions.label("suggestions"),
         )
         .select_from(DatingProfile)
@@ -371,11 +439,13 @@ async def _fetch_winger_context(
 
     Candidates matching the DATER's preferences, excluding the dater and the
     winger, excluding candidates the dater already decided on. Ordered newest,
-    paginated. No pending-suggestion surfacing in this context.
+    paginated. No pending-suggestion or prompt-response surfacing in this context
+    (the winger's own scouting screens don't render them) — `prompts` defaults to
+    `[]` in `_row_to_swipe` for a row missing that column.
     """
     ddp = aliased(DatingProfile, name="ddp")
     age = age_expr()
-    photos = photos_array_expr()
+    photos = photos_with_pick_expr()
 
     filters = build_preference_filters(ddp, decided_actor_id=dater_id)
     filters.append(DatingProfile.user_id != dater_id)
@@ -418,12 +488,24 @@ def _row_to_swipe(r: Any) -> SwipeRow:
         bio=r["bio"],
         dating_status=r["dating_status"],
         interests=list(r["interests"]),
-        photos=list(r["photos"] or []),
-        # The winger context omits the `suggestions` column entirely (no pending-
-        # suggestion surfacing there), so this is [] rather than a raw JSON payload.
+        photos=[PhotoRow(key=p["key"], picked_by_name=p["pickedByName"]) for p in (r["photos"] or [])],
+        # The winger context omits the `suggestions`/`prompts` columns entirely (no
+        # pending-suggestion or prompt-response surfacing there), so these are []
+        # rather than a raw JSON payload.
         suggestions=[
             WingSuggestionRow(winger_id=Sqid(s["wingerId"]), winger_name=s["wingerName"], note=s["note"])
             for s in (r.get("suggestions") or [])
+        ],
+        prompts=[
+            PromptRow(
+                question=p["question"],
+                answer=p["answer"],
+                responses=[
+                    PromptResponseRow(winger_name=resp["wingerName"], message=resp["message"])
+                    for resp in (p["responses"] or [])
+                ],
+            )
+            for p in (r.get("prompts") or [])
         ],
     )
 

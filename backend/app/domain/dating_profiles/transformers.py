@@ -4,7 +4,13 @@ from dataclasses import dataclass
 
 from app.domain.dating_profiles.enums import City, DatingStatus, Interest
 from app.domain.dating_profiles.models import DatingProfile
-from app.domain.dating_profiles.schemas import SwipeProfile, WingSuggestion
+from app.domain.dating_profiles.schemas import (
+    DiscoverPhoto,
+    DiscoverPrompt,
+    DiscoverPromptResponse,
+    SwipeProfile,
+    WingSuggestion,
+)
 from app.domain.profiles.enums import Gender
 from app.platform.actions.base import ActionGroup
 from app.platform.actions.deps import ActionDeps
@@ -21,6 +27,25 @@ class WingSuggestionRow:
 
 
 @dataclass
+class PhotoRow:
+    key: str  # S3 key (approved only) — presigned at transform time
+    picked_by_name: str | None
+
+
+@dataclass
+class PromptResponseRow:
+    winger_name: str | None
+    message: str
+
+
+@dataclass
+class PromptRow:
+    question: str
+    answer: str
+    responses: list[PromptResponseRow]
+
+
+@dataclass
 class SwipeRow:
     profile_id: Sqid
     user_id: Sqid
@@ -31,8 +56,9 @@ class SwipeRow:
     bio: str | None
     dating_status: DatingStatus
     interests: list[Interest]
-    photos: list[str]  # S3 keys (approved only) — presigned at transform time
+    photos: list[PhotoRow]
     suggestions: list[WingSuggestionRow]
+    prompts: list[PromptRow]
 
 
 async def row_to_swipe_profile(
@@ -43,7 +69,7 @@ async def row_to_swipe_profile(
 ) -> SwipeProfile:
     # `photos` are approved-only S3 keys (the query filters approved_at IS NOT NULL),
     # so presigning each one cannot leak an unapproved image.
-    photos = [await media.presign_download(key) for key in (row.photos or [])]
+    photos = [DiscoverPhoto(url=await media.presign_download(p.key), pickedByName=p.picked_by_name) for p in row.photos]
     profile = SwipeProfile(
         profileId=row.profile_id,
         userId=row.user_id,
@@ -56,9 +82,17 @@ async def row_to_swipe_profile(
         interests=row.interests,
         photos=photos,
         # `firstPhoto` mirrors the former likes-you / wing-pool single-photo field.
-        firstPhoto=photos[0] if photos else None,
+        firstPhoto=photos[0].url if photos else None,
         suggestions=[
             WingSuggestion(wingerId=s.winger_id, wingerName=s.winger_name, note=s.note) for s in row.suggestions
+        ],
+        prompts=[
+            DiscoverPrompt(
+                question=p.question,
+                answer=p.answer,
+                responses=[DiscoverPromptResponse(wingerName=r.winger_name, message=r.message) for r in p.responses],
+            )
+            for p in row.prompts
         ],
     )
     # The swipe read is a pure projection — no DatingProfile ORM row is in hand. The

@@ -31,7 +31,10 @@ from app.domain.dating_profiles.transformers import row_to_swipe_profile
 from app.domain.decisions.enums import DecisionState
 from app.domain.decisions.models import Decision
 from app.domain.decisions.queries import find_mutual_match, insert_wing_suggestion
+from app.domain.photos.enums import PhotoApprovalState
 from app.domain.profiles.enums import Gender, UserRole
+from app.domain.prompts.enums import ApprovalState
+from app.domain.prompts.models import PromptTemplate
 from app.domain.reports.models import ProfileReport
 from app.platform.actions.base import ActionGroup, EmptyActionData
 from app.platform.actions.deps import ActionDeps
@@ -40,7 +43,13 @@ from app.platform.actions.schemas import ActionDTO
 from app.platform.auth.principal import User
 from app.platform.state_machine.machine import StateMachineService
 from app.platform.state_machine.roles import Role
-from tests.factories import ProfileFactory
+from tests.factories import (
+    MediaFactory,
+    ProfileFactory,
+    ProfilePhotoFactory,
+    ProfilePromptFactory,
+    PromptResponseFactory,
+)
 from tests.fixtures.graph import DomainGraph
 from tests.fixtures.media import local_media
 
@@ -158,6 +167,77 @@ async def test_swipe_row_maps_to_camel_case(graph: DomainGraph, db_session: Asyn
     assert dto.suggestions[0].wingerId == graph.winger.id
     assert dto.suggestions[0].wingerName == graph.winger.chosen_name
     assert dto.suggestions[0].note == graph.suggestion.note
+
+
+async def test_swipe_pool_surfaces_photo_pick_and_approved_prompt_response(
+    graph: DomainGraph, db_session: AsyncSession
+) -> None:
+    """A winger-suggested APPROVED photo on the candidate surfaces `pickedByName`;
+    a self-uploaded photo doesn't. An APPROVED prompt response surfaces in
+    `responses`; a PENDING one on the same prompt is excluded."""
+    await _normalize_ages(graph, db_session)
+
+    self_media = await MediaFactory.create_async(db_session, owner_id=graph.dater_b.id)
+    picked_media = await MediaFactory.create_async(db_session, owner_id=graph.dater_b.id)
+    await ProfilePhotoFactory.create_async(
+        db_session,
+        dating_profile_id=graph.dating_profile_b.id,
+        owner_id=graph.dater_b.id,
+        media_id=self_media.id,
+        display_order=0,
+        state=PhotoApprovalState.APPROVED,
+    )
+    await ProfilePhotoFactory.create_async(
+        db_session,
+        dating_profile_id=graph.dating_profile_b.id,
+        owner_id=graph.dater_b.id,
+        suggester_id=graph.winger.id,
+        media_id=picked_media.id,
+        display_order=1,
+        state=PhotoApprovalState.APPROVED,
+    )
+
+    template = (await db_session.execute(select(PromptTemplate).limit(1))).scalar_one()
+    profile_prompt = await ProfilePromptFactory.create_async(
+        db_session,
+        dating_profile_id=graph.dating_profile_b.id,
+        owner_id=graph.dater_b.id,
+        prompt_template_id=template.id,
+    )
+    await PromptResponseFactory.create_async(
+        db_session,
+        user_id=graph.winger.id,
+        profile_owner_id=graph.dater_b.id,
+        profile_prompt_id=profile_prompt.id,
+        message="Approved comment",
+        state=ApprovalState.APPROVED,
+    )
+    await PromptResponseFactory.create_async(
+        db_session,
+        user_id=graph.winger.id,
+        profile_owner_id=graph.dater_b.id,
+        profile_prompt_id=profile_prompt.id,
+        message="Still pending comment",
+        state=ApprovalState.PENDING,
+    )
+
+    rows = await fetch_swipe_pool(db_session, viewer_id=graph.dater_a.id, page_size=20, page_offset=0)
+    candidate = next(r for r in rows if r.user_id == graph.dater_b.id)
+
+    photos_by_key = {p.key: p.picked_by_name for p in candidate.photos}
+    assert len(candidate.photos) == 2
+    self_key = next(key for key, picked_by in photos_by_key.items() if picked_by is None)
+    picked_key = next(key for key, picked_by in photos_by_key.items() if picked_by is not None)
+    assert photos_by_key[picked_key] == graph.winger.chosen_name
+    assert photos_by_key[self_key] is None
+
+    assert len(candidate.prompts) == 1
+    prompt = candidate.prompts[0]
+    assert prompt.question == template.question
+    assert prompt.answer == profile_prompt.answer
+    assert len(prompt.responses) == 1
+    assert prompt.responses[0].message == "Approved comment"
+    assert prompt.responses[0].winger_name == graph.winger.chosen_name
 
 
 async def test_swipe_pool_surfaces_multiple_wingers_suggesting_same_candidate(

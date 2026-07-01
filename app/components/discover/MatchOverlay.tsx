@@ -107,7 +107,7 @@ export function MatchOverlay({
         >
           {card.photos[0] ? (
             <Image
-              source={{ uri: card.photos[0] }}
+              source={{ uri: card.photos[0].url }}
               style={StyleSheet.absoluteFill}
               contentFit="cover"
             />
