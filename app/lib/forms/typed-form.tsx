@@ -1,5 +1,4 @@
-// createTypedForm — a typed, COMPOSABLE form builder over react-hook-form, ported
-// from sloopquest's flexible builder (frontend/src/lib/forms/base.tsx) into RN idiom.
+// createTypedForm — a typed, COMPOSABLE form builder over react-hook-form.
 //
 // Generic over a GENERATED action-data interface (`SuggestActionData`, …) so a form is
 // typed end-to-end to the API contract: rename a contract field and the build breaks.

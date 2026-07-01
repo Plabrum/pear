@@ -7,9 +7,8 @@ import type { ActionExecutionResponse } from '@/lib/actions/types';
 type Router = ReturnType<typeof useRouter>;
 
 /**
- * Honour the backend's `action_result` follow-up. Ported from sloopquest, RN-adapted:
- * web navigate → expo-router, browser anchor download → Linking, `navigator.clipboard`
- * → a toast hint (expo-clipboard isn't a dependency yet).
+ * Honour the backend's `action_result` follow-up. Clipboard results show a toast
+ * hint instead of copying directly since expo-clipboard isn't a dependency yet.
  */
 export function handleActionResult(response: ActionExecutionResponse, router: Router): void {
   const result = response.action_result;

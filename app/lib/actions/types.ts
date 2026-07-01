@@ -1,6 +1,5 @@
-// Action-system types — ported from sloopquest (frontend/src/lib/actions/types.ts),
-// re-pointed at our Orval-generated model. The executor + registry import from here
-// so the rest of the app has one stable action vocabulary.
+// The executor + registry import from here so the rest of the app has one
+// stable action vocabulary.
 import type { ActionDTO, ActionGroupType } from '@/lib/api/generated/model';
 
 export type { ActionDTO, ActionGroupType } from '@/lib/api/generated/model';

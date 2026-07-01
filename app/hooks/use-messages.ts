@@ -8,9 +8,8 @@ import { dbRowToMessage, subscribeToMessages } from '@/lib/messages-realtime';
 
 // send / mark_read are object actions on the Match (message_actions). The chat
 // screen reads the thread, not the Match row, so there's no actions[] to look up —
-// we name the two actions directly (the sloopquest photo-action-row pattern for
-// imperative writes). The executor invalidates /conversations (unread + last
-// message) on every send/read, fixing the stale-conversations bug.
+// we name the two actions directly for imperative writes. The executor invalidates
+// /conversations (unread + last message) on every send/read.
 const SEND: ActionDTO = {
   action: 'message_actions__send',
   label: 'Send',

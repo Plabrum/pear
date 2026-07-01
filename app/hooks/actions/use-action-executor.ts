@@ -1,7 +1,3 @@
-// The action executor — ported from sloopquest (hooks/actions/use-action-executor.ts),
-// RN-adapted: web `useNavigate` → expo-router, `sonner` → `sonner-native`, and the
-// web clipboard pre-claim dropped (native has no user-gesture clipboard gate).
-//
 // Drives every server action: it resolves whether an action needs a form (registry)
 // or a confirmation (confirmation_message) or runs directly, executes via the
 // generated mutations, then handles the response's message/invalidation/result.

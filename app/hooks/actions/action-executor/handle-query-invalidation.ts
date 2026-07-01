@@ -5,10 +5,10 @@ import type { ActionExecutionResponse } from '@/lib/actions/types';
 /**
  * Invalidate the queries a backend action's `invalidate_queries` paths map to.
  *
- * Ported 1:1 from sloopquest. The backend emits kebab URL-path tokens
- * (`/wingpeople`, `/dating-profiles/swipe`, `/conversations`, …) that match the
- * Orval query keys, so a substring match on each query's first (path) segment
- * flushes every list/detail derived from it — no app-specific tag→key map needed.
+ * The backend emits kebab URL-path tokens (`/wingpeople`, `/dating-profiles/swipe`,
+ * `/conversations`, …) that match the Orval query keys, so a substring match on
+ * each query's first (path) segment flushes every list/detail derived from it —
+ * no app-specific tag→key map needed.
  */
 export function handleQueryInvalidation(
   queryClient: QueryClient,

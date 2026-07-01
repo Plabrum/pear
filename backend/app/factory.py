@@ -231,7 +231,7 @@ def create_app(
             realtime_ws,
             # Dev/test only: backs the `LocalMediaClient` presigned `/_local-media/*`
             # URLs with an on-disk sink so uploads round-trip with no S3. The handlers'
-            # `requires_local` guard rejects the route in prod (mirrors sloopquest).
+            # `requires_local` guard rejects the route in prod.
             local_media_router,
         ],
         plugins=plugins,

@@ -1,6 +1,6 @@
-// Bridges the action registry to the executor's `renderActionForm` — ported from
-// sloopquest. Looks up the registered form for an action; returns null (→ execute
-// directly) when there's no form. The `onSubmit` wraps the form's data into the
+// Bridges the action registry to the executor's `renderActionForm`. Looks up
+// the registered form for an action; returns null (→ execute directly) when
+// there's no form. The `onSubmit` wraps the form's data into the
 // `{ action, data }` body the executor expects.
 import { getActionRenderer } from '@/lib/actions/registry';
 import type { ActionFormRenderer } from './use-action-executor';

@@ -1,14 +1,6 @@
-// The action → form registry — ported from sloopquest (lib/actions/registry.tsx).
-//
-// Sloopquest GENERATES most of this from the action schemas (registry.gen.tsx +
-// forms.gen.tsx). Pear has only a couple of data-ful actions, so we register those
-// by hand and skip the codegen. Any action NOT in this map has no form and is
-// executed directly (data-free) or via a confirmation dialog.
-//
-// Populated during screen migration:
-//   - dating_profile_swipe_actions__suggest → ForwardSheet (collects the note;
-//     daterId is injected via the executor's `formContext`)
-//   - dating_profile_swipe_actions__report  → ReportSheet (collects the reason)
+// Maps actions with data-ful forms to their sheet component. Any action NOT in
+// this map has no form and is executed directly (data-free) or via a
+// confirmation dialog.
 import type { ReactElement } from 'react';
 
 import { PromptResponseForm } from '@/components/actions/prompt-response-form';

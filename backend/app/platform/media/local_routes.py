@@ -1,12 +1,11 @@
-"""Dev/test-only HTTP sink for the `LocalMediaClient` presigned URLs.
-
-In prod the presigned PUT/GET URLs point straight at S3. Locally there is no S3, so
-`LocalMediaClient` mints `…/_local-media/…` URLs and these handlers back them with the
-on-disk store (`config.LOCAL_MEDIA_DIR`). Mirrors sloopquest's `local_files.py`: the
-presigned URL is the only grant, so the handlers route through the injected media client
-and are gated to local/test by `requires_local` (they reject in prod, never serving real
-S3). The bucket path segment is cosmetic — the client keys storage off `key` alone.
-"""
+# Dev/test-only HTTP sink for the `LocalMediaClient` presigned URLs.
+#
+# In prod the presigned PUT/GET URLs point straight at S3. Locally there is no S3, so
+# `LocalMediaClient` mints `…/_local-media/…` URLs and these handlers back them with the
+# on-disk store (`config.LOCAL_MEDIA_DIR`). The presigned URL is the only grant, so the
+# handlers route through the injected media client and are gated to local/test by
+# `requires_local` (they reject in prod, never serving real S3). The bucket path segment
+# is cosmetic — the client keys storage off `key` alone.
 
 from __future__ import annotations
 
