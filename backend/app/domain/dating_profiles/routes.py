@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 from litestar import Controller, Router, get
 from litestar.params import Parameter
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -68,7 +70,7 @@ class DatingProfilesSwipeController(Controller):
         # Resolve the swipe action group ONCE per request (outside the row loop); each
         # row's actions are gated against a transient scalar-only stub in the transformer.
         swipe_group = resolve_group(ActionGroupType.DATING_PROFILE_SWIPE_ACTIONS)
-        return [await row_to_swipe_profile(r, media, swipe_group, action_deps) for r in rows]
+        return list(await asyncio.gather(*(row_to_swipe_profile(r, media, swipe_group, action_deps) for r in rows)))
 
     @get("/count", operation_id="getApiDatingProfilesSwipeCount")
     async def get_likes_you_count(self, user: User, transaction: AsyncSession) -> LikesYouCountResponse:

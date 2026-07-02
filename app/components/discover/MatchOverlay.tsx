@@ -107,7 +107,7 @@ export function MatchOverlay({
         >
           {card.photos[0] ? (
             <Image
-              source={{ uri: card.photos[0] }}
+              source={{ uri: card.photos[0].url }}
               style={StyleSheet.absoluteFill}
               contentFit="cover"
             />
@@ -128,7 +128,7 @@ export function MatchOverlay({
         }}
       >
         You and {card.chosenName} both swiped right.
-        {card.suggesterName != null ? ` ${card.suggesterName} called it.` : ''}
+        {card.suggestions[0]?.wingerName != null ? ` ${card.suggestions[0].wingerName} called it.` : ''}
       </Text>
 
       <View style={{ width: '100%', maxWidth: 320, gap: 10 }}>

@@ -4,6 +4,7 @@
  * Litestar API
  * OpenAPI spec version: 1.0.0
  */
+import type { Gender } from './gender';
 import type { Interest } from './interest';
 
 export interface WingingForDater {
@@ -13,4 +14,5 @@ export interface WingingForDater {
   avatarUrl: string | null;
   interests: Interest[] | null;
   bio: string | null;
+  interestedGender: Gender[] | null;
 }

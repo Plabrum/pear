@@ -1,11 +1,5 @@
 import { useState } from 'react';
-import {
-  Alert,
-  Dimensions,
-  NativeScrollEvent,
-  NativeSyntheticEvent,
-  StyleSheet,
-} from 'react-native';
+import { Alert, Dimensions, StyleSheet } from 'react-native';
 import type { UseFormReturn } from 'react-hook-form';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -22,6 +16,7 @@ import { ScrollView, Text, View, Pressable } from '@/lib/tw';
 import { Sprout } from '@/components/ui/Sprout';
 import { Card } from '@/components/ui/Card';
 import { FieldLabel } from '@/components/ui/FieldLabel';
+import { PagedCarousel } from '@/components/ui/PagedCarousel';
 import { colors } from '@/constants/theme';
 import { AddPromptModal } from './AddPromptModal';
 
@@ -35,10 +30,6 @@ type ApprovedResponse = OwnPromptResponse;
 function ApprovedResponsesCarousel({ responses }: { responses: ApprovedResponse[] }) {
   const [activeIdx, setActiveIdx] = useState(0);
 
-  const handleScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    setActiveIdx(Math.round(e.nativeEvent.contentOffset.x / SNAP_INTERVAL));
-  };
-
   return (
     <View
       style={{
@@ -48,13 +39,14 @@ function ApprovedResponsesCarousel({ responses }: { responses: ApprovedResponse[
         borderTopColor: colors.divider,
       }}
     >
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        decelerationRate="fast"
+      <PagedCarousel
+        pageCount={responses.length}
+        pageWidth={SNAP_INTERVAL}
         snapToInterval={SNAP_INTERVAL}
-        onMomentumScrollEnd={handleScroll}
         contentContainerStyle={{ paddingRight: PEEK }}
+        showDots={false}
+        gap={10}
+        onPageChange={setActiveIdx}
       >
         {responses.map((r, i) => (
           <View
@@ -84,7 +76,7 @@ function ApprovedResponsesCarousel({ responses }: { responses: ApprovedResponse[
             </View>
           </View>
         ))}
-      </ScrollView>
+      </PagedCarousel>
       {responses.length > 1 ? (
         <View
           style={{

@@ -59,6 +59,7 @@ class WingingForDaterRow:
     dater_avatar_url: str | None
     dater_interests: list[Interest] | None
     dater_bio: str | None
+    dater_interested_gender: list[Gender] | None
 
 
 @dataclass
@@ -122,6 +123,7 @@ def row_to_winging_for(row: WingingForDaterRow, media: BaseMediaClient) -> Wingi
                 avatarUrl=_avatar_url(row.dater_avatar_url, media),
                 interests=row.dater_interests,
                 bio=row.dater_bio,
+                interestedGender=row.dater_interested_gender,
             )
             if row.dater_id is not None
             else None

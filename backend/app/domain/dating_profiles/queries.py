@@ -12,7 +12,6 @@ from sqlalchemy import (
     literal_column,
     or_,
     select,
-    true,
 )
 from sqlalchemy.dialects.postgresql import aggregate_order_by
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,7 +21,7 @@ from sqlalchemy.sql.elements import ColumnElement
 from app.domain.contacts.queries import is_active_wingperson as contacts_is_active_wingperson
 from app.domain.dating_profiles.enums import DatingStatus
 from app.domain.dating_profiles.models import DatingProfile
-from app.domain.dating_profiles.transformers import SwipeRow
+from app.domain.dating_profiles.transformers import PhotoRow, PromptResponseRow, PromptRow, SwipeRow, WingSuggestionRow
 from app.domain.decisions.enums import DecisionState
 from app.domain.decisions.models import Decision
 from app.domain.matches.models import Match
@@ -30,6 +29,8 @@ from app.domain.photos.enums import PhotoApprovalState
 from app.domain.photos.models import ProfilePhoto
 from app.domain.profiles.enums import UserRole
 from app.domain.profiles.models import Profile
+from app.domain.prompts.enums import ApprovalState
+from app.domain.prompts.models import ProfilePrompt, PromptResponse, PromptTemplate
 from app.platform.media.queries import servable_key_expr
 from app.utils.sqids import Sqid
 
@@ -63,17 +64,139 @@ def first_photo_expr() -> ColumnElement[Any]:
     )
 
 
-def photos_array_expr() -> ColumnElement[Any]:
-    """Correlated subquery: all approved photo URLs ordered by display_order
-    (`coalesce(array_agg(... order by ...), '{}')`).
+def wing_suggestions_expr(viewer_id: Sqid) -> ColumnElement[Any]:
+    """Correlated subquery: every PENDING winger suggestion of the candidate for
+    `viewer_id`, oldest first — `json_agg(json_build_object(...) ORDER BY created_at)`.
+
+    Multiple wingers may each independently suggest the same candidate (the
+    `unique_actor_recipient_suggestion` partial index allows one row per
+    (dater, recipient, winger)), so this returns the full list rather than the
+    single most-recent pick the old LATERAL-joined LIMIT 1 subquery surfaced.
     """
-    ordered_keys = aggregate_order_by(servable_key_expr(ProfilePhoto.media_id), ProfilePhoto.display_order)
+    suggester = aliased(Profile, name="suggester")
+    ordered = aggregate_order_by(
+        func.json_build_object(
+            "wingerId",
+            Decision.suggested_by,
+            "wingerName",
+            suggester.chosen_name,
+            "note",
+            Decision.note,
+        ),
+        Decision.created_at,
+    )
     return (
-        select(func.coalesce(func.array_agg(ordered_keys), literal_column("'{}'")))
+        select(func.coalesce(func.json_agg(ordered), literal_column("'[]'::json")))
+        .select_from(Decision)
+        .outerjoin(suggester, suggester.id == Decision.suggested_by)
+        .where(
+            Decision.actor_id == viewer_id,
+            Decision.recipient_id == DatingProfile.user_id,
+            Decision.state == DecisionState.PENDING,
+            Decision.suggested_by.is_not(None),
+        )
+        .correlate(DatingProfile)
+        .scalar_subquery()
+    )
+
+
+def has_pending_suggestion_expr(viewer_id: Sqid) -> ColumnElement[bool]:
+    """EXISTS a PENDING winger suggestion of the candidate for `viewer_id` — used to
+    order suggestions-first without materializing the full `wing_suggestions_expr`
+    payload just for ordering.
+    """
+    return exists(
+        select(literal_column("1"))
+        .select_from(Decision)
+        .where(
+            Decision.actor_id == viewer_id,
+            Decision.recipient_id == DatingProfile.user_id,
+            Decision.state == DecisionState.PENDING,
+            Decision.suggested_by.is_not(None),
+        )
+    )
+
+
+def photos_with_pick_expr() -> ColumnElement[Any]:
+    """Correlated subquery: all approved photos ordered by display_order, each as
+    `{key, pickedByName}` — `key` is the raw storage key (presigned at transform
+    time), `pickedByName` is the suggesting winger's chosen name, or NULL for a
+    self-uploaded photo.
+    """
+    picker = aliased(Profile, name="photo_picker")
+    ordered = aggregate_order_by(
+        func.json_build_object(
+            "key",
+            servable_key_expr(ProfilePhoto.media_id),
+            "pickedByName",
+            picker.chosen_name,
+        ),
+        ProfilePhoto.display_order,
+    )
+    return (
+        select(func.coalesce(func.json_agg(ordered), literal_column("'[]'::json")))
+        .select_from(ProfilePhoto)
+        .outerjoin(picker, picker.id == ProfilePhoto.suggester_id)
         .where(
             ProfilePhoto.dating_profile_id == DatingProfile.id,
             ProfilePhoto.state == PhotoApprovalState.APPROVED,
         )
+        .correlate(DatingProfile)
+        .scalar_subquery()
+    )
+
+
+def prompts_with_responses_expr() -> ColumnElement[Any]:
+    """Correlated subquery: the candidate's prompts, each `{question, answer,
+    responses}` where `responses` is a nested `json_agg` of every APPROVED
+    PromptResponse on that prompt — `{wingerName, message}`, oldest first.
+
+    Only APPROVED responses are ever selected here (the query layer's job, per
+    `PromptResponse`'s coarsened-to-Authenticated read floor — see its model
+    docstring), so an unapproved comment is never exposed to a swiper.
+
+    Response aggregation is a single grouped scan joined by `profile_prompt_id`
+    (like `photos_with_pick_expr`'s single-join shape), not a correlated subquery
+    re-executed once per prompt row nested inside the per-candidate correlation.
+    """
+    responder = aliased(Profile, name="response_author")
+    ordered_responses = aggregate_order_by(
+        func.json_build_object(
+            "wingerName",
+            responder.chosen_name,
+            "message",
+            PromptResponse.message,
+        ),
+        PromptResponse.created_at,
+    )
+    response_agg = (
+        select(
+            PromptResponse.profile_prompt_id.label("profile_prompt_id"),
+            func.json_agg(ordered_responses).label("responses"),
+        )
+        .select_from(PromptResponse)
+        .outerjoin(responder, responder.id == PromptResponse.user_id)
+        .where(PromptResponse.state == ApprovalState.APPROVED)
+        .group_by(PromptResponse.profile_prompt_id)
+        .subquery("prompt_response_agg")
+    )
+    ordered_prompts = aggregate_order_by(
+        func.json_build_object(
+            "question",
+            PromptTemplate.question,
+            "answer",
+            ProfilePrompt.answer,
+            "responses",
+            func.coalesce(response_agg.c.responses, literal_column("'[]'::json")),
+        ),
+        ProfilePrompt.created_at,
+    )
+    return (
+        select(func.coalesce(func.json_agg(ordered_prompts), literal_column("'[]'::json")))
+        .select_from(ProfilePrompt)
+        .join(PromptTemplate, PromptTemplate.id == ProfilePrompt.prompt_template_id)
+        .outerjoin(response_agg, response_agg.c.profile_prompt_id == ProfilePrompt.id)
+        .where(ProfilePrompt.dating_profile_id == DatingProfile.id)
         .correlate(DatingProfile)
         .scalar_subquery()
     )
@@ -219,29 +342,10 @@ async def _fetch_dater_context(
     vdp = aliased(DatingProfile, name="vdp")
 
     age = age_expr()
-    photos = photos_array_expr()
-
-    # The pending winger-suggestion for (viewer -> candidate): wing note, suggester
-    # id, suggester chosen name — all three share the identical predicate, so a
-    # single LEFT JOIN LATERAL surfaces them in one index probe (NULL columns when
-    # there is no pending suggestion). The suggester `profiles` join is folded in.
-    suggester = aliased(Profile, name="suggester")
-    pending = (
-        select(
-            Decision.note.label("wing_note"),
-            Decision.suggested_by.label("suggested_by"),
-            suggester.chosen_name.label("suggester_name"),
-        )
-        .outerjoin(suggester, suggester.id == Decision.suggested_by)
-        .where(
-            Decision.actor_id == viewer_id,
-            Decision.recipient_id == DatingProfile.user_id,
-            Decision.state == DecisionState.PENDING,
-            Decision.suggested_by.is_not(None),
-        )
-        .limit(1)
-        .lateral("pending_suggestion")
-    )
+    photos = photos_with_pick_expr()
+    prompts = prompts_with_responses_expr()
+    suggestions = wing_suggestions_expr(viewer_id)
+    has_suggestion = has_pending_suggestion_expr(viewer_id)
 
     filters = build_preference_filters(vdp, decided_actor_id=viewer_id)
     # exclude self (the viewer is the dater here)
@@ -312,16 +416,14 @@ async def _fetch_dater_context(
             DatingProfile.state.label("dating_status"),
             DatingProfile.interests.label("interests"),
             photos.label("photos"),
-            pending.c.wing_note.label("wing_note"),
-            pending.c.suggested_by.label("suggested_by"),
-            pending.c.suggester_name.label("suggester_name"),
+            prompts.label("prompts"),
+            suggestions.label("suggestions"),
         )
         .select_from(DatingProfile)
         .join(Profile, Profile.id == DatingProfile.user_id)
         .join(vdp, vdp.user_id == viewer_id)
-        .outerjoin(pending, true())
         .where(*filters)
-        .order_by(desc(pending.c.suggested_by.is_not(None)), desc(DatingProfile.created_at))
+        .order_by(desc(has_suggestion), desc(DatingProfile.created_at))
         .limit(page_size)
         .offset(page_offset)
     )
@@ -342,11 +444,13 @@ async def _fetch_winger_context(
 
     Candidates matching the DATER's preferences, excluding the dater and the
     winger, excluding candidates the dater already decided on. Ordered newest,
-    paginated. No pending-suggestion surfacing in this context.
+    paginated. No pending-suggestion or prompt-response surfacing in this context
+    (the winger's own scouting screens don't render them) — `prompts` defaults to
+    `[]` in `_row_to_swipe` for a row missing that column.
     """
     ddp = aliased(DatingProfile, name="ddp")
     age = age_expr()
-    photos = photos_array_expr()
+    photos = photos_with_pick_expr()
 
     filters = build_preference_filters(ddp, decided_actor_id=dater_id)
     filters.append(DatingProfile.user_id != dater_id)
@@ -389,10 +493,25 @@ def _row_to_swipe(r: Any) -> SwipeRow:
         bio=r["bio"],
         dating_status=r["dating_status"],
         interests=list(r["interests"]),
-        photos=list(r["photos"] or []),
-        wing_note=r.get("wing_note"),
-        suggested_by=r.get("suggested_by"),
-        suggester_name=r.get("suggester_name"),
+        photos=[PhotoRow(key=p["key"], picked_by_name=p["pickedByName"]) for p in (r["photos"] or [])],
+        # The winger context omits the `suggestions`/`prompts` columns entirely (no
+        # pending-suggestion or prompt-response surfacing there), so these are []
+        # rather than a raw JSON payload.
+        suggestions=[
+            WingSuggestionRow(winger_id=Sqid(s["wingerId"]), winger_name=s["wingerName"], note=s["note"])
+            for s in (r.get("suggestions") or [])
+        ],
+        prompts=[
+            PromptRow(
+                question=p["question"],
+                answer=p["answer"],
+                responses=[
+                    PromptResponseRow(winger_name=resp["wingerName"], message=resp["message"])
+                    for resp in (p["responses"] or [])
+                ],
+            )
+            for p in (r.get("prompts") or [])
+        ],
     )
 
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+import sqlalchemy as sa
 from sqlalchemy import and_, desc, exists, literal, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -35,21 +36,34 @@ async def apply_dater_decision(
     already exists — a pending winger suggestion, or a prior decision being
     overwritten by a block — the lifecycle moves through `StateMachineService`
     rather than assigning the `state` column directly.
+
+    Multiple wingers may have independently suggested the same recipient (each its
+    own row, per the `unique_actor_recipient_suggestion` partial index), so this
+    reads ALL matching rows, not just one — the dater's own swipe resolves every
+    pending suggestion for that recipient at once, not just the first winger's.
     """
     existing = (
-        await db.execute(
-            select(Decision).where(and_(Decision.actor_id == actor.id, Decision.recipient_id == recipient_id))
+        (
+            await db.execute(
+                select(Decision).where(and_(Decision.actor_id == actor.id, Decision.recipient_id == recipient_id))
+            )
         )
-    ).scalar_one_or_none()
+        .scalars()
+        .all()
+    )
 
-    if existing is None:
+    if not existing:
         db.add(Decision(actor_id=actor.id, recipient_id=recipient_id, state=target_state))
         await db.flush()
         return
 
-    if existing.state != target_state:
-        await sm_service.transition(decision_machine, existing, target_state, actor=actor)
-        await db.flush()
+    for row in existing:
+        if row.state == target_state:
+            continue
+        if not decision_machine.can_transition(row, target_state, actor.role):
+            continue
+        await sm_service.transition(decision_machine, row, target_state, actor=actor)
+    await db.flush()
 
 
 async def insert_wing_suggestion(
@@ -66,20 +80,42 @@ async def insert_wing_suggestion(
       * PENDING  -> normal suggestion the dater can act on (with optional note).
       * DECLINED -> winger declines the recipient on the dater's behalf.
 
-    Always a fresh row — on conflict it does nothing (the pair was already decided on
-    / already suggested), so the winger never transitions an existing decision.
-    Returns True only on a genuinely new insert.
+    Always a fresh row — on conflict it does nothing (this winger already suggested
+    this recipient to this dater), so the winger never transitions an existing
+    decision. Other wingers suggesting the same recipient land as separate rows
+    (the `unique_actor_recipient_suggestion` partial index only collides on an
+    identical (dater, recipient, winger) triple). A `WHERE NOT EXISTS` guard also
+    blocks the insert when the dater already has a *real* (non-suggested) decision
+    on this recipient — the normal pool flow already excludes decided candidates,
+    but a stale cached pool page or a race with the dater's own swipe could still
+    reach here. Returns True only on a genuinely new insert.
     """
+    already_decided = exists(
+        select(Decision.id).where(
+            Decision.actor_id == dater_id,
+            Decision.recipient_id == recipient_id,
+            Decision.suggested_by.is_(None),
+        )
+    )
     stmt = (
         pg_insert(Decision)
-        .values(
-            actor_id=dater_id,
-            recipient_id=recipient_id,
-            suggested_by=winger_id,
-            state=state,
-            note=note,
+        .from_select(
+            ["actor_id", "recipient_id", "suggested_by", "state", "note"],
+            select(
+                literal(int(dater_id), type_=SqidType()),
+                literal(int(recipient_id), type_=SqidType()),
+                literal(int(winger_id), type_=SqidType()),
+                literal(state),
+                literal(note),
+            ).where(~already_decided),
         )
-        .on_conflict_do_nothing(constraint="unique_actor_recipient")
+        # Partial unique indexes can't back a named table CONSTRAINT (Postgres
+        # constraints can't be partial), so the conflict target is inferred by
+        # column list + the matching partial predicate instead of `constraint=`.
+        .on_conflict_do_nothing(
+            index_elements=["actor_id", "recipient_id", "suggested_by"],
+            index_where=sa.text("suggested_by IS NOT NULL"),
+        )
         .returning(Decision.id)
     )
     inserted = (await db.execute(stmt)).scalar_one_or_none()

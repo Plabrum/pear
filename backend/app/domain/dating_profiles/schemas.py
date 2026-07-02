@@ -7,14 +7,48 @@ from app.platform.base.schemas import BaseSchema
 from app.utils.sqids import Sqid
 
 
+class WingSuggestion(BaseSchema):
+    """One winger's pending hand-pick of this profile for the viewing dater."""
+
+    wingerId: Sqid
+    wingerName: str | None
+    note: str | None
+
+
+class DiscoverPhoto(BaseSchema):
+    """One approved photo — `pickedByName` is set when a winger (not the dater
+    themselves) suggested it, null for a self-upload."""
+
+    url: str
+    pickedByName: str | None
+
+
+class DiscoverPromptResponse(BaseSchema):
+    """One APPROVED winger/match comment on a candidate's prompt."""
+
+    wingerName: str | None
+    message: str
+
+
+class DiscoverPrompt(BaseSchema):
+    """A candidate's prompt + answer, with every approved comment on it."""
+
+    question: str
+    answer: str
+    responses: list[DiscoverPromptResponse]
+
+
 class SwipeProfile(Actionable):
     """The single projection for the collapsed swipe read.
 
     Replaces the former DiscoverProfile / LikesYouProfile / WingProfile. The wire
     field names are preserved so the client read shapes stay recognizable: `photos`
     is the full approved-photo array (discover), `firstPhoto` is the first of them
-    (likes-you / wing-pool), and the `wingNote` / `suggestedBy` / `suggesterName`
-    trio carries the pending winger-suggestion (null in the winger context).
+    (likes-you / wing-pool), `suggestions` carries every pending winger suggestion
+    of this profile for the viewing dater (empty in the winger context — multiple
+    wingers may independently hand-pick the same profile), and `prompts` carries
+    each prompt with its approved winger/match commentary (empty in the winger
+    context — the winger's own scouting screens don't render it).
     """
 
     profileId: Sqid
@@ -26,11 +60,10 @@ class SwipeProfile(Actionable):
     bio: str | None
     datingStatus: DatingStatus
     interests: list[Interest]
-    photos: list[str]
+    photos: list[DiscoverPhoto]
     firstPhoto: str | None
-    wingNote: str | None
-    suggestedBy: Sqid | None
-    suggesterName: str | None
+    suggestions: list[WingSuggestion]
+    prompts: list[DiscoverPrompt]
 
 
 class LikesYouCountResponse(BaseSchema):

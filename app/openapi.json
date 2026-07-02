@@ -1885,6 +1885,420 @@
         },
         "deprecated": false
       }
+    },
+    "/updates/manifest": {
+      "get": {
+        "summary": "GetManifest",
+        "operationId": "UpdatesManifestGetManifest",
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/updates/publish": {
+      "post": {
+        "summary": "PublishUpdate",
+        "operationId": "UpdatesPublishPublishUpdate",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Document created, URL follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublishUpdateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": ["null", "object", "array"]
+                    }
+                  },
+                  "type": "object",
+                  "required": ["detail", "status_code"],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/updates/native-build-fingerprint": {
+      "get": {
+        "summary": "GetNativeBuildFingerprint",
+        "operationId": "UpdatesNativeBuildFingerprintGetNativeBuildFingerprint",
+        "parameters": [
+          {
+            "name": "platform",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/UpdatePlatform"
+            },
+            "required": true,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NativeBuildFingerprintResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": ["null", "object", "array"]
+                    }
+                  },
+                  "type": "object",
+                  "required": ["detail", "status_code"],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      },
+      "post": {
+        "summary": "SetNativeBuildFingerprint",
+        "operationId": "UpdatesNativeBuildFingerprintSetNativeBuildFingerprint",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetNativeBuildFingerprintRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Document created, URL follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NativeBuildFingerprintResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": ["null", "object", "array"]
+                    }
+                  },
+                  "type": "object",
+                  "required": ["detail", "status_code"],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/_local-media/upload/{bucket}/{key}": {
+      "put": {
+        "tags": ["media-local"],
+        "summary": "LocalUpload",
+        "operationId": "LocalMediaUploadBucketKeyLocalUpload",
+        "parameters": [
+          {
+            "name": "bucket",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "deprecated": false
+          },
+          {
+            "name": "key",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "deprecated": false
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Document created, URL follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": ["null", "object", "array"]
+                    }
+                  },
+                  "type": "object",
+                  "required": ["detail", "status_code"],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/_local-media/download/{bucket}/{key}": {
+      "get": {
+        "tags": ["media-local"],
+        "summary": "LocalDownload",
+        "operationId": "LocalMediaDownloadBucketKeyLocalDownload",
+        "parameters": [
+          {
+            "name": "bucket",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "deprecated": false
+          },
+          {
+            "name": "key",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "deprecated": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": ["null", "object", "array"]
+                    }
+                  },
+                  "type": "object",
+                  "required": ["detail", "status_code"],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/_local-media/public/{key}": {
+      "get": {
+        "tags": ["media-local"],
+        "summary": "LocalPublic",
+        "operationId": "LocalMediaPublicKeyLocalPublic",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "deprecated": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": ["null", "object", "array"]
+                    }
+                  },
+                  "type": "object",
+                  "required": ["detail", "status_code"],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
     }
   },
   "components": {
@@ -2568,6 +2982,65 @@
         "required": ["message"],
         "title": "DisabledReason"
       },
+      "DiscoverPhoto": {
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "pickedByName": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": ["pickedByName", "url"],
+        "title": "DiscoverPhoto"
+      },
+      "DiscoverPrompt": {
+        "properties": {
+          "question": {
+            "type": "string"
+          },
+          "answer": {
+            "type": "string"
+          },
+          "responses": {
+            "items": {
+              "$ref": "#/components/schemas/DiscoverPromptResponse"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object",
+        "required": ["answer", "question", "responses"],
+        "title": "DiscoverPrompt"
+      },
+      "DiscoverPromptResponse": {
+        "properties": {
+          "wingerName": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": ["message", "wingerName"],
+        "title": "DiscoverPromptResponse"
+      },
       "DownloadFileActionResult": {
         "properties": {
           "url": {
@@ -2716,6 +3189,47 @@
         "type": "object",
         "required": ["token"],
         "title": "MagicLinkVerifyIn"
+      },
+      "ManifestAsset": {
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "contentType": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "hash": {
+            "type": "string"
+          },
+          "fileExtension": {
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": ["contentType", "fileExtension", "hash", "key", "url"],
+        "title": "ManifestAsset"
+      },
+      "ManifestLaunchAsset": {
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "contentType": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "hash": {
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": ["contentType", "hash", "key", "url"],
+        "title": "ManifestLaunchAsset"
       },
       "MarkMessagesReadAction": {
         "properties": {
@@ -3084,6 +3598,26 @@
         "type": "object",
         "required": ["createdAt", "daterId", "daterName", "id", "status", "suggestedName"],
         "title": "MySuggestion"
+      },
+      "NativeBuildFingerprintResponse": {
+        "properties": {
+          "platform": {
+            "$ref": "#/components/schemas/UpdatePlatform"
+          },
+          "fingerprint": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": ["fingerprint", "platform"],
+        "title": "NativeBuildFingerprintResponse"
       },
       "OwnDatingProfile": {
         "properties": {
@@ -3858,6 +4392,46 @@
         "required": ["answer", "createdAt", "id", "template"],
         "title": "PublicProfilePrompt"
       },
+      "PublishUpdateRequest": {
+        "properties": {
+          "runtimeVersion": {
+            "type": "string"
+          },
+          "channel": {
+            "$ref": "#/components/schemas/UpdateChannel"
+          },
+          "platform": {
+            "$ref": "#/components/schemas/UpdatePlatform"
+          },
+          "launchAsset": {
+            "$ref": "#/components/schemas/ManifestLaunchAsset"
+          },
+          "assets": {
+            "items": {
+              "$ref": "#/components/schemas/ManifestAsset"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object",
+        "required": ["assets", "channel", "launchAsset", "platform", "runtimeVersion"],
+        "title": "PublishUpdateRequest"
+      },
+      "PublishUpdateResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
+          },
+          "updateUuid": {
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": ["id", "updateUuid"],
+        "title": "PublishUpdateResponse"
+      },
       "RedirectActionResult": {
         "properties": {
           "path": {
@@ -4036,6 +4610,19 @@
         "required": ["createdAt", "id", "phoneNumber", "winger"],
         "title": "SentInvitation"
       },
+      "SetNativeBuildFingerprintRequest": {
+        "properties": {
+          "platform": {
+            "$ref": "#/components/schemas/UpdatePlatform"
+          },
+          "fingerprint": {
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": ["fingerprint", "platform"],
+        "title": "SetNativeBuildFingerprintRequest"
+      },
       "SuggestAction": {
         "properties": {
           "data": {
@@ -4154,7 +4741,7 @@
           },
           "photos": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/DiscoverPhoto"
             },
             "type": "array"
           },
@@ -4168,37 +4755,17 @@
               }
             ]
           },
-          "wingNote": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
+          "suggestions": {
+            "items": {
+              "$ref": "#/components/schemas/WingSuggestion"
+            },
+            "type": "array"
           },
-          "suggestedBy": {
-            "oneOf": [
-              {
-                "type": "string",
-                "description": "SQID-encoded identifier",
-                "example": "kmxpqdrv"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "suggesterName": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
+          "prompts": {
+            "items": {
+              "$ref": "#/components/schemas/DiscoverPrompt"
+            },
+            "type": "array"
           },
           "actions": {
             "items": {
@@ -4219,10 +4786,9 @@
           "interests",
           "photos",
           "profileId",
-          "suggestedBy",
-          "suggesterName",
-          "userId",
-          "wingNote"
+          "prompts",
+          "suggestions",
+          "userId"
         ],
         "title": "SwipeProfile"
       },
@@ -4253,6 +4819,11 @@
         "type": "object",
         "required": ["action", "data"],
         "title": "SwitchToWingerAction"
+      },
+      "UpdateChannel": {
+        "type": "string",
+        "enum": ["production", "preview"],
+        "title": "UpdateChannel"
       },
       "UpdateDatingProfileAction": {
         "properties": {
@@ -4352,6 +4923,11 @@
         "type": "object",
         "required": [],
         "title": "UpdateDatingProfileData"
+      },
+      "UpdatePlatform": {
+        "type": "string",
+        "enum": ["ios"],
+        "title": "UpdatePlatform"
       },
       "UpdateProfileAction": {
         "properties": {
@@ -4470,6 +5046,38 @@
         "enum": ["dater", "winger"],
         "title": "UserRole"
       },
+      "WingSuggestion": {
+        "properties": {
+          "wingerId": {
+            "type": "string",
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
+          },
+          "wingerName": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "note": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": ["note", "wingerId", "wingerName"],
+        "title": "WingSuggestion"
+      },
       "WingerSummary": {
         "properties": {
           "id": {
@@ -4561,10 +5169,23 @@
                 "type": "null"
               }
             ]
+          },
+          "interestedGender": {
+            "oneOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/Gender"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
-        "required": ["avatarUrl", "bio", "chosenName", "id", "interests"],
+        "required": ["avatarUrl", "bio", "chosenName", "id", "interestedGender", "interests"],
         "title": "WingingForDater"
       },
       "WingingForRow": {

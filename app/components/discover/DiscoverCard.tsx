@@ -16,6 +16,7 @@ import { View, Text, ScrollView, Pressable } from '@/lib/tw';
 import { colors } from '@/constants/theme';
 import type { SwipeProfile, WingingForRow } from '@/lib/api/generated/model';
 import { Pill } from '@/components/ui/Pill';
+import { FaceAvatar } from '@/components/ui/FaceAvatar';
 import { ForwardSheet } from '@/components/ui/ForwardSheet';
 import { useActionFormRenderer } from '@/hooks/actions/use-action-form-renderer';
 import type { ActionDTO } from '@/lib/actions/types';
@@ -23,7 +24,8 @@ import { cardButtonShadow } from '@/lib/styles';
 
 import { SWIPE_THRESHOLD, SCREEN_WIDTH } from './constants';
 import { PassStamp, LikeStamp } from './Stamps';
-import { WingCredential } from './WingCredential';
+import { WingPickSection } from './WingPickSection';
+import { PromptCard } from './PromptCard';
 
 // Report is an object action on the swiped DatingProfile; the form (registry)
 // collects the reason, the deck hook records it against `card.profileId`.
@@ -152,13 +154,45 @@ export function DiscoverCard({
           <View style={{ flex: 6, position: 'relative' }}>
             {photos.length > 0 ? (
               <Image
-                source={{ uri: photos[photoIndex] }}
+                source={{ uri: photos[photoIndex].url }}
                 style={StyleSheet.absoluteFill}
                 contentFit="cover"
                 transition={200}
               />
             ) : (
               <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.muted }]} />
+            )}
+
+            {/* Wing-pick badge — this photo was suggested by a friend, not self-uploaded */}
+            {photos.length > 0 && photos[photoIndex].pickedByName != null && (
+              <View
+                pointerEvents="none"
+                style={{
+                  position: 'absolute',
+                  top: 14,
+                  left: 52,
+                  right: 52,
+                  flexDirection: 'row',
+                  justifyContent: 'center',
+                }}
+              >
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 5,
+                    paddingHorizontal: 10,
+                    paddingVertical: 5,
+                    borderRadius: 12,
+                    backgroundColor: 'rgba(0,0,0,0.45)',
+                  }}
+                >
+                  <FaceAvatar name={photos[photoIndex].pickedByName ?? '?'} size={14} />
+                  <Text style={{ fontSize: 11, fontWeight: '600', color: 'rgba(255,255,255,0.95)' }}>
+                    {photos[photoIndex].pickedByName}&apos;s pick
+                  </Text>
+                </View>
+              </View>
             )}
 
             {/* Tap zones for photo navigation — sit above photo, below stamps */}
@@ -289,9 +323,12 @@ export function DiscoverCard({
               contentContainerStyle={{ padding: 16, paddingBottom: 84, gap: 10 }}
               showsVerticalScrollIndicator={false}
             >
-              {card.wingNote != null && card.suggesterName != null && (
-                <WingCredential suggesterName={card.suggesterName} note={card.wingNote} />
+              {card.suggestions.length > 0 && (
+                <WingPickSection suggestions={card.suggestions} chosenName={card.chosenName} />
               )}
+              {card.prompts.map((prompt, i) => (
+                <PromptCard key={i} prompt={prompt} />
+              ))}
               {card.bio != null && (
                 <Text className="text-ink-mid" style={{ fontSize: 14, lineHeight: 20 }}>
                   {card.bio}

@@ -103,6 +103,9 @@ async def test_fetch_winging_for(graph: DomainGraph, db_session: AsyncSession) -
     assert dto.dater.interests is not None
     assert Interest.TRAVEL in dto.dater.interests
     assert dto.dater.bio == graph.dating_profile_a.bio
+    # interested_gender comes off the joined dating_profile too — the forward sheet
+    # uses it to filter which daters a scouted profile can be suggested to.
+    assert dto.dater.interestedGender == list(graph.dating_profile_a.interested_gender)
 
 
 async def test_fetch_winging_for_tabs(graph: DomainGraph, db_session: AsyncSession) -> None:

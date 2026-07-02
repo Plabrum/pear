@@ -155,6 +155,7 @@ async def fetch_wing_note_for_match(db: AsyncSession, viewer_id: Sqid, other_use
                     Decision.note.is_not(None),
                 )
             )
+            .order_by(desc(Decision.created_at))
             .limit(1)
         )
     ).first()

@@ -53,10 +53,14 @@ class ProfilePrompt(BaseDBModel, RLSScopedMixin(read=Authenticated, edit=Owner("
 
 class PromptResponse(
     StateMachineMixin(state_enum=ApprovalState, initial_state=ApprovalState.PENDING),
-    # Party-scoped (NOT coarsened): visible to the author or the responded-to
-    # profile's owner; author inserts, only the profile owner updates (approval).
+    # Read floor coarsened to "any authenticated actor" (discover surfaces winger
+    # commentary on a candidate's prompts to the swiper, who is neither the author
+    # nor the profile owner) — mirrors ProfilePhoto's identical shape. Approval
+    # filtering lives in the app query layer (only APPROVED responses are ever
+    # selected for a non-party reader), not in the RLS floor. Writes stay
+    # party-scoped: author inserts, only the profile owner updates (approval).
     RLSScopedMixin(
-        read=Owner("user_id") | Owner("profile_owner_id"),
+        read=Authenticated,
         edit={"INSERT": Owner("user_id"), "UPDATE": Owner("profile_owner_id")},
     ),
 ):
