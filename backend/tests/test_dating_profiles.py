@@ -278,6 +278,39 @@ async def test_swipe_pool_surfaces_multiple_wingers_suggesting_same_candidate(
     assert notes[second_winger.id] is None
 
 
+async def test_insert_wing_suggestion_rejects_already_decided_pair(
+    graph: DomainGraph, db_session: AsyncSession
+) -> None:
+    """A stale cached pool page (or a race with the dater's own swipe) could still
+    reach `insert_wing_suggestion` for a pair the dater already has a REAL
+    (non-suggested) decision on. The `WHERE NOT EXISTS` guard must reject the
+    insert even though the conflict target only covers `suggested_by IS NOT NULL`
+    rows and wouldn't otherwise collide with a real decision row."""
+    db_session.add(Decision(actor_id=graph.dater_a.id, recipient_id=graph.dater_c.id, state=DecisionState.APPROVED))
+    await db_session.flush()
+
+    inserted = await insert_wing_suggestion(
+        db_session, graph.dater_a.id, graph.dater_c.id, graph.winger.id, None, DecisionState.PENDING
+    )
+    assert inserted is False
+
+    rows = (
+        (
+            await db_session.execute(
+                select(Decision).where(
+                    Decision.actor_id == graph.dater_a.id,
+                    Decision.recipient_id == graph.dater_c.id,
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(rows) == 1
+    assert rows[0].suggested_by is None
+    assert rows[0].state == DecisionState.APPROVED
+
+
 async def test_like_resolves_every_pending_suggestion_for_the_pair(
     graph: DomainGraph, db_session: AsyncSession
 ) -> None:
@@ -321,6 +354,54 @@ async def test_like_resolves_every_pending_suggestion_for_the_pair(
     assert len(rows) == 2
     assert {row.state for row in rows} == {DecisionState.APPROVED}
     assert {row.suggested_by for row in rows} == {graph.winger.id, second_winger.id}
+
+
+async def test_like_resolves_pending_suggestions_and_leaves_declined_rows_alone(
+    graph: DomainGraph, db_session: AsyncSession
+) -> None:
+    """`DeclinedState` is terminal, so a sibling winger's already-DECLINED row must
+    not raise `InvalidTransitionError` when the dater likes the candidate — it
+    used to call `sm_service.transition(...)` unconditionally for every
+    non-matching row, which crashed a normal Like whenever one winger's
+    suggestion was DECLINED and another's was still PENDING for the same pair."""
+    second_winger = await ProfileFactory.create_async(db_session, state=UserRole.WINGER, gender=Gender.NON_BINARY)
+    db_session.add(
+        Contact(
+            user_id=graph.dater_a.id,
+            phone_number=second_winger.phone_number or "+15555550099",
+            winger_id=second_winger.id,
+            state=WingpersonStatus.ACTIVE,
+        )
+    )
+    await db_session.flush()
+
+    await insert_wing_suggestion(
+        db_session, graph.dater_a.id, graph.dater_c.id, graph.winger.id, None, DecisionState.PENDING
+    )
+    await insert_wing_suggestion(
+        db_session, graph.dater_a.id, graph.dater_c.id, second_winger.id, None, DecisionState.DECLINED
+    )
+
+    deps = _deps(db_session, user_id=graph.dater_a.id)
+    # Must not raise even though second_winger's row is already DECLINED (terminal).
+    await Like.execute(graph.dating_profile_c, EmptyActionData(), db_session, deps.user, deps)
+
+    rows = (
+        (
+            await db_session.execute(
+                select(Decision).where(
+                    Decision.actor_id == graph.dater_a.id,
+                    Decision.recipient_id == graph.dater_c.id,
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(rows) == 2
+    by_winger = {row.suggested_by: row.state for row in rows}
+    assert by_winger[graph.winger.id] == DecisionState.APPROVED
+    assert by_winger[second_winger.id] == DecisionState.DECLINED
 
 
 # ── action hydration on the swipe read ───────────────────────────────────────

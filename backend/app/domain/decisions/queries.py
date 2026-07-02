@@ -58,8 +58,11 @@ async def apply_dater_decision(
         return
 
     for row in existing:
-        if row.state != target_state:
-            await sm_service.transition(decision_machine, row, target_state, actor=actor)
+        if row.state == target_state:
+            continue
+        if not decision_machine.can_transition(row, target_state, actor.role):
+            continue
+        await sm_service.transition(decision_machine, row, target_state, actor=actor)
     await db.flush()
 
 
@@ -81,17 +84,30 @@ async def insert_wing_suggestion(
     this recipient to this dater), so the winger never transitions an existing
     decision. Other wingers suggesting the same recipient land as separate rows
     (the `unique_actor_recipient_suggestion` partial index only collides on an
-    identical (dater, recipient, winger) triple). Returns True only on a genuinely
-    new insert.
+    identical (dater, recipient, winger) triple). A `WHERE NOT EXISTS` guard also
+    blocks the insert when the dater already has a *real* (non-suggested) decision
+    on this recipient — the normal pool flow already excludes decided candidates,
+    but a stale cached pool page or a race with the dater's own swipe could still
+    reach here. Returns True only on a genuinely new insert.
     """
+    already_decided = exists(
+        select(Decision.id).where(
+            Decision.actor_id == dater_id,
+            Decision.recipient_id == recipient_id,
+            Decision.suggested_by.is_(None),
+        )
+    )
     stmt = (
         pg_insert(Decision)
-        .values(
-            actor_id=dater_id,
-            recipient_id=recipient_id,
-            suggested_by=winger_id,
-            state=state,
-            note=note,
+        .from_select(
+            ["actor_id", "recipient_id", "suggested_by", "state", "note"],
+            select(
+                literal(int(dater_id), type_=SqidType()),
+                literal(int(recipient_id), type_=SqidType()),
+                literal(int(winger_id), type_=SqidType()),
+                literal(state),
+                literal(note),
+            ).where(~already_decided),
         )
         # Partial unique indexes can't back a named table CONSTRAINT (Postgres
         # constraints can't be partial), so the conflict target is inferred by

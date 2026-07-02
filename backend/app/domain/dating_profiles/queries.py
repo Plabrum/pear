@@ -154,6 +154,10 @@ def prompts_with_responses_expr() -> ColumnElement[Any]:
     Only APPROVED responses are ever selected here (the query layer's job, per
     `PromptResponse`'s coarsened-to-Authenticated read floor — see its model
     docstring), so an unapproved comment is never exposed to a swiper.
+
+    Response aggregation is a single grouped scan joined by `profile_prompt_id`
+    (like `photos_with_pick_expr`'s single-join shape), not a correlated subquery
+    re-executed once per prompt row nested inside the per-candidate correlation.
     """
     responder = aliased(Profile, name="response_author")
     ordered_responses = aggregate_order_by(
@@ -165,16 +169,16 @@ def prompts_with_responses_expr() -> ColumnElement[Any]:
         ),
         PromptResponse.created_at,
     )
-    responses = (
-        select(func.coalesce(func.json_agg(ordered_responses), literal_column("'[]'::json")))
+    response_agg = (
+        select(
+            PromptResponse.profile_prompt_id.label("profile_prompt_id"),
+            func.json_agg(ordered_responses).label("responses"),
+        )
         .select_from(PromptResponse)
         .outerjoin(responder, responder.id == PromptResponse.user_id)
-        .where(
-            PromptResponse.profile_prompt_id == ProfilePrompt.id,
-            PromptResponse.state == ApprovalState.APPROVED,
-        )
-        .correlate(ProfilePrompt)
-        .scalar_subquery()
+        .where(PromptResponse.state == ApprovalState.APPROVED)
+        .group_by(PromptResponse.profile_prompt_id)
+        .subquery("prompt_response_agg")
     )
     ordered_prompts = aggregate_order_by(
         func.json_build_object(
@@ -183,7 +187,7 @@ def prompts_with_responses_expr() -> ColumnElement[Any]:
             "answer",
             ProfilePrompt.answer,
             "responses",
-            responses,
+            func.coalesce(response_agg.c.responses, literal_column("'[]'::json")),
         ),
         ProfilePrompt.created_at,
     )
@@ -191,6 +195,7 @@ def prompts_with_responses_expr() -> ColumnElement[Any]:
         select(func.coalesce(func.json_agg(ordered_prompts), literal_column("'[]'::json")))
         .select_from(ProfilePrompt)
         .join(PromptTemplate, PromptTemplate.id == ProfilePrompt.prompt_template_id)
+        .outerjoin(response_agg, response_agg.c.profile_prompt_id == ProfilePrompt.id)
         .where(ProfilePrompt.dating_profile_id == DatingProfile.id)
         .correlate(DatingProfile)
         .scalar_subquery()

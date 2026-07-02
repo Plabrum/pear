@@ -1,11 +1,11 @@
-import { useState } from 'react';
-import { NativeScrollEvent, NativeSyntheticEvent, StyleSheet } from 'react-native';
+import { useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-import { View, Text, ScrollView } from '@/lib/tw';
+import { View, Text } from '@/lib/tw';
 import { colors } from '@/constants/theme';
 import type { DiscoverPrompt } from '@/lib/api/generated/model';
 import { Card } from '@/components/ui/Card';
+import { PagedCarousel } from '@/components/ui/PagedCarousel';
 
 // A response has no attributed name (unlike WingPickSection's suggestions) — it's
 // anonymous "a friend said this" commentary, so the avatar is a plain mark, not an
@@ -22,12 +22,9 @@ function AnonymousWingMark({ size = 26 }: { size?: number }) {
 }
 
 export function PromptCard({ prompt }: { prompt: DiscoverPrompt }) {
-  const [page, setPage] = useState(0);
+  const { width: screenWidth } = useWindowDimensions();
+  const cardWidth = screenWidth - 32; // matches the surrounding Card's p-4 (16px) padding
   const pageCount = 1 + prompt.responses.length;
-
-  const handleScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    setPage(Math.round(e.nativeEvent.contentOffset.x / e.nativeEvent.layoutMeasurement.width));
-  };
 
   return (
     <Card className="p-4" style={{ position: 'relative' }}>
@@ -35,27 +32,20 @@ export function PromptCard({ prompt }: { prompt: DiscoverPrompt }) {
       {prompt.responses.length > 0 && (
         <View
           pointerEvents="none"
-          style={[
-            StyleSheet.absoluteFill,
-            {
-              top: 6,
-              left: 6,
-              right: -6,
-              bottom: -6,
-              borderRadius: 16,
-              backgroundColor: colors.leafSoft,
-              zIndex: -1,
-            },
-          ]}
+          style={{
+            position: 'absolute',
+            top: 6,
+            left: 6,
+            right: -6,
+            bottom: -6,
+            borderRadius: 16,
+            backgroundColor: colors.leafSoft,
+            zIndex: -1,
+          }}
         />
       )}
 
-      <ScrollView
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        onMomentumScrollEnd={handleScroll}
-      >
+      <PagedCarousel pageCount={pageCount} pageWidth={cardWidth} gap={12}>
         <View style={{ width: '100%' }}>
           <Text
             className="text-primary"
@@ -82,19 +72,7 @@ export function PromptCard({ prompt }: { prompt: DiscoverPrompt }) {
             </Text>
           </View>
         ))}
-      </ScrollView>
-
-      {pageCount > 1 && (
-        <View className="flex-row justify-center gap-1.5 mt-3">
-          {Array.from({ length: pageCount }).map((_, i) => (
-            <View
-              key={i}
-              className={i === page ? 'bg-primary' : 'bg-surface-muted'}
-              style={{ width: 6, height: 6, borderRadius: 3 }}
-            />
-          ))}
-        </View>
-      )}
+      </PagedCarousel>
     </Card>
   );
 }

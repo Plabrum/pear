@@ -1,9 +1,9 @@
-import { useState } from 'react';
-import { NativeScrollEvent, NativeSyntheticEvent, useWindowDimensions } from 'react-native';
+import { useWindowDimensions } from 'react-native';
 
-import { View, Text, ScrollView } from '@/lib/tw';
+import { View, Text } from '@/lib/tw';
 import { WingStack } from '@/components/ui/WingStack';
 import { FaceAvatar } from '@/components/ui/FaceAvatar';
+import { PagedCarousel } from '@/components/ui/PagedCarousel';
 import type { WingSuggestion } from '@/lib/api/generated/model';
 
 function SuggestionCard({ suggestion, width }: { suggestion: WingSuggestion; width: number }) {
@@ -59,13 +59,10 @@ export function WingPickSection({
 }) {
   const { width: screenWidth } = useWindowDimensions();
   const cardWidth = screenWidth - 32; // matches the surrounding 16px card padding
-  const [page, setPage] = useState(0);
+  const GAP = 8;
+  const pageWidth = cardWidth + GAP;
 
   if (suggestions.length === 0) return null;
-
-  const handleScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    setPage(Math.round(e.nativeEvent.contentOffset.x / cardWidth));
-  };
 
   return (
     <View style={{ gap: 8 }}>
@@ -80,28 +77,11 @@ export function WingPickSection({
       {suggestions.length === 1 ? (
         <SuggestionCard suggestion={suggestions[0]} width={cardWidth} />
       ) : (
-        <>
-          <ScrollView
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            onMomentumScrollEnd={handleScroll}
-            contentContainerStyle={{ gap: 8 }}
-          >
-            {suggestions.map((s, i) => (
-              <SuggestionCard key={s.wingerId ?? i} suggestion={s} width={cardWidth} />
-            ))}
-          </ScrollView>
-          <View className="flex-row justify-center gap-1.5">
-            {suggestions.map((_, i) => (
-              <View
-                key={i}
-                className={i === page ? 'bg-primary' : 'bg-surface-muted'}
-                style={{ width: 6, height: 6, borderRadius: 3 }}
-              />
-            ))}
-          </View>
-        </>
+        <PagedCarousel pageCount={suggestions.length} pageWidth={pageWidth} contentContainerStyle={{ gap: GAP }}>
+          {suggestions.map((s, i) => (
+            <SuggestionCard key={s.wingerId ?? i} suggestion={s} width={cardWidth} />
+          ))}
+        </PagedCarousel>
       )}
     </View>
   );

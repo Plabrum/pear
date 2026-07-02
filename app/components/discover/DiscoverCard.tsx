@@ -16,6 +16,7 @@ import { View, Text, ScrollView, Pressable } from '@/lib/tw';
 import { colors } from '@/constants/theme';
 import type { SwipeProfile, WingingForRow } from '@/lib/api/generated/model';
 import { Pill } from '@/components/ui/Pill';
+import { FaceAvatar } from '@/components/ui/FaceAvatar';
 import { ForwardSheet } from '@/components/ui/ForwardSheet';
 import { useActionFormRenderer } from '@/hooks/actions/use-action-form-renderer';
 import type { ActionDTO } from '@/lib/actions/types';
@@ -186,20 +187,7 @@ export function DiscoverCard({
                     backgroundColor: 'rgba(0,0,0,0.45)',
                   }}
                 >
-                  <View
-                    style={{
-                      width: 14,
-                      height: 14,
-                      borderRadius: 7,
-                      backgroundColor: 'rgba(255,255,255,0.9)',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    <Text style={{ fontSize: 9, fontWeight: '700', color: colors.ink }}>
-                      {(photos[photoIndex].pickedByName ?? '?').charAt(0).toUpperCase()}
-                    </Text>
-                  </View>
+                  <FaceAvatar name={photos[photoIndex].pickedByName ?? '?'} size={14} />
                   <Text style={{ fontSize: 11, fontWeight: '600', color: 'rgba(255,255,255,0.95)' }}>
                     {photos[photoIndex].pickedByName}&apos;s pick
                   </Text>

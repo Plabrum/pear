@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 
 from app.domain.dating_profiles.enums import City, DatingStatus, Interest
@@ -68,8 +69,12 @@ async def row_to_swipe_profile(
     deps: ActionDeps,
 ) -> SwipeProfile:
     # `photos` are approved-only S3 keys (the query filters approved_at IS NOT NULL),
-    # so presigning each one cannot leak an unapproved image.
-    photos = [DiscoverPhoto(url=await media.presign_download(p.key), pickedByName=p.picked_by_name) for p in row.photos]
+    # so presigning each one cannot leak an unapproved image. Presigns run concurrently
+    # since each opens its own S3 client session (see BaseMediaClient.presign_download).
+    presigned_urls = await asyncio.gather(*(media.presign_download(p.key) for p in row.photos))
+    photos = [
+        DiscoverPhoto(url=url, pickedByName=p.picked_by_name) for url, p in zip(presigned_urls, row.photos, strict=True)
+    ]
     profile = SwipeProfile(
         profileId=row.profile_id,
         userId=row.user_id,

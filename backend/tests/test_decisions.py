@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import cast
 from unittest.mock import AsyncMock, MagicMock
 
@@ -42,12 +42,14 @@ from app.domain.matches.transformers import (
 # Importing the messages domain's actions module registers MESSAGE_ACTIONS
 # (model_type=Match) on the singleton registry so row_to_match can hydrate it.
 from app.domain.messages.actions import message_actions
+from app.domain.profiles.enums import Gender, UserRole
 from app.platform.actions.base import EmptyActionData
 from app.platform.actions.deps import ActionDeps
 from app.platform.auth.principal import User
 from app.platform.queue.types import AppContext
 from app.platform.state_machine.machine import StateMachineService
 from app.platform.state_machine.roles import Role
+from tests.factories import ProfileFactory
 from tests.fixtures.graph import DomainGraph
 from tests.fixtures.ids import fake_id
 from tests.fixtures.media import local_media
@@ -276,6 +278,33 @@ async def test_match_sheet_other_user_id_and_note(graph: DomainGraph, db_session
     assert sheet.wingNote is not None
     assert sheet.wingNote.winger is not None
     assert sheet.wingNote.winger.id == graph.winger.id
+
+
+async def test_wing_note_picks_the_newest_suggestion_deterministically(
+    graph: DomainGraph, db_session: AsyncSession
+) -> None:
+    """Once more than one winger can suggest the same pair, `fetch_wing_note_for_match`
+    can legitimately match more than one `Decision` row (one per suggesting winger,
+    each with its own note). Without an `ORDER BY`, `.limit(1)` picks an arbitrary
+    row; the fix orders by `desc(Decision.created_at)` so the newest note always
+    wins, consistently across repeated calls."""
+    second_winger = await ProfileFactory.create_async(db_session, state=UserRole.WINGER, gender=Gender.NON_BINARY)
+    newer_suggestion = Decision(
+        actor_id=graph.dater_a.id,
+        recipient_id=graph.dater_b.id,
+        state=DecisionState.PENDING,
+        suggested_by=second_winger.id,
+        note="A much better match for you",
+        created_at=graph.suggestion.created_at + timedelta(seconds=5),
+    )
+    db_session.add(newer_suggestion)
+    await db_session.flush()
+
+    for _ in range(3):
+        wing_note = await fetch_wing_note_for_match(db_session, graph.dater_a.id, graph.dater_b.id)
+        assert wing_note is not None
+        assert wing_note.note == "A much better match for you"
+        assert wing_note.winger_id == second_winger.id
 
 
 async def test_match_sheet_other_user_id_not_participant(graph: DomainGraph, db_session: AsyncSession) -> None:
