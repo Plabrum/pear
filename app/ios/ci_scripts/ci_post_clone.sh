@@ -14,13 +14,24 @@ cd "$CI_PRIMARY_REPOSITORY_PATH/app"
 # slowest and most hang-looking part of a cold install.
 export HOMEBREW_NO_AUTO_UPDATE=1
 export HOMEBREW_NO_INSTALL_CLEANUP=1
+
+# Xcode Cloud's build agent can end up running this script under Rosetta 2
+# (x86_64 emulation) even on arm64 hardware. A translated process hits CocoaPods'
+# own Rosetta guard ("Do not use pod install from inside Rosetta2") and can fail
+# TLS handshakes to cdn.cocoapods.org. Force native arm64 for everything below.
+if [ "$(sysctl -in hw.optional.arm64)" = "1" ]; then
+  ARCH_PREFIX=(arch -arm64)
+else
+  ARCH_PREFIX=()
+fi
+
 echo "ci_post_clone: brew install node@24"
-brew install node@24
-export PATH="$(brew --prefix node@24)/bin:$PATH"
+"${ARCH_PREFIX[@]}" brew install node@24
+export PATH="$("${ARCH_PREFIX[@]}" brew --prefix node@24)/bin:$PATH"
 
 echo "ci_post_clone: npm ci"
-npm ci
+"${ARCH_PREFIX[@]}" npm ci
 
 echo "ci_post_clone: pod install"
 cd ios
-pod install
+"${ARCH_PREFIX[@]}" pod install
