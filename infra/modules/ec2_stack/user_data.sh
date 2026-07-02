@@ -98,36 +98,19 @@ import json, os, subprocess
 env_path = '/opt/pear/.env'
 
 def parse_env(text):
-    # A minimal dotenv-compatible reader: most values are single-line and
-    # unquoted, but a value containing a real newline (e.g. a PEM private key)
-    # is written double-quoted and may span multiple physical lines - both
-    # docker compose's env_file loader and this parser need to agree on that.
+    # A minimal dotenv-compatible reader: values are single-line; a value
+    # fully wrapped in double quotes on one line has the quotes stripped.
     env = {}
-    lines = text.split(chr(10))
-    idx = 0
-    while idx < len(lines):
-        stripped = lines[idx].strip()
+    for line in text.split(chr(10)):
+        stripped = line.strip()
         if not stripped or stripped.startswith('#') or '=' not in stripped:
-            idx += 1
             continue
         k, _, v = stripped.partition('=')
         k = k.strip()
-        if v.startswith('\"') and not v.rstrip().endswith('\"'):
-            parts = [v[1:]]
-            idx += 1
-            while idx < len(lines):
-                if lines[idx].rstrip().endswith('\"'):
-                    parts.append(lines[idx].rstrip()[:-1])
-                    break
-                parts.append(lines[idx])
-                idx += 1
-            v = chr(10).join(parts)
-        elif v.startswith('\"') and v.rstrip().endswith('\"') and len(v.strip()) >= 2:
-            v = v.strip()[1:-1]
-        else:
-            v = v.strip()
+        v = v.strip()
+        if v.startswith('\"') and v.endswith('\"') and len(v) >= 2:
+            v = v[1:-1]
         env[k] = v
-        idx += 1
     return env
 
 env = {}
@@ -135,8 +118,8 @@ if os.path.exists(env_path):
     with open(env_path) as f:
         env = parse_env(f.read())
 
-# Multiple secrets - looping in Python (not a shell pipe) keeps the
-# UPDATES_SIGNING_PRIVATE_KEY PEM's embedded newlines intact.
+# Multiple secrets - all values are plain single-line strings now
+# (UPDATES_SIGNING_PRIVATE_KEY is base64-encoded PEM, no embedded newlines).
 for secret_arn in ['${secrets_arn}', '${updates_secrets_arn}']:
     raw = subprocess.check_output([
         'aws', 'secretsmanager', 'get-secret-value',
@@ -149,10 +132,7 @@ for secret_arn in ['${secrets_arn}', '${updates_secrets_arn}']:
 
 with open(env_path, 'w') as f:
     for k, v in env.items():
-        if chr(10) in v:
-            f.write(f'{k}=\"{v}\"\n')
-        else:
-            f.write(f'{k}={v}\n')
+        f.write(f'{k}={v}\n')
 os.chmod(env_path, 0o600)
 "
 

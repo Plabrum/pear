@@ -224,8 +224,10 @@ resource "aws_secretsmanager_secret_version" "updates" {
 
   # No ignore_changes - Terraform is the sole owner of this secret's contents.
   secret_string = jsonencode({
-    UPDATES_PUBLISH_TOKEN       = random_password.updates_publish_token.result
-    UPDATES_SIGNING_PRIVATE_KEY = tls_private_key.updates_signing.private_key_pem
+    UPDATES_PUBLISH_TOKEN = random_password.updates_publish_token.result
+    # base64-encoded so the PEM's embedded newlines never round-trip through
+    # deploy.sh's single-line .env merge - decoded back to PEM in signing.py.
+    UPDATES_SIGNING_PRIVATE_KEY = base64encode(tls_private_key.updates_signing.private_key_pem)
   })
 }
 

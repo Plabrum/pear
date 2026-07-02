@@ -30,13 +30,14 @@ _HEADERS = {
 
 
 def _rsa_keypair() -> tuple[str, str]:
-    """Return a fresh (private_pem, public_pem) RSA-2048 keypair."""
+    """Return a fresh (private_key_b64, public_pem) RSA-2048 keypair — the private
+    half base64-encoded, matching how UPDATES_SIGNING_PRIVATE_KEY is stored."""
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     private_pem = key.private_bytes(
         encoding=serialization.Encoding.PEM,
         format=serialization.PrivateFormat.PKCS8,
         encryption_algorithm=serialization.NoEncryption(),
-    ).decode()
+    )
     public_pem = (
         key.public_key()
         .public_bytes(
@@ -45,7 +46,7 @@ def _rsa_keypair() -> tuple[str, str]:
         )
         .decode()
     )
-    return private_pem, public_pem
+    return base64.b64encode(private_pem).decode(), public_pem
 
 
 @pytest.fixture
@@ -100,8 +101,8 @@ def _parse_multipart_json(response) -> tuple[str, dict, str | None, bytes]:
 async def test_manifest_current_update_returns_no_update_directive(
     updates_client: AsyncTestClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    private_pem, public_pem = _rsa_keypair()
-    monkeypatch.setattr(config, "UPDATES_SIGNING_PRIVATE_KEY", private_pem)
+    private_key_b64, public_pem = _rsa_keypair()
+    monkeypatch.setattr(config, "UPDATES_SIGNING_PRIVATE_KEY", private_key_b64)
 
     row = AppUpdate(
         runtime_version=_RUNTIME_VERSION,
@@ -130,8 +131,8 @@ async def test_manifest_current_update_returns_no_update_directive(
 async def test_manifest_rolled_back_returns_rollback_directive(
     updates_client: AsyncTestClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    private_pem, public_pem = _rsa_keypair()
-    monkeypatch.setattr(config, "UPDATES_SIGNING_PRIVATE_KEY", private_pem)
+    private_key_b64, public_pem = _rsa_keypair()
+    monkeypatch.setattr(config, "UPDATES_SIGNING_PRIVATE_KEY", private_key_b64)
 
     row = AppUpdate(
         runtime_version=_RUNTIME_VERSION,
@@ -157,8 +158,8 @@ async def test_manifest_rolled_back_returns_rollback_directive(
 async def test_manifest_normal_case_returns_signed_manifest(
     updates_client: AsyncTestClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    private_pem, public_pem = _rsa_keypair()
-    monkeypatch.setattr(config, "UPDATES_SIGNING_PRIVATE_KEY", private_pem)
+    private_key_b64, public_pem = _rsa_keypair()
+    monkeypatch.setattr(config, "UPDATES_SIGNING_PRIVATE_KEY", private_key_b64)
 
     row = AppUpdate(
         runtime_version=_RUNTIME_VERSION,

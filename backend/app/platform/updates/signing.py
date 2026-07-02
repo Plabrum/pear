@@ -19,7 +19,7 @@ def sign_manifest(body: bytes, config: Config) -> str | None:
     if not config.UPDATES_SIGNING_PRIVATE_KEY:
         return None
     private_key = serialization.load_pem_private_key(
-        config.UPDATES_SIGNING_PRIVATE_KEY.encode(),
+        base64.b64decode(config.UPDATES_SIGNING_PRIVATE_KEY),
         password=None,
     )
     if not isinstance(private_key, rsa.RSAPrivateKey):

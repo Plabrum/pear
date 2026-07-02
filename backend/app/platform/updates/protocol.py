@@ -29,9 +29,7 @@ def _response_headers() -> dict[str, str]:
     }
 
 
-def directive_response(
-    directive: NoUpdateAvailableDirective | RollBackDirective, config: Config
-) -> Response[bytes]:
+def directive_response(directive: NoUpdateAvailableDirective | RollBackDirective, config: Config) -> Response[bytes]:
     body = msgspec.json.encode(directive)
     signature = sign_manifest(body, config)
     extra_headers = {}

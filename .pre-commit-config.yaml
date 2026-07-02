@@ -1,0 +1,18 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.4
+    hooks:
+      - id: ruff
+        files: ^backend/.*\.py$
+        args: [--fix]
+      - id: ruff-format
+        files: ^backend/.*\.py$
+
+  - repo: local
+    hooks:
+      - id: basedpyright
+        name: basedpyright (local)
+        language: system
+        entry: bash -lc 'cd backend && uv run basedpyright'
+        files: ^backend/.*\.py$
+        pass_filenames: false

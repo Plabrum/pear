@@ -62,12 +62,13 @@ class Config:
     MEDIA_WEBP_QUALITY: int = int(os.getenv("MEDIA_WEBP_QUALITY", "80"))
 
     # ─── Self-hosted OTA (expo-updates protocol v1) ────────────────────────────
-    # RSA private key (PEM) the `/updates/manifest` route signs manifest bodies
-    # with — the `expo-signature` response header. Pairs with the public
-    # `codeSigningCertificate` embedded in the client (app.config.js). Signing
-    # happens at SERVE time (not at GH Actions publish time) so the private key
-    # lives only on this box, never in CI secrets. Empty in local/testing unless a
-    # test injects one.
+    # base64-encoded RSA private key (PEM) the `/updates/manifest` route signs
+    # manifest bodies with — the `expo-signature` response header. Pairs with the
+    # public `codeSigningCertificate` embedded in the client (app.config.js).
+    # Signing happens at SERVE time (not at GH Actions publish time) so the
+    # private key lives only on this box, never in CI secrets. base64-encoded so
+    # it round-trips as a single-line value through deploy.sh's .env merge; decoded
+    # back to PEM in signing.py. Empty in local/testing unless a test injects one.
     UPDATES_SIGNING_PRIVATE_KEY: str = os.getenv("UPDATES_SIGNING_PRIVATE_KEY", "")
     # `keyid` in the `expo-signature` header — matches `codeSigningMetadata.keyid`
     # in the client's `app.config.js` (Expo's convention default is "main").
