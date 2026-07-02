@@ -28,8 +28,7 @@
     "codegen": "npm run api:spec && npm run api:gen",
     "prebuild:local": "bash scripts/check-local-build-deps.sh",
     "build:device": "expo run:ios --device",
-    "seed:prod": "npx tsx --env-file .env.local scripts/seed-prod.ts",
-    "prepare": "husky"
+    "seed:prod": "npx tsx --env-file .env.local scripts/seed-prod.ts"
   },
   "dependencies": {
     "@expo-google-fonts/dm-serif-display": "^0.4.2",
@@ -94,21 +93,12 @@
     "drizzle-orm": "^0.45.2",
     "eslint": "^9.25.0",
     "eslint-config-expo": "~56.0.4",
-    "husky": "^9.1.7",
     "jsonwebtoken": "^9.0.3",
-    "lint-staged": "^16.3.3",
     "orval": "^8.8.0",
     "postgres": "^3.4.9",
     "prettier": "^3.8.1",
     "supabase": "2.75.0",
     "typescript": "~6.0.3"
-  },
-  "lint-staged": {
-    "*.{ts,tsx}": [
-      "eslint --fix --no-warn-ignored",
-      "prettier --write"
-    ],
-    "*.{js,json,md,css}": "prettier --write"
   },
   "private": true,
   "overrides": {

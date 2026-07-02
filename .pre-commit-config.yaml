@@ -16,3 +16,21 @@ repos:
         entry: bash -lc 'cd backend && uv run basedpyright'
         files: ^backend/.*\.py$
         pass_filenames: false
+
+  # Frontend lint/format, scoped to staged app/ files only (snacks' template
+  # runs these whole-tree via pass_filenames: false, which reformats every
+  # file in the workspace on any commit touching app/ — too invasive here).
+  - repo: local
+    hooks:
+      - id: eslint
+        name: eslint (local)
+        language: system
+        entry: bash -lc 'cd app && files=(); for f in "$@"; do files+=("${f#app/}"); done; npx expo lint --fix "${files[@]}"' --
+        files: ^app/.*\.(js|jsx|ts|tsx)$
+        exclude: ^app/(node_modules|dist|\.expo)/
+      - id: prettier
+        name: prettier (local)
+        language: system
+        entry: bash -lc 'cd app && files=(); for f in "$@"; do files+=("${f#app/}"); done; npx prettier --write "${files[@]}"' --
+        files: ^app/.*\.(js|jsx|ts|tsx|json|css|html|md)$
+        exclude: ^app/(node_modules|dist|\.expo)/
