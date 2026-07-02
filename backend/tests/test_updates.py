@@ -59,6 +59,22 @@ async def updates_client(db_session: AsyncSession) -> AsyncGenerator[AsyncTestCl
         yield client
 
 
+def _assert_valid_signature(signature_header: str | None, body_bytes: bytes, public_pem: str) -> None:
+    """Verify the `expo-signature` part header (`sig="<base64>", keyid="main"`)
+    against the public half of the keypair injected for this test."""
+    assert signature_header is not None
+    assert 'keyid="main"' in signature_header
+    sig_b64 = signature_header.split('sig="')[1].split('"')[0]
+    public_key = serialization.load_pem_public_key(public_pem.encode())
+    assert isinstance(public_key, rsa.RSAPublicKey)
+    public_key.verify(
+        base64.b64decode(sig_b64),
+        body_bytes,
+        padding.PKCS1v15(),
+        hashes.SHA256(),
+    )
+
+
 def _parse_multipart_json(response) -> tuple[str, dict, str | None, bytes]:
     """Pull `(part_name, json_body, expo-signature part header, raw json bytes)`
     out of the `multipart/mixed` body this route hand-assembles (see
@@ -82,8 +98,11 @@ def _parse_multipart_json(response) -> tuple[str, dict, str | None, bytes]:
 
 
 async def test_manifest_current_update_returns_no_update_directive(
-    updates_client: AsyncTestClient, db_session: AsyncSession
+    updates_client: AsyncTestClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    private_pem, public_pem = _rsa_keypair()
+    monkeypatch.setattr(config, "UPDATES_SIGNING_PRIVATE_KEY", private_pem)
+
     row = AppUpdate(
         runtime_version=_RUNTIME_VERSION,
         channel=UpdateChannel.PRODUCTION,
@@ -102,14 +121,18 @@ async def test_manifest_current_update_returns_no_update_directive(
 
     assert response.status_code == 200
     assert response.headers["expo-protocol-version"] == "1"
-    part_name, body, _, _ = _parse_multipart_json(response)
+    part_name, body, signature_header, body_bytes = _parse_multipart_json(response)
     assert part_name == "directive"
     assert body == {"type": "noUpdateAvailable"}
+    _assert_valid_signature(signature_header, body_bytes, public_pem)
 
 
 async def test_manifest_rolled_back_returns_rollback_directive(
-    updates_client: AsyncTestClient, db_session: AsyncSession
+    updates_client: AsyncTestClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    private_pem, public_pem = _rsa_keypair()
+    monkeypatch.setattr(config, "UPDATES_SIGNING_PRIVATE_KEY", private_pem)
+
     row = AppUpdate(
         runtime_version=_RUNTIME_VERSION,
         channel=UpdateChannel.PRODUCTION,
@@ -124,10 +147,11 @@ async def test_manifest_rolled_back_returns_rollback_directive(
     response = await updates_client.get("/updates/manifest", headers=_HEADERS)
 
     assert response.status_code == 200
-    part_name, body, _, _ = _parse_multipart_json(response)
+    part_name, body, signature_header, body_bytes = _parse_multipart_json(response)
     assert part_name == "directive"
     assert body["type"] == "rollBackToEmbedded"
     assert body["parameters"]["createdAt"] == row.created_at.isoformat()
+    _assert_valid_signature(signature_header, body_bytes, public_pem)
 
 
 async def test_manifest_normal_case_returns_signed_manifest(
@@ -170,19 +194,7 @@ async def test_manifest_normal_case_returns_signed_manifest(
     assert manifest["launchAsset"]["url"] == "https://cdn.example.com/bundle.js"
     assert manifest["assets"][0]["fileExtension"] == ".png"
 
-    # The `expo-signature` part header carries `sig="<base64>", keyid="main"` —
-    # verify it against the public half of the injected keypair.
-    assert signature_header is not None
-    assert 'keyid="main"' in signature_header
-    sig_b64 = signature_header.split('sig="')[1].split('"')[0]
-    public_key = serialization.load_pem_public_key(public_pem.encode())
-    assert isinstance(public_key, rsa.RSAPublicKey)
-    public_key.verify(
-        base64.b64decode(sig_b64),
-        body_bytes,
-        padding.PKCS1v15(),
-        hashes.SHA256(),
-    )
+    _assert_valid_signature(signature_header, body_bytes, public_pem)
 
 
 _PUBLISH_BODY = {

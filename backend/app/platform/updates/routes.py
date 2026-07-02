@@ -54,14 +54,15 @@ async def get_manifest(request: Request, transaction: AsyncSession) -> Response[
     # No published update for this tuple yet — fail safe to "nothing to apply"
     # rather than erroring the client's update check.
     if row is None:
-        return directive_response(NoUpdateAvailableDirective())
+        return directive_response(NoUpdateAvailableDirective(), app_config)
 
     if current_update_id and current_update_id.strip().lower() == str(row.update_uuid):
-        return directive_response(NoUpdateAvailableDirective())
+        return directive_response(NoUpdateAvailableDirective(), app_config)
 
     if row.rollout == RolloutStatus.ROLLED_BACK:
         return directive_response(
-            RollBackDirective(parameters=RollBackDirectiveParameters(createdAt=row.created_at.isoformat()))
+            RollBackDirective(parameters=RollBackDirectiveParameters(createdAt=row.created_at.isoformat())),
+            app_config,
         )
 
     return manifest_response(row, app_config)

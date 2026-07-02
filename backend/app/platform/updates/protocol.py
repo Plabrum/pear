@@ -29,10 +29,20 @@ def _response_headers() -> dict[str, str]:
     }
 
 
-def directive_response(directive: NoUpdateAvailableDirective | RollBackDirective) -> Response[bytes]:
-    part = MultipartPart(name="directive", body=msgspec.json.encode(directive))
-    body, content_type = encode_multipart_mixed([part])
-    return Response(content=body, media_type=content_type, headers=_response_headers())
+def directive_response(
+    directive: NoUpdateAvailableDirective | RollBackDirective, config: Config
+) -> Response[bytes]:
+    body = msgspec.json.encode(directive)
+    signature = sign_manifest(body, config)
+    extra_headers = {}
+    if signature is not None:
+        # Same RFC 8941 Structured Field Value format as manifest_response — the
+        # client's code-signing certificate requires every multipart/mixed part
+        # (directive or manifest) to carry a valid signature, not just manifests.
+        extra_headers["expo-signature"] = f'sig="{signature}", keyid="{config.UPDATES_SIGNING_KEY_ID}"'
+    part = MultipartPart(name="directive", body=body, extra_headers=extra_headers)
+    payload, content_type = encode_multipart_mixed([part])
+    return Response(content=payload, media_type=content_type, headers=_response_headers())
 
 
 def manifest_response(row: AppUpdate, config: Config) -> Response[bytes]:
