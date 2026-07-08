@@ -71,6 +71,7 @@ AWS_REGION=${aws_region}
 S3_MEDIA_BUCKET=${s3_media_bucket}
 APP_SECRETS_ARN=${secrets_arn}
 DOMAIN=${domain}
+EMAIL_FROM=noreply@${domain}
 SES_CONFIGURATION_SET=${ses_config_set}
 FRONTEND_ORIGIN=${frontend_origin}
 SUCCESS_REDIRECT_URL=${frontend_origin}

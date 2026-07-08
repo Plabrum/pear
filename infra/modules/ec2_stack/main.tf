@@ -323,10 +323,16 @@ resource "aws_instance" "app" {
 
   tags = merge(local.common_tags, { Name = "${local.name}-app" })
 
-  # user_data only runs at first boot - replace instance if it changes
+  # user_data only runs at first boot, so it's a no-op on a running instance —
+  # ignored here so template edits (e.g. this file's EMAIL_FROM) don't make
+  # Terraform propose a replace that prevent_destroy would then block, failing
+  # the CI apply job on every subsequent push. A genuinely new instance (fresh
+  # `terraform apply` in a new env, or an intentional replace after manually
+  # dropping prevent_destroy) still picks up the current template in full.
   lifecycle {
     create_before_destroy = true
     prevent_destroy       = true
+    ignore_changes        = [user_data]
   }
 }
 

@@ -42,11 +42,19 @@ repos:
       # shipped broken once already). Same check as .github/workflows/
       # ios-drift-check.yml and ios/ci_scripts/ci_post_clone.sh (the real gate,
       # since main has no branch protection and this repo pushes directly to it).
+      #
+      # `git checkout -- ios/` first resets the working tree to the INDEX (not
+      # HEAD - preserves anything genuinely staged for this commit) before
+      # regenerating. Without it, benign local-only Xcode state (e.g. the
+      # DEVELOPMENT_TEAM Xcode injects into project.pbxproj the moment you pick
+      # a signing team for an on-device build) would falsely trip this check on
+      # every future commit touching these paths, even ones unrelated to signing.
       - id: ios-drift-check
         name: ios/ drift check (local)
         language: system
         entry: >-
           bash -lc 'cd app &&
+          git checkout -- ios/ &&
           EXPO_PUBLIC_API_URL=https://api.usepear.app npx expo prebuild -p ios &&
           git diff --exit-code -- ios/
           || (echo "error: app/ios/ is stale — regenerate with EXPO_PUBLIC_API_URL=https://api.usepear.app npx expo prebuild -p ios --clean and commit ios/" && exit 1)'

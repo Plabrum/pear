@@ -42,4 +42,13 @@ def encode_multipart_mixed(parts: list[MultipartPart]) -> tuple[bytes, str]:
         chunks.append(b"")
         chunks.append(part.body)
     chunks.append(f"--{boundary}--".encode())
+    # Trailing empty chunk forces a final \r\n after the closing boundary.
+    # expo-updates' native parser (UpdatesMultipartStreamReader.swift) requires
+    # the exact byte sequence "\r\n--{boundary}--\r\n" to recognize the close
+    # delimiter - without this, it never matches and the client hangs waiting
+    # for more stream data that never comes ("Could not read multipart remote
+    # update response"). This never showed up in our own tests because our test
+    # helper hand-parses the same way this encoder writes, so it never validated
+    # against the real (stricter) native parser's expectations.
+    chunks.append(b"")
     return b"\r\n".join(chunks), f"multipart/mixed; boundary={boundary}"
