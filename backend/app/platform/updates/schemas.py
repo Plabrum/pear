@@ -102,3 +102,34 @@ class NativeBuildFingerprintResponse(BaseSchema):
     """`None` when no native build has ever been recorded for this platform —
     `ota.yml`'s fingerprint guardrail must treat that the same as a hard mismatch.
     """
+
+
+# ─── Manifest protocol v2 (GET /updates/v2/manifest) ───────────────────────────
+# Our own client, our own wire contract — plain snake_case like every other schema
+# in this codebase (no `rename="camel"`), unlike the v1 structs above which mirror
+# the foreign `expo-updates` spec verbatim. Signed as one flat JSON body (see
+# `protocol.py`'s `manifest_v2_response`), not a `multipart/mixed` envelope — there
+# is exactly one part, so the v1 protocol's multipart wrapping bought nothing here.
+
+
+class UpdateAsset(BaseSchema):
+    key: str
+    content_type: str
+    url: str
+    hash: str
+    """sha256, base64url — unchanged from today's `build-ota-payload.js`."""
+    file_extension: str | None = None
+
+
+class UpdateManifest(BaseSchema):
+    update_uuid: str
+    created_at: str
+    runtime_version: str
+    launch_asset: UpdateAsset
+    assets: list[UpdateAsset]
+
+
+class ManifestResponse(BaseSchema):
+    status: Literal["update_available", "no_update", "rollback"]
+    manifest: UpdateManifest | None = None
+    rollback_created_at: str | None = None

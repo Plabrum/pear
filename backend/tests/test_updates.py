@@ -198,6 +198,146 @@ async def test_manifest_normal_case_returns_signed_manifest(
     _assert_valid_signature(signature_header, body_bytes, public_pem)
 
 
+def _v2_params(**overrides: str) -> dict[str, str]:
+    return {
+        "runtime_version": _RUNTIME_VERSION,
+        "platform": "ios",
+        "channel": "production",
+        **overrides,
+    }
+
+
+def _assert_valid_v2_signature(response, public_pem: str) -> None:
+    signature_b64 = response.headers.get("x-update-signature")
+    assert signature_b64 is not None
+    assert response.headers["x-update-signing-key-id"] == "main"
+    public_key = serialization.load_pem_public_key(public_pem.encode())
+    assert isinstance(public_key, rsa.RSAPublicKey)
+    public_key.verify(
+        base64.b64decode(signature_b64),
+        response.content,
+        padding.PKCS1v15(),
+        hashes.SHA256(),
+    )
+
+
+async def test_manifest_v2_no_row_returns_no_update(updates_client: AsyncTestClient) -> None:
+    response = await updates_client.get("/updates/v2/manifest", params=_v2_params())
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "no_update", "manifest": None, "rollback_created_at": None}
+
+
+async def test_manifest_v2_current_update_returns_no_update(
+    updates_client: AsyncTestClient, db_session: AsyncSession
+) -> None:
+    row = AppUpdate(
+        runtime_version=_RUNTIME_VERSION,
+        channel=UpdateChannel.PRODUCTION,
+        platform=UpdatePlatform.IOS,
+        launch_asset={"key": "abc", "contentType": "application/javascript", "url": "https://cdn/abc", "hash": "h"},
+        assets=[],
+        rollout=RolloutStatus.LIVE,
+    )
+    db_session.add(row)
+    await db_session.flush()
+
+    response = await updates_client.get(
+        "/updates/v2/manifest", params=_v2_params(current_update_id=str(row.update_uuid))
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "no_update"
+
+
+async def test_manifest_v2_rolled_back_returns_rollback(
+    updates_client: AsyncTestClient, db_session: AsyncSession
+) -> None:
+    row = AppUpdate(
+        runtime_version=_RUNTIME_VERSION,
+        channel=UpdateChannel.PRODUCTION,
+        platform=UpdatePlatform.IOS,
+        launch_asset={"key": "abc", "contentType": "application/javascript", "url": "https://cdn/abc", "hash": "h"},
+        assets=[],
+        rollout=RolloutStatus.ROLLED_BACK,
+    )
+    db_session.add(row)
+    await db_session.flush()
+
+    response = await updates_client.get("/updates/v2/manifest", params=_v2_params())
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "rollback"
+    assert body["rollback_created_at"] == row.created_at.isoformat()
+
+
+async def test_manifest_v2_normal_case_returns_signed_manifest(
+    updates_client: AsyncTestClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    private_key_b64, public_pem = _rsa_keypair()
+    monkeypatch.setattr(config, "UPDATES_SIGNING_PRIVATE_KEY", private_key_b64)
+
+    row = AppUpdate(
+        runtime_version=_RUNTIME_VERSION,
+        channel=UpdateChannel.PRODUCTION,
+        platform=UpdatePlatform.IOS,
+        launch_asset={
+            "key": "bundle-key",
+            "contentType": "application/javascript",
+            "url": "https://cdn.example.com/bundle.js",
+            "hash": "bundle-hash",
+        },
+        assets=[
+            {
+                "key": "asset-key",
+                "contentType": "image/png",
+                "url": "https://cdn.example.com/asset.png",
+                "hash": "asset-hash",
+                "fileExtension": ".png",
+            }
+        ],
+        rollout=RolloutStatus.LIVE,
+    )
+    db_session.add(row)
+    await db_session.flush()
+
+    response = await updates_client.get("/updates/v2/manifest", params=_v2_params())
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "update_available"
+    manifest = body["manifest"]
+    assert manifest["update_uuid"] == str(row.update_uuid)
+    assert manifest["runtime_version"] == _RUNTIME_VERSION
+    assert manifest["launch_asset"] == {
+        "key": "bundle-key",
+        "content_type": "application/javascript",
+        "url": "https://cdn.example.com/bundle.js",
+        "hash": "bundle-hash",
+        "file_extension": None,
+    }
+    assert manifest["assets"][0] == {
+        "key": "asset-key",
+        "content_type": "image/png",
+        "url": "https://cdn.example.com/asset.png",
+        "hash": "asset-hash",
+        "file_extension": ".png",
+    }
+    _assert_valid_v2_signature(response, public_pem)
+
+
+async def test_manifest_v2_unsigned_when_no_signing_key_configured(
+    updates_client: AsyncTestClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(config, "UPDATES_SIGNING_PRIVATE_KEY", "")
+
+    response = await updates_client.get("/updates/v2/manifest", params=_v2_params())
+
+    assert response.status_code == 200
+    assert "x-update-signature" not in response.headers
+
+
 _PUBLISH_BODY = {
     "runtimeVersion": _RUNTIME_VERSION,
     "channel": "production",
