@@ -9,7 +9,11 @@ locals {
 }
 
 # -- AMI -----------------------------------------------------------------------
-# Amazon Linux 2023 x86_64 - matches the linux/amd64 CI build target
+# Amazon Linux 2023 x86_64 - matches the linux/amd64 CI build target. Pinned via
+# var.ami_id (variables.tf), NOT looked up with `most_recent = true` - see that
+# variable's description for why a floating lookup breaks every apply once AWS
+# publishes a new AL2023 AMI. Kept here only as the documented "how to find the
+# current one" reference for bumping var.ami_id deliberately:
 #
 # "al2023-ami-*-x86_64" also matches the "minimal" variant
 # (al2023-ami-minimal-2023...), which doesn't ship amazon-ssm-agent
@@ -17,21 +21,19 @@ locals {
 # aborts the whole boot script under set -e, and the instance never
 # registers with SSM. Standard AMI names start with the date
 # (al2023-ami-2023...), so anchoring on a digit excludes "minimal".
-
-data "aws_ami" "al2023" {
-  most_recent = true
-  owners      = ["amazon"]
-
-  filter {
-    name   = "name"
-    values = ["al2023-ami-2*-x86_64"]
-  }
-
-  filter {
-    name   = "virtualization-type"
-    values = ["hvm"]
-  }
-}
+#
+# data "aws_ami" "al2023" {
+#   most_recent = true
+#   owners      = ["amazon"]
+#   filter {
+#     name   = "name"
+#     values = ["al2023-ami-2*-x86_64"]
+#   }
+#   filter {
+#     name   = "virtualization-type"
+#     values = ["hvm"]
+#   }
+# }
 
 # -- S3 ------------------------------------------------------------------------
 
@@ -287,7 +289,7 @@ resource "aws_iam_instance_profile" "app" {
 # -- EC2 instance --------------------------------------------------------------
 
 resource "aws_instance" "app" {
-  ami                    = data.aws_ami.al2023.id
+  ami                    = var.ami_id
   instance_type          = var.instance_type
   iam_instance_profile   = aws_iam_instance_profile.app.name
   key_name               = var.key_pair_name != "" ? var.key_pair_name : null

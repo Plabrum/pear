@@ -53,6 +53,24 @@ variable "extra_env" {
 
 # -- EC2-specific --------------------------------------------------------------
 
+variable "ami_id" {
+  description = <<-EOT
+    Pinned AL2023 x86_64 AMI ID. Deliberately NOT looked up via `most_recent = true`
+    in a data source - that floats forward whenever AWS publishes a new AL2023 AMI,
+    and since `ami` forces replacement on aws_instance.app, every such publish turns
+    the next `terraform apply` into a hard failure (Postgres/Redis live on this
+    box's own EBS volume with no backup layer yet, so lifecycle.prevent_destroy
+    blocks it rather than silently wiping data).
+    To bump deliberately: find the current AL2023 x86_64 AMI (matching the filters
+    below) and update the default.
+      aws ec2 describe-images --owners amazon --region <region> \
+        --filters "Name=name,Values=al2023-ami-2*-x86_64" "Name=virtualization-type,Values=hvm" \
+        --query "reverse(sort_by(Images, &CreationDate))[0].ImageId" --output text
+  EOT
+  type        = string
+  default     = "ami-051bfa33df3949860"
+}
+
 variable "instance_type" {
   description = "t3.small (2 vCPU, 2 GB) comfortably runs postgres+redis+api+worker. t3.micro works with the swap configured in user_data.sh."
   type        = string
