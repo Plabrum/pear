@@ -14,8 +14,6 @@ check() {
 echo "Checking local iOS build dependencies..."
 check xcodebuild  "Xcode (install from App Store)"
 check pod         "CocoaPods (brew install cocoapods)"
-check fastlane    "Fastlane (brew install fastlane)"
-check ruby        "Ruby (brew install ruby)"
 check node        "Node.js (brew install node)"
 
 if [ ${#MISSING[@]} -ne 0 ]; then

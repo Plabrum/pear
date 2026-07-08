@@ -9,6 +9,16 @@ on:
     branches: [main]
     paths:
       - "app/**"
+  # `main` has no branch protection, so pushes land directly without ever going
+  # through the pull_request trigger above — this is the only reason a stale ios/
+  # (wrong OTA code-signing cert) shipped silently to Xcode Cloud once already.
+  # Catching it here too is still after-the-fact (can't block a push that already
+  # happened); ios/ci_scripts/ci_post_clone.sh is the gate that actually stops a
+  # bad build from reaching TestFlight.
+  push:
+    branches: [main]
+    paths:
+      - "app/**"
 
 jobs:
   drift-check:

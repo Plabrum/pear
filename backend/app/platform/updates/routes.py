@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 import msgspec
 from litestar import Request, Response, get, post
 from litestar.exceptions import ClientException
@@ -23,6 +25,8 @@ from app.platform.updates.schemas import (
     SetNativeBuildFingerprintRequest,
 )
 
+logger = logging.getLogger(__name__)
+
 
 @get("/updates/manifest", exclude_from_auth=True)
 async def get_manifest(request: Request, transaction: AsyncSession) -> Response[bytes]:
@@ -34,6 +38,15 @@ async def get_manifest(request: Request, transaction: AsyncSession) -> Response[
     platform_header = request.headers.get("expo-platform")
     channel_header = request.headers.get("expo-channel-name")
     current_update_id = request.headers.get("expo-current-update-id")
+
+    logger.info(
+        "updates/manifest request: runtime_version=%s platform=%s channel=%s current_update_id=%s ip=%s",
+        runtime_version,
+        platform_header,
+        channel_header,
+        current_update_id,
+        request.client.host if request.client else None,
+    )
 
     if not runtime_version or not platform_header or not channel_header:
         raise ClientException("Missing required expo-runtime-version / expo-platform / expo-channel-name headers")
@@ -54,17 +67,21 @@ async def get_manifest(request: Request, transaction: AsyncSession) -> Response[
     # No published update for this tuple yet — fail safe to "nothing to apply"
     # rather than erroring the client's update check.
     if row is None:
+        logger.info("updates/manifest: no update row for runtime_version=%s channel=%s", runtime_version, channel)
         return directive_response(NoUpdateAvailableDirective(), app_config)
 
     if current_update_id and current_update_id.strip().lower() == str(row.update_uuid):
+        logger.info("updates/manifest: client already on latest update_uuid=%s", row.update_uuid)
         return directive_response(NoUpdateAvailableDirective(), app_config)
 
     if row.rollout == RolloutStatus.ROLLED_BACK:
+        logger.info("updates/manifest: serving rollback directive for update_uuid=%s", row.update_uuid)
         return directive_response(
             RollBackDirective(parameters=RollBackDirectiveParameters(createdAt=row.created_at.isoformat())),
             app_config,
         )
 
+    logger.info("updates/manifest: serving manifest for update_uuid=%s", row.update_uuid)
     return manifest_response(row, app_config)
 
 

@@ -32,14 +32,14 @@ Core flows: Auth → Onboarding → Discover → Matches → Messaging → Wingp
 
 The repo is a monorepo with a root `Justfile`. Three workspaces:
 
-- **`app/`** — the Expo app (this is where the mobile project lives; cwd for all `npm`/`expo`/`eas` commands).
+- **`app/`** — the Expo app (this is where the mobile project lives; cwd for all `npm`/`expo` commands).
 - **`backend/`** — the Litestar (Python) API + worker.
 - **`infra/`** — Terraform for the single-EC2 deploy.
 
 ```
 wingmate/
 ├── Justfile                    # Root task runner (just --list) — app-*, backend, db-*, tf-* recipes
-├── app/                        # Expo app (cwd for npm/expo/eas)
+├── app/                        # Expo app (cwd for npm/expo)
 │   ├── app/                    # expo-router routes (the routes dir)
 │   │   ├── _layout.tsx         # Root layout — providers, auth gate, Toaster
 │   │   ├── invite.tsx          # Deep-link handler
@@ -61,7 +61,17 @@ wingmate/
 │   │       └── generated/      # Orval read hooks (committed)
 │   ├── hooks/ assets/ constants/  # constants/theme.ts = hex escape-hatch values
 │   ├── scripts/                # dev/sim, etc.
-│   ├── package.json  app.config.js  eas.json  tsconfig.json  metro.config.js
+│   ├── certs/                  # OTA code-signing public cert (updates-signing.pem) — must be
+│   │                           # regenerated (see ios/) whenever the Terraform-managed signing
+│   │                           # key rotates, not just copied once
+│   ├── ios/                    # Committed native project (Xcode Cloud builds this directly,
+│   │                           # does NOT run `expo prebuild`) — build output, not hand-edited;
+│   │                           # regenerate via `expo prebuild -p ios` after any app.config.js /
+│   │                           # certs/ change and commit the diff. Drift guarded by
+│   │                           # .github/workflows/ios-drift-check.yml + a pre-commit hook +
+│   │                           # ios/ci_scripts/ci_post_clone.sh (the last one is the real gate —
+│   │                           # it aborts the Xcode Cloud build itself on drift).
+│   ├── package.json  app.config.js  tsconfig.json  metro.config.js
 │   ├── openapi.json            # Litestar-emitted OpenAPI spec (orval input, committed)
 │   ├── orval.config.ts
 │   └── global.css              # Tailwind v4 @theme tokens (source of truth)
@@ -397,7 +407,9 @@ cd app && npx tsc --noEmit && npm run lint
 
 # Build & deploy the app (Xcode Cloud + self-hosted OTA — separate from the backend pipeline)
 cd app && npm run export:ota     # expo export -p ios — JS bundle for the OTA publish job (ota.yml)
-cd app && npm run build:device   # native build straight to a connected device
+cd app && npm run build:device   # opens ios/Pear.xcworkspace in Xcode — pick your device, hit Run
+                                  # (cloud-managed signing means no local certs/profiles to script;
+                                  # this builds the same committed ios/ Xcode Cloud builds from)
 # Native archive/sign/submit (TestFlight/App Store) runs in Xcode Cloud, triggered on `v*` tags —
 # no local EAS build/submit step.
 ```
@@ -426,9 +438,10 @@ for review. Land the `.tf` changes in a PR and let the pipeline apply them.
 
 ## Build Configuration
 
-- **Bundle ID:** `com.plabrum.wingmate` · **EAS Project:** `ce961544-87fc-4eb0-8168-3c7cd646d58e`
+- **Bundle ID:** `com.plabrum.pear`
 - **Version source:** `package.json` · **Runtime version:** fingerprint · **New Architecture:** enabled
-- EAS profiles: `development` · `development-simulator` · `preview` · `production`
+- No EAS — native build/sign/submit is Xcode Cloud (triggered on `v*` tags), building the
+  committed `app/ios/` project directly. No `eas.json`, no EAS profiles.
 
 ---
 

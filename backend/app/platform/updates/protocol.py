@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 import msgspec
 from litestar import Response
 
@@ -14,6 +16,8 @@ from app.platform.updates.schemas import (
     RollBackDirective,
 )
 from app.platform.updates.signing import sign_manifest
+
+logger = logging.getLogger(__name__)
 
 # The one protocol version this route speaks — pinned so a future `expo-updates`
 # major bump that changes the wire contract fails loudly instead of silently
@@ -38,6 +42,8 @@ def directive_response(directive: NoUpdateAvailableDirective | RollBackDirective
         # client's code-signing certificate requires every multipart/mixed part
         # (directive or manifest) to carry a valid signature, not just manifests.
         extra_headers["expo-signature"] = f'sig="{signature}", keyid="{config.UPDATES_SIGNING_KEY_ID}"'
+    else:
+        logger.warning("updates: serving directive UNSIGNED (no UPDATES_SIGNING_PRIVATE_KEY configured)")
     part = MultipartPart(name="directive", body=body, extra_headers=extra_headers)
     payload, content_type = encode_multipart_mixed([part])
     return Response(content=payload, media_type=content_type, headers=_response_headers())
@@ -60,6 +66,8 @@ def manifest_response(row: AppUpdate, config: Config) -> Response[bytes]:
         # RFC 8941 Structured Field Value — the format `expo-updates` expects for
         # asymmetric (code-signing-certificate) signatures.
         extra_headers["expo-signature"] = f'sig="{signature}", keyid="{config.UPDATES_SIGNING_KEY_ID}"'
+    else:
+        logger.warning("updates: serving manifest UNSIGNED (no UPDATES_SIGNING_PRIVATE_KEY configured)")
     part = MultipartPart(name="manifest", body=body, extra_headers=extra_headers)
     payload, content_type = encode_multipart_mixed([part])
     return Response(content=payload, media_type=content_type, headers=_response_headers())
