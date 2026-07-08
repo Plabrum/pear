@@ -1,7 +1,7 @@
 {
   "name": "pear",
   "main": "expo-router/entry",
-  "version": "1.0.21",
+  "version": "1.0.22",
   "scripts": {
     "start": "bash scripts/dev.sh",
     "dev:sim": "bash scripts/dev-sim.sh",
