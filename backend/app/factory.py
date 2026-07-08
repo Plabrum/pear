@@ -45,6 +45,7 @@ from app.platform.queue.config import queue_config
 from app.platform.realtime.routes import realtime_ws
 from app.platform.updates.routes import (
     get_manifest,
+    get_manifest_v2,
     get_native_build_fingerprint,
     publish_update,
     set_native_build_fingerprint,
@@ -241,6 +242,10 @@ def create_app(
             # session cookie. `exclude_from_auth=True` on the handler itself opts it
             # out of SessionAuth (see platform/updates/routes.py).
             get_manifest,
+            # Plain-JSON, snake_case successor protocol — inert until a custom OTA
+            # client calls it. `/updates/manifest` above is untouched and stays live
+            # until every installed client has moved off the legacy protocol.
+            get_manifest_v2,
             # CI-only publish endpoint: `ota.yml` calls this after uploading a bundle
             # to S3 to register the new `app_updates` row. Bearer-token guarded
             # (`requires_updates_publish_token`), not session-auth'd, so it also stays
