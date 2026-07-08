@@ -50,6 +50,16 @@ module.exports = {
     },
     updates: {
       url: `${process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000'}/updates/manifest`,
+      // Without this, expo-updates never sends the expo-channel-name header at all, and
+      // the backend's /updates/manifest route hard-requires it (400s without it) - every
+      // real update check silently failed until this was added. There's no EAS Update in
+      // this project, so the "channel" concept has no built-in app.config.js field (that's
+      // an EAS-only construct) - requestHeaders is the actual self-hosted-server mechanism
+      // for sending custom headers on every manifest request. "production" is the only
+      // channel actually published to (ota.yml hardcodes it; see UpdateChannel enum).
+      requestHeaders: {
+        'expo-channel-name': 'production',
+      },
       // Local dev-client builds (scripts/dev-sim.sh, PEAR_LOCAL_DEV=1) omit code signing: the
       // private key backing certs/updates-signing.pem lives only in AWS Secrets Manager (see
       // certs/README.md), so Metro can't sign dev manifests for it and expo-updates would refuse
