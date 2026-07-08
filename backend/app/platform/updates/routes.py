@@ -13,9 +13,15 @@ from app.config import config as app_config
 from app.platform.auth.guards import requires_updates_publish_token
 from app.platform.updates.enums import RolloutStatus, UpdateChannel, UpdatePlatform
 from app.platform.updates.models import AppUpdate, NativeBuildFingerprint
-from app.platform.updates.protocol import directive_response, manifest_response
+from app.platform.updates.protocol import (
+    build_update_manifest,
+    directive_response,
+    manifest_response,
+    manifest_v2_response,
+)
 from app.platform.updates.queries import latest_relevant_update
 from app.platform.updates.schemas import (
+    ManifestResponse,
     NativeBuildFingerprintResponse,
     NoUpdateAvailableDirective,
     PublishUpdateRequest,
@@ -83,6 +89,57 @@ async def get_manifest(request: Request, transaction: AsyncSession) -> Response[
 
     logger.info("updates/manifest: serving manifest for update_uuid=%s", row.update_uuid)
     return manifest_response(row, app_config)
+
+
+@get("/updates/v2/manifest", exclude_from_auth=True)
+async def get_manifest_v2(
+    transaction: AsyncSession,
+    runtime_version: str = Parameter(query="runtime_version"),
+    channel: UpdateChannel = Parameter(query="channel"),
+    platform: UpdatePlatform = Parameter(query="platform"),
+    current_update_id: str | None = Parameter(query="current_update_id", default=None),
+) -> Response[bytes]:
+    """Plain-JSON, snake_case successor to `/updates/manifest` — speaks our own
+    wire contract to our own custom OTA client, not the `expo-updates` protocol.
+    Query params instead of `expo-*` request headers since this is no longer
+    shaped by another client's spec. Left inert alongside the untouched v1 route
+    until a client actually calls it.
+    """
+    logger.info(
+        "updates/v2/manifest request: runtime_version=%s platform=%s channel=%s current_update_id=%s",
+        runtime_version,
+        platform,
+        channel,
+        current_update_id,
+    )
+
+    row = await latest_relevant_update(
+        transaction,
+        runtime_version=runtime_version,
+        channel=channel,
+        platform=platform,
+    )
+
+    if row is None:
+        logger.info("updates/v2/manifest: no update row for runtime_version=%s channel=%s", runtime_version, channel)
+        return manifest_v2_response(ManifestResponse(status="no_update"), app_config)
+
+    if current_update_id and current_update_id.strip().lower() == str(row.update_uuid):
+        logger.info("updates/v2/manifest: client already on latest update_uuid=%s", row.update_uuid)
+        return manifest_v2_response(ManifestResponse(status="no_update"), app_config)
+
+    if row.rollout == RolloutStatus.ROLLED_BACK:
+        logger.info("updates/v2/manifest: serving rollback for update_uuid=%s", row.update_uuid)
+        return manifest_v2_response(
+            ManifestResponse(status="rollback", rollback_created_at=row.created_at.isoformat()),
+            app_config,
+        )
+
+    logger.info("updates/v2/manifest: serving manifest for update_uuid=%s", row.update_uuid)
+    return manifest_v2_response(
+        ManifestResponse(status="update_available", manifest=build_update_manifest(row)),
+        app_config,
+    )
 
 
 @post("/updates/publish", exclude_from_auth=True, guards=[requires_updates_publish_token])
