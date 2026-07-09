@@ -1,7 +1,9 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
-    './app/**/*.{js,jsx,ts,tsx}',
+    './App.tsx',
+    './navigation/**/*.{js,jsx,ts,tsx}',
+    './features/**/*.{js,jsx,ts,tsx}',
     './components/**/*.{js,jsx,ts,tsx}',
     './lib/**/*.{js,jsx,ts,tsx}',
     './hooks/**/*.{js,jsx,ts,tsx}',
@@ -68,6 +70,10 @@ module.exports = {
 
         'skeleton-base': 'var(--color-skeleton-base)',
         'skeleton-highlight': 'var(--color-skeleton-highlight)',
+
+        'pearmark-shadow': 'var(--color-pearmark-shadow)',
+        'pearmark-highlight': 'var(--color-pearmark-highlight)',
+        'pearmark-highlight-border': 'var(--color-pearmark-highlight-border)',
       },
       fontFamily: {
         serif: 'var(--font-serif)',

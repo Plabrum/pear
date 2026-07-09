@@ -49,12 +49,14 @@ export const colors = {
   green: '#4FAF6A',
   white: '#FBF8F1',
   // True white — distinct from `white` above (which is the off-white surface
-  // tone); for SVG fills/gradient stops that need pure #fff.
+  // tone); for PearMark's gradient stops (Stop isn't a rendered view, so it
+  // can't take className — see PearMark.tsx).
   trueWhite: '#FFFFFF',
 
-  // Black-scrim overlays (photo captions, action-icon chips, modal backdrops) —
-  // each opacity is a distinct in-use value, not rounded to a shared one.
-  scrim30: 'rgba(0,0,0,0.3)',
+  // Black-scrim overlays (photo captions, action-icon chips) — each opacity is
+  // a distinct in-use value, not rounded to a shared one. (Pure-black scrims at
+  // a literal Tailwind color, e.g. a Portal backdrop, use `bg-black/NN` className
+  // instead — see DateInput.native.tsx.)
   scrim35: 'rgba(0,0,0,0.35)',
   scrim45: 'rgba(0,0,0,0.45)',
   scrim55: 'rgba(0,0,0,0.55)',
@@ -71,11 +73,9 @@ export const colors = {
   // Translucent surface tint (tab-bar blur chrome) — `white` at 70% opacity.
   surfaceOverlay70: 'rgba(251,248,241,0.7)',
 
-  // PearMark illustration accents (SVG fill/stroke escape hatch)
+  // PearMark stem default — a caller-overridable prop fallback, not a static
+  // style, so it stays a plain JS value (see PearMark.tsx).
   pearMarkStem: '#6B4A2B',
-  pearMarkShadow: 'rgba(31,27,22,0.16)',
-  pearMarkHighlight: 'rgba(255,255,255,0.24)',
-  pearMarkHighlightBorder: 'rgba(255,255,255,0.42)',
 
   // Decorative PearMark tints — login hero cluster + onboarding role illustrations
   decorativeLeaf: '#7BAE52',

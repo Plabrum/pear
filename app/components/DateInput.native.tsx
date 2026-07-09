@@ -1,8 +1,8 @@
-import { useState } from 'react';
-import { Modal, Platform, StyleSheet } from 'react-native';
+import { useId, useState } from 'react';
+import { Platform, StyleSheet } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { View, Text, Pressable, ModalView } from '@/lib/tw';
-import { colors } from '@/constants/theme';
+import { Portal } from '@rn-primitives/portal';
+import { View, Text, Pressable } from '@/lib/tw';
 
 type Props = {
   value: Date | null;
@@ -17,6 +17,7 @@ function formatDate(date: Date) {
 export default function DateInput({ value, onChange, style }: Props) {
   const [show, setShow] = useState(false);
   const [temp, setTemp] = useState(new Date(2000, 0, 1));
+  const portalName = useId();
 
   return (
     <>
@@ -43,16 +44,13 @@ export default function DateInput({ value, onChange, style }: Props) {
         />
       )}
 
-      {Platform.OS === 'ios' && (
-        <Modal visible={show} transparent animationType="slide">
-          <ModalView backgroundColor={colors.scrim30} className="justify-end">
+      {Platform.OS === 'ios' && show && (
+        <Portal name={portalName}>
+          <View className="absolute inset-0 bg-black/30 justify-end">
             <View className="bg-white rounded-tl-[20px] rounded-tr-[20px] pb-8">
               <View
-                className="flex-row justify-end p-4"
-                style={{
-                  borderBottomWidth: StyleSheet.hairlineWidth,
-                  borderBottomColor: colors.divider,
-                }}
+                className="flex-row justify-end p-4 border-border"
+                style={{ borderBottomWidth: StyleSheet.hairlineWidth }}
               >
                 <Pressable onPress={() => setShow(false)}>
                   <Text className="text-accent text-base font-semibold">Done</Text>
@@ -71,8 +69,8 @@ export default function DateInput({ value, onChange, style }: Props) {
                 }}
               />
             </View>
-          </ModalView>
-        </Modal>
+          </View>
+        </Portal>
       )}
     </>
   );

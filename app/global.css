@@ -74,4 +74,9 @@
   /* Photo skeleton placeholder */
   --color-skeleton-base: #f1f0ee;
   --color-skeleton-highlight: #ebebf0;
+
+  /* PearMark illustration accents (SVG fill/stroke via cssInterop) */
+  --color-pearmark-shadow: rgba(31, 27, 22, 0.16);
+  --color-pearmark-highlight: rgba(255, 255, 255, 0.24);
+  --color-pearmark-highlight-border: rgba(255, 255, 255, 0.42);
 }

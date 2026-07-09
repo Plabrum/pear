@@ -1,6 +1,31 @@
 import type { ColorValue } from 'react-native';
-import Svg, { Defs, Ellipse, Path, RadialGradient, Stop } from 'react-native-svg';
+import Svg, {
+  Defs,
+  Ellipse as SvgEllipse,
+  Path as SvgPath,
+  RadialGradient,
+  Stop,
+} from 'react-native-svg';
+import { cssInterop } from 'nativewind';
 import { colors } from '@/constants/theme';
+
+// react-native-svg's fill/stroke props aren't RN style props, so Ellipse/Path
+// need explicit cssInterop wiring to accept className for the static,
+// internal-only decorative colors below (shadow/highlight accents). Keyed off
+// `color` (via `text-*` classNames), not `fill`/`stroke` — NativeWind doesn't
+// reliably parse those as real CSS properties in this Tailwind v3 setup.
+// `color`/`leaf`/`stem` stay plain JS props — PearMark is a caller-colorable
+// icon (any hex a caller passes in), which a static className can't express.
+// `Stop` (gradient metadata, not an actual rendered view) isn't wired the same
+// way — cssInterop intercepts props right before a real native view mounts,
+// and Stop never mounts one, so its className was silently dropped (leaving
+// stopColor at SVG's default black). It keeps a plain `stopColor` prop.
+const Ellipse = cssInterop(SvgEllipse, {
+  className: { target: false, nativeStyleToProp: { color: 'fill' } },
+});
+const Path = cssInterop(SvgPath, {
+  className: { target: false, nativeStyleToProp: { color: 'stroke' } },
+});
 
 type Variant = 'soft' | 'flat' | 'outline';
 
@@ -21,7 +46,7 @@ const LEAF_VEIN = 'M18.2 4.6c1.8.0 4.0-.2 5.8-.8';
 export function PearMark({ size = 28, color = colors.leaf, leaf, stem, variant = 'soft' }: Props) {
   const leafColor = leaf ?? color;
   const stemColor = stem ?? (variant === 'outline' ? color : colors.pearMarkStem);
-  const shadow = <Ellipse cx="16" cy="30.6" rx="4.6" ry="0.7" fill={colors.pearMarkShadow} />;
+  const shadow = <Ellipse cx="16" cy="30.6" rx="4.6" ry="0.7" className="text-pearmark-shadow" />;
 
   if (variant === 'outline') {
     return (
@@ -62,14 +87,14 @@ export function PearMark({ size = 28, color = colors.leaf, leaf, stem, variant =
         cy="20.6"
         rx="2.4"
         ry="3.6"
-        fill={colors.pearMarkHighlight}
+        className="text-pearmark-highlight"
         transform="rotate(-18 11.8 20.6)"
       />
       <Path d={STEM} stroke={stemColor} strokeWidth={2} strokeLinecap="round" fill="none" />
       <Path d={LEAF} fill={leafColor} />
       <Path
         d={LEAF_VEIN}
-        stroke={colors.pearMarkHighlightBorder}
+        className="text-pearmark-highlight-border"
         strokeWidth={0.7}
         strokeLinecap="round"
         fill="none"
