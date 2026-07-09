@@ -46,10 +46,8 @@ from app.platform.realtime.routes import realtime_ws
 from app.platform.updates.routes import (
     get_manifest,
     get_manifest_v2,
-    get_native_build_fingerprint,
     post_client_event,
     publish_update,
-    set_native_build_fingerprint,
 )
 from app.utils.deps import get_dependencies
 from app.utils.discovery import discover_and_import
@@ -256,12 +254,6 @@ def create_app(
             # (`requires_updates_publish_token`), not session-auth'd, so it also stays
             # at the root, `exclude_from_auth=True`.
             publish_update,
-            # Xcode Cloud write-back / CI read of the latest native build's
-            # `@expo/fingerprint` hash (replaces a GitHub Actions variable Xcode
-            # Cloud has no automated way to write). POST reuses the same bearer
-            # guard as `publish_update`; GET is unauthenticated (not sensitive).
-            set_native_build_fingerprint,
-            get_native_build_fingerprint,
             # Dev/test only: backs the `LocalMediaClient` presigned `/_local-media/*`
             # URLs with an on-disk sink so uploads round-trip with no S3. The handlers'
             # `requires_local` guard rejects the route in prod.

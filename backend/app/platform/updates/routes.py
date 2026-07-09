@@ -6,13 +6,12 @@ import msgspec
 from litestar import Request, Response, get, post
 from litestar.exceptions import ClientException
 from litestar.params import Parameter
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import config as app_config
 from app.platform.auth.guards import requires_updates_publish_token
 from app.platform.updates.enums import RolloutStatus, UpdateChannel, UpdatePlatform
-from app.platform.updates.models import AppUpdate, NativeBuildFingerprint
+from app.platform.updates.models import AppUpdate
 from app.platform.updates.protocol import (
     build_update_manifest,
     directive_response,
@@ -23,13 +22,11 @@ from app.platform.updates.queries import latest_relevant_update
 from app.platform.updates.schemas import (
     ClientEventRequest,
     ManifestResponse,
-    NativeBuildFingerprintResponse,
     NoUpdateAvailableDirective,
     PublishUpdateRequest,
     PublishUpdateResponse,
     RollBackDirective,
     RollBackDirectiveParameters,
-    SetNativeBuildFingerprintRequest,
 )
 
 logger = logging.getLogger(__name__)
@@ -183,46 +180,3 @@ async def publish_update(data: PublishUpdateRequest, transaction: AsyncSession) 
     transaction.add(row)
     await transaction.flush()
     return PublishUpdateResponse(id=row.id, updateUuid=str(row.update_uuid))
-
-
-@post(
-    "/updates/native-build-fingerprint",
-    exclude_from_auth=True,
-    guards=[requires_updates_publish_token],
-)
-async def set_native_build_fingerprint(
-    data: SetNativeBuildFingerprintRequest, transaction: AsyncSession
-) -> NativeBuildFingerprintResponse:
-    """CI-only: `ci_post_xcodebuild.sh` calls this after every successful Xcode
-    Cloud native archive. Upserts the one row for `data.platform` - this tracks
-    "the current native build's fingerprint," not an audit log, so a second call
-    for the same platform overwrites rather than duplicates. Reuses
-    `requires_updates_publish_token` rather than minting a dedicated credential —
-    one fewer secret to provision in the Xcode Cloud workflow settings.
-    """
-    row = (
-        await transaction.execute(
-            select(NativeBuildFingerprint).where(NativeBuildFingerprint.platform == data.platform)
-        )
-    ).scalar_one_or_none()
-    if row is None:
-        row = NativeBuildFingerprint(platform=data.platform, fingerprint=data.fingerprint)
-        transaction.add(row)
-    else:
-        row.fingerprint = data.fingerprint
-    await transaction.flush()
-    return NativeBuildFingerprintResponse(platform=row.platform, fingerprint=row.fingerprint)
-
-
-@get("/updates/native-build-fingerprint", exclude_from_auth=True)
-async def get_native_build_fingerprint(
-    transaction: AsyncSession, platform: UpdatePlatform = Parameter(query="platform")
-) -> NativeBuildFingerprintResponse:
-    """Unauthenticated: a fingerprint hash isn't sensitive. `ota.yml`'s fingerprint
-    guardrail calls this instead of reading a GitHub Actions variable that Xcode
-    Cloud has no automated way to write back to.
-    """
-    row = (
-        await transaction.execute(select(NativeBuildFingerprint).where(NativeBuildFingerprint.platform == platform))
-    ).scalar_one_or_none()
-    return NativeBuildFingerprintResponse(platform=platform, fingerprint=row.fingerprint if row else None)

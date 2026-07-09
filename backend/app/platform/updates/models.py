@@ -70,23 +70,3 @@ class AppUpdate(BaseDBModel):
     # `rollout`). Reserved for a future percentage-gated lookup — not yet
     # consulted by the manifest route's simple latest-row lookup.
     rollout_pct: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
-
-
-# No RLS — same rationale as AppUpdate above: the routes that touch this table
-# (`POST`/`GET /updates/native-build-fingerprint`) are unauthenticated and
-# root-mounted, with no per-request actor to scope a policy against. The
-# bearer-token guard on the POST route is the actual security floor.
-
-
-class NativeBuildFingerprint(BaseDBModel):
-    """The `@expo/fingerprint` hash of the latest Xcode Cloud native archive for a
-    platform — written by `app/ios/ci_scripts/ci_post_xcodebuild.sh` after every
-    successful archive, read by `ota.yml`'s fingerprint guardrail before publishing
-    a JS-only OTA update. One mutable row per platform (upsert on write), not an
-    audit log of every build.
-    """
-
-    __tablename__ = "native_build_fingerprints"
-
-    platform: Mapped[UpdatePlatform] = mapped_column(TextEnum(UpdatePlatform), unique=True, nullable=False)
-    fingerprint: Mapped[str] = mapped_column(sa.Text, nullable=False)

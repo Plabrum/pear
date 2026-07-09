@@ -86,24 +86,6 @@ class PublishUpdateResponse(BaseSchema):
     updateUuid: str
 
 
-# ─── Native build fingerprint (Xcode Cloud write-back, CI read) ────────────────
-
-
-class SetNativeBuildFingerprintRequest(BaseSchema):
-    """Body `ci_post_xcodebuild.sh` posts after a successful native archive."""
-
-    platform: UpdatePlatform
-    fingerprint: str
-
-
-class NativeBuildFingerprintResponse(BaseSchema):
-    platform: UpdatePlatform
-    fingerprint: str | None
-    """`None` when no native build has ever been recorded for this platform —
-    `ota.yml`'s fingerprint guardrail must treat that the same as a hard mismatch.
-    """
-
-
 # ─── Manifest protocol v2 (GET /updates/v2/manifest) ───────────────────────────
 # Our own client, our own wire contract — plain snake_case like every other schema
 # in this codebase (no `rename="camel"`), unlike the v1 structs above which mirror
