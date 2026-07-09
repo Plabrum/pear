@@ -34,6 +34,10 @@ class AppleIn(msgspec.Struct, rename="camel"):
 
     identity_token: str
     full_name: str | None = None
+    # Native `ASAuthorizationAppleIDCredential.authorizationCode` — exchanged
+    # server-side for a refresh token so the Apple grant can be revoked on account
+    # deactivation. May be absent on a cached-credential re-auth; best-effort only.
+    authorization_code: str | None = None
 
 
 class MagicLinkRequestIn(msgspec.Struct, rename="camel"):

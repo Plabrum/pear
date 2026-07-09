@@ -8,4 +8,5 @@
 export interface AppleIn {
   identityToken: string;
   fullName?: string | null;
+  authorizationCode?: string | null;
 }

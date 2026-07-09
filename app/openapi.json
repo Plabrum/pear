@@ -454,6 +454,12 @@
                     "$ref": "#/components/schemas/SwitchToDaterAction"
                   },
                   {
+                    "$ref": "#/components/schemas/DeactivateAccountAction"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ReactivateAccountAction"
+                  },
+                  {
                     "$ref": "#/components/schemas/CreateDatingProfileAction"
                   },
                   {
@@ -697,6 +703,12 @@
                   },
                   {
                     "$ref": "#/components/schemas/SwitchToDaterAction"
+                  },
+                  {
+                    "$ref": "#/components/schemas/DeactivateAccountAction"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ReactivateAccountAction"
                   },
                   {
                     "$ref": "#/components/schemas/CreateDatingProfileAction"
@@ -2506,6 +2518,16 @@
                 "type": "null"
               }
             ]
+          },
+          "authorizationCode": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -2928,6 +2950,20 @@
         "type": "string",
         "enum": ["open", "break"],
         "title": "DatingStatus"
+      },
+      "DeactivateAccountAction": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/EmptyActionData"
+          },
+          "action": {
+            "type": "string",
+            "const": "profile_actions__deactivate"
+          }
+        },
+        "type": "object",
+        "required": ["action", "data"],
+        "title": "DeactivateAccountAction"
       },
       "DeclineForDaterAction": {
         "properties": {
@@ -4460,6 +4496,20 @@
         "type": "object",
         "required": ["id", "updateUuid"],
         "title": "PublishUpdateResponse"
+      },
+      "ReactivateAccountAction": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/EmptyActionData"
+          },
+          "action": {
+            "type": "string",
+            "const": "profile_actions__reactivate"
+          }
+        },
+        "type": "object",
+        "required": ["action", "data"],
+        "title": "ReactivateAccountAction"
       },
       "RedirectActionResult": {
         "properties": {

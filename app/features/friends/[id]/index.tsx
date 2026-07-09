@@ -126,7 +126,7 @@ function FriendDetailContent() {
                 <View className="absolute bottom-2 left-0 right-0 items-center">
                   <View
                     className="rounded-full px-3 py-1"
-                    style={{ backgroundColor: 'rgba(0,0,0,0.55)' }}
+                    style={{ backgroundColor: colors.scrim55 }}
                   >
                     <Text className="text-white text-xs font-semibold">Pending approval</Text>
                   </View>

@@ -4,9 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { View, Text, Pressable, TextInput } from '@/lib/tw';
 import { Button } from '@/components/Button';
-
-const LINE = 'rgba(31,27,22,0.10)';
-const INK3 = '#8B8170';
+import { colors } from '@/constants/theme';
 
 export function NoteModal({
   visible,
@@ -31,7 +29,7 @@ export function NoteModal({
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onDismiss}>
-      <View className="flex-1" style={{ backgroundColor: 'rgba(31,27,22,0.45)' }}>
+      <View className="flex-1" style={{ backgroundColor: colors.inkAlpha45 }}>
         <Pressable className="flex-1" onPress={onDismiss} />
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -53,7 +51,7 @@ export function NoteModal({
                 width: 40,
                 height: 4,
                 borderRadius: 2,
-                backgroundColor: LINE,
+                backgroundColor: colors.divider,
                 marginBottom: 14,
               }}
             />
@@ -73,14 +71,14 @@ export function NoteModal({
                 width: '100%',
                 minHeight: 90,
                 borderWidth: 1,
-                borderColor: LINE,
+                borderColor: colors.divider,
                 borderRadius: 14,
                 padding: 12,
                 fontSize: 14,
                 textAlignVertical: 'top',
               }}
               placeholder={`e.g. they're obsessed with that pottery studio…`}
-              placeholderTextColor={INK3}
+              placeholderTextColor={colors.inkDim}
               multiline
               value={note}
               onChangeText={setNote}

@@ -61,9 +61,17 @@ async function authFetch<T>(
 // --- Login methods ---
 // Each sets the session cookie server-side (Set-Cookie) and returns the user.
 
-export async function signInWithApple(identityToken: string, fullName?: string): Promise<AuthUser> {
+export async function signInWithApple(
+  identityToken: string,
+  fullName?: string,
+  authorizationCode?: string
+): Promise<AuthUser> {
   return authFetch<AuthUser>('/auth/apple', {
-    body: { identityToken, ...(fullName ? { fullName } : {}) },
+    body: {
+      identityToken,
+      ...(fullName ? { fullName } : {}),
+      ...(authorizationCode ? { authorizationCode } : {}),
+    },
   });
 }
 

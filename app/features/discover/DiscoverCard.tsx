@@ -183,13 +183,11 @@ export function DiscoverCard({
                     paddingHorizontal: 10,
                     paddingVertical: 5,
                     borderRadius: 12,
-                    backgroundColor: 'rgba(0,0,0,0.45)',
+                    backgroundColor: colors.scrim45,
                   }}
                 >
                   <FaceAvatar name={photos[photoIndex].pickedByName ?? '?'} size={14} />
-                  <Text
-                    style={{ fontSize: 11, fontWeight: '600', color: 'rgba(255,255,255,0.95)' }}
-                  >
+                  <Text style={{ fontSize: 11, fontWeight: '600', color: colors.overlayWhite95 }}>
                     {photos[photoIndex].pickedByName}&apos;s pick
                   </Text>
                 </View>
@@ -235,7 +233,7 @@ export function DiscoverCard({
                       height: 3,
                       borderRadius: 2,
                       backgroundColor:
-                        i === photoIndex ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.4)',
+                        i === photoIndex ? colors.overlayWhite95 : colors.overlayWhite40,
                     }}
                   />
                 ))}
@@ -254,12 +252,12 @@ export function DiscoverCard({
                   width: 30,
                   height: 30,
                   borderRadius: 15,
-                  backgroundColor: 'rgba(0,0,0,0.35)',
+                  backgroundColor: colors.scrim35,
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}
               >
-                <Ionicons name="arrow-redo-outline" size={16} color="rgba(255,255,255,0.9)" />
+                <Ionicons name="arrow-redo-outline" size={16} color={colors.overlayWhite90} />
               </Pressable>
             )}
 
@@ -274,18 +272,18 @@ export function DiscoverCard({
                 width: 30,
                 height: 30,
                 borderRadius: 15,
-                backgroundColor: 'rgba(0,0,0,0.35)',
+                backgroundColor: colors.scrim35,
                 alignItems: 'center',
                 justifyContent: 'center',
               }}
             >
-              <Ionicons name="alert-circle-outline" size={18} color="rgba(255,255,255,0.9)" />
+              <Ionicons name="alert-circle-outline" size={18} color={colors.overlayWhite90} />
             </Pressable>
 
             {/* Bottom gradient scrim */}
             <LinearGradient
               pointerEvents="none"
-              colors={['transparent', 'rgba(0,0,0,0.7)']}
+              colors={['transparent', colors.scrim70]}
               style={{
                 position: 'absolute',
                 left: 0,
@@ -307,10 +305,10 @@ export function DiscoverCard({
                 >
                   {card.chosenName}
                 </Text>
-                <Text style={{ fontSize: 22, color: 'rgba(255,255,255,0.9)' }}>{card.age}</Text>
+                <Text style={{ fontSize: 22, color: colors.overlayWhite90 }}>{card.age}</Text>
               </View>
               {card.city != null && (
-                <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.85)', marginTop: 4 }}>
+                <Text style={{ fontSize: 13, color: colors.overlayWhite85, marginTop: 4 }}>
                   {card.city}
                 </Text>
               )}

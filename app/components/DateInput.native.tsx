@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Modal, Platform, StyleSheet } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { View, Text, Pressable } from '@/lib/tw';
+import { View, Text, Pressable, ModalView } from '@/lib/tw';
 import { colors } from '@/constants/theme';
 
 type Props = {
@@ -45,7 +45,7 @@ export default function DateInput({ value, onChange, style }: Props) {
 
       {Platform.OS === 'ios' && (
         <Modal visible={show} transparent animationType="slide">
-          <View className="flex-1 justify-end bg-[rgba(0,0,0,0.3)]">
+          <ModalView backgroundColor={colors.scrim30} className="justify-end">
             <View className="bg-white rounded-tl-[20px] rounded-tr-[20px] pb-8">
               <View
                 className="flex-row justify-end p-4"
@@ -71,7 +71,7 @@ export default function DateInput({ value, onChange, style }: Props) {
                 }}
               />
             </View>
-          </View>
+          </ModalView>
         </Modal>
       )}
     </>

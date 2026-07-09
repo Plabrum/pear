@@ -28,9 +28,13 @@ async def fetch_dating_profile_base(db: AsyncSession, user_id: Sqid, *, viewer_i
     return (
         await db.execute(
             select(DatingProfile)
+            .join(Profile, Profile.id == DatingProfile.user_id)
             .where(
                 DatingProfile.user_id == user_id,
-                or_(DatingProfile.is_active.is_(True), DatingProfile.user_id == viewer_id),
+                or_(
+                    (DatingProfile.is_active.is_(True) & Profile.deactivated_at.is_(None)),
+                    DatingProfile.user_id == viewer_id,
+                ),
             )
             .limit(1)
         )

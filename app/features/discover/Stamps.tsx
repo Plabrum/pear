@@ -26,7 +26,7 @@ export function PassStamp({ swipeX }: { swipeX: SharedValue<number> }) {
           paddingVertical: 4,
           paddingHorizontal: 12,
           borderRadius: 8,
-          backgroundColor: 'rgba(255,255,255,0.85)',
+          backgroundColor: colors.overlayWhite85,
         },
         style,
       ]}
@@ -55,7 +55,7 @@ export function LikeStamp({ swipeX }: { swipeX: SharedValue<number> }) {
           paddingVertical: 4,
           paddingHorizontal: 12,
           borderRadius: 8,
-          backgroundColor: 'rgba(255,255,255,0.85)',
+          backgroundColor: colors.overlayWhite85,
         },
         style,
       ]}

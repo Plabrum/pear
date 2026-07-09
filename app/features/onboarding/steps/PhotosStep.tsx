@@ -140,7 +140,7 @@ function PhotoSlot({
         onPress={onRemove}
         hitSlop={6}
         className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full items-center justify-center"
-        style={{ backgroundColor: 'rgba(0,0,0,0.65)' }}
+        style={{ backgroundColor: colors.scrim65 }}
       >
         <XIcon color={colors.white} size={12} />
       </Pressable>

@@ -93,7 +93,7 @@ function ApprovedResponsesCarousel({ responses }: { responses: ApprovedResponse[
                 width: i === activeIdx ? 14 : 6,
                 height: 6,
                 borderRadius: 3,
-                backgroundColor: i === activeIdx ? colors.leaf : 'rgba(31,27,22,0.20)',
+                backgroundColor: i === activeIdx ? colors.leaf : colors.inkAlpha20,
               }}
             />
           ))}

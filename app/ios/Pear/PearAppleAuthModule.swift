@@ -78,6 +78,14 @@ private class SignInDelegate: NSObject, ASAuthorizationControllerDelegate,
     }
 
     var payload: [String: Any] = ["identityToken": identityToken]
+    // Exchanged server-side for a refresh token so the Apple grant can be revoked
+    // on account deactivation. Non-fatal if absent — a cached-credential re-auth
+    // may omit it; only the best-effort exchange step needs it.
+    if let codeData = credential.authorizationCode,
+      let authorizationCode = String(data: codeData, encoding: .utf8)
+    {
+      payload["authorizationCode"] = authorizationCode
+    }
     if let given = credential.fullName?.givenName {
       payload["givenName"] = given
     }

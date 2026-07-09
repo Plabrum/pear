@@ -65,6 +65,9 @@ module.exports = {
         separator: 'var(--color-separator)',
         error: 'var(--color-error)',
         green: 'var(--color-green)',
+
+        'skeleton-base': 'var(--color-skeleton-base)',
+        'skeleton-highlight': 'var(--color-skeleton-highlight)',
       },
       fontFamily: {
         serif: 'var(--font-serif)',

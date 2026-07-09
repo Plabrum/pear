@@ -12,11 +12,18 @@ import {
   getGetApiDatingProfilesMeQueryKey,
   getGetApiProfilesMeQueryKey,
 } from '@/lib/api/generated/profiles/profiles';
-import { switchToWinger, switchToDater, pauseDating, resumeDating } from '@/lib/api/actions';
+import {
+  switchToWinger,
+  switchToDater,
+  pauseDating,
+  resumeDating,
+  deactivateAccount,
+} from '@/lib/api/actions';
 import { useGetApiWingpeopleSuspense } from '@/lib/api/generated/contacts/contacts';
 import { authMeQueryKey } from '@/lib/auth-session';
 import { View, Text, ScrollView, Pressable, SafeAreaView } from '@/lib/tw';
 import { Sheet } from '@/components/Sheet';
+import { Dialog } from '@/components/Dialog';
 import ScreenSuspense from '@/components/ScreenSuspense';
 import { SectionLabel } from '@/components/SectionLabel';
 import { LargeNavHeader } from '@/components/LargeNavHeader';
@@ -109,6 +116,7 @@ function SettingsScreenInner() {
   const { data: wingpeopleData } = useGetApiWingpeopleSuspense();
 
   const [statusPickerVisible, setStatusPickerVisible] = useState(false);
+  const [deactivateConfirmVisible, setDeactivateConfirmVisible] = useState(false);
 
   const wingCount = wingpeopleData.wingpeople.length;
   const phoneDetail = profile?.phoneNumber ?? undefined;
@@ -171,6 +179,19 @@ function SettingsScreenInner() {
     const { error } = await signOut();
     if (error) toastError(error, 'Could not log out. Please try again.');
   };
+
+  const deactivate = useMutation({
+    mutationFn: async () => {
+      if (!profile) throw new Error('No profile');
+      await deactivateAccount(profile.id);
+    },
+    onSuccess: async () => {
+      setDeactivateConfirmVisible(false);
+      const { error } = await signOut();
+      if (error) toastError(error, 'Could not log out. Please try again.');
+    },
+    onError: (err) => toastError(err, "Couldn't deactivate your account. Try again."),
+  });
 
   return (
     <SafeAreaView className="flex-1 bg-canvas" edges={['top']}>
@@ -260,8 +281,34 @@ function SettingsScreenInner() {
         <Section title="">
           <Row label="Take a break from dating" />
           <Row label="Log out" onPress={handleLogOut} />
-          <Row label="Delete account" danger last />
+          <Row
+            label="Delete account"
+            danger
+            last
+            onPress={() => setDeactivateConfirmVisible(true)}
+          />
         </Section>
+
+        <Dialog
+          visible={deactivateConfirmVisible}
+          onClose={() => !deactivate.isPending && setDeactivateConfirmVisible(false)}
+          tone="danger"
+          title="Delete account?"
+          body="This hides your profile, matches, and messages everywhere. You can reactivate any time by logging back in."
+          actions={[
+            {
+              label: 'Deactivate',
+              variant: 'danger',
+              onClick: () => deactivate.mutate(),
+              loading: deactivate.isPending,
+            },
+            {
+              label: 'Cancel',
+              onClick: () => setDeactivateConfirmVisible(false),
+              disabled: deactivate.isPending,
+            },
+          ]}
+        />
 
         <Text
           className="text-ink-mid"

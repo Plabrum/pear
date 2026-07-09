@@ -5,6 +5,7 @@ import type { MatchSummary } from '@/lib/api/generated/model';
 import { GradientBlock } from '@/components/GradientBlock';
 import { CrossfadeImage } from '@/components/CrossfadeImage';
 import { cardButtonShadow } from '@/lib/styles';
+import { colors } from '@/constants/theme';
 
 type MatchCardProps = {
   match: MatchSummary;
@@ -44,7 +45,7 @@ export function MatchCard({ match, onPress }: MatchCardProps) {
       {/* Bottom gradient scrim */}
       <LinearGradient
         pointerEvents="none"
-        colors={['transparent', 'rgba(0,0,0,0.7)']}
+        colors={['transparent', colors.scrim70]}
         style={{
           position: 'absolute',
           left: 0,
@@ -94,7 +95,7 @@ export function MatchCard({ match, onPress }: MatchCardProps) {
             {name}
           </Text>
           {other.age != null && (
-            <Text style={{ fontSize: 15, color: 'rgba(255,255,255,0.85)', marginLeft: 6 }}>
+            <Text style={{ fontSize: 15, color: colors.overlayWhite85, marginLeft: 6 }}>
               {other.age}
             </Text>
           )}

@@ -70,4 +70,8 @@
   /* Status aliases */
   --color-error: var(--color-destructive);
   --color-green: #5bbe62;
+
+  /* Photo skeleton placeholder */
+  --color-skeleton-base: #f1f0ee;
+  --color-skeleton-highlight: #ebebf0;
 }

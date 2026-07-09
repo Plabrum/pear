@@ -42,7 +42,7 @@ function SectionHeader({ label }: { label: string }) {
         textTransform: 'uppercase',
         fontWeight: '500',
         fontFamily: 'Menlo',
-        color: 'rgba(31,27,22,0.45)',
+        color: colors.inkAlpha45,
         marginTop: 28,
         marginBottom: 8,
       }}
@@ -96,7 +96,7 @@ function MenuRow({
             style={{
               fontSize: 12.5,
               marginTop: 1,
-              color: subAccent ? colors.passRed : 'rgba(31,27,22,0.50)',
+              color: subAccent ? colors.passRed : colors.inkAlpha50,
             }}
             numberOfLines={1}
           >
@@ -104,7 +104,7 @@ function MenuRow({
           </Text>
         ) : null}
       </View>
-      <Ionicons name="chevron-forward" size={16} color="rgba(31,27,22,0.35)" />
+      <Ionicons name="chevron-forward" size={16} color={colors.inkAlpha35} />
     </Pressable>
   );
 }
@@ -132,9 +132,7 @@ function RipenessBar({ data }: { data: OwnDatingProfile }) {
             {label}
           </Text>
           {hint ? (
-            <Text style={{ fontSize: 12.5, color: 'rgba(31,27,22,0.55)', marginTop: 1 }}>
-              {hint}
-            </Text>
+            <Text style={{ fontSize: 12.5, color: colors.inkAlpha55, marginTop: 1 }}>{hint}</Text>
           ) : null}
         </View>
         <View
@@ -203,7 +201,7 @@ function WingpersonResponseRow({
       />
       <View style={{ flex: 1 }}>
         <Text
-          style={{ fontSize: 11, color: 'rgba(31,27,22,0.45)', marginBottom: 2, fontWeight: '500' }}
+          style={{ fontSize: 11, color: colors.inkAlpha45, marginBottom: 2, fontWeight: '500' }}
         >
           {promptQuestion}
         </Text>

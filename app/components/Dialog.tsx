@@ -11,10 +11,10 @@ import Animated, { FadeIn, FadeOut, ZoomIn } from 'react-native-reanimated';
 
 import { View, Text, Pressable } from '@/lib/tw';
 import { Button } from '@/components/Button';
+import { colors } from '@/constants/theme';
 
-const SCRIM = 'rgba(31,27,22,0.5)';
 /** Design danger ink — transparent red used by destructive dialogs/icons. */
-export const DIALOG_DANGER = '#A33';
+export const DIALOG_DANGER = colors.dangerInk;
 
 type ButtonVariant = 'primary' | 'secondary' | 'accent' | 'ghost' | 'danger';
 
@@ -76,7 +76,12 @@ export function Dialog({
           closeOnPress={dismissable}
           style={[
             StyleSheet.absoluteFill,
-            { backgroundColor: SCRIM, alignItems: 'center', justifyContent: 'center', padding: 28 },
+            {
+              backgroundColor: colors.inkAlpha50,
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 28,
+            },
           ]}
         >
           <Animated.View entering={FadeIn.duration(120)} exiting={FadeOut.duration(120)}>
@@ -97,9 +102,7 @@ export function Dialog({
                             : 'w-[52px] h-[52px] rounded-[26px] items-center justify-center self-center mb-3.5 bg-primary-soft'
                         }
                         style={
-                          tone === 'danger'
-                            ? { backgroundColor: 'rgba(170,51,51,0.12)' }
-                            : undefined
+                          tone === 'danger' ? { backgroundColor: colors.dangerTint } : undefined
                         }
                       >
                         {icon}

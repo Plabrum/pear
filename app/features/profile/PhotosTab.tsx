@@ -210,7 +210,7 @@ export function PhotosTab({ form, data, onRefresh }: Props) {
                   width: 22,
                   height: 22,
                   borderRadius: 11,
-                  backgroundColor: 'rgba(0,0,0,0.45)',
+                  backgroundColor: colors.scrim45,
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}
@@ -228,7 +228,7 @@ export function PhotosTab({ form, data, onRefresh }: Props) {
                 width: 22,
                 height: 22,
                 borderRadius: 11,
-                backgroundColor: 'rgba(0,0,0,0.45)',
+                backgroundColor: colors.scrim45,
                 alignItems: 'center',
                 justifyContent: 'center',
               }}

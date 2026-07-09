@@ -1,8 +1,7 @@
 import { View, Text } from '@/lib/tw';
 import { PearMark } from '@/components/PearMark';
 import PulseSpinner from '@/components/PulseSpinner';
-
-const LEAF = '#5A8C3A';
+import { colors } from '@/constants/theme';
 
 interface Props {
   variant?: 'branded' | 'spinner';
@@ -15,16 +14,16 @@ export default function Splash({ variant = 'branded' }: Props) {
         <>
           <View className="absolute" style={{ top: 80, left: -30, opacity: 0.1 }}>
             <View style={{ transform: [{ rotate: '-12deg' }] }}>
-              <PearMark size={240} color={LEAF} />
+              <PearMark size={240} color={colors.leaf} />
             </View>
           </View>
           <View className="absolute" style={{ bottom: 120, right: -40, opacity: 0.07 }}>
             <View style={{ transform: [{ rotate: '20deg' }] }}>
-              <PearMark size={300} color={LEAF} />
+              <PearMark size={300} color={colors.leaf} />
             </View>
           </View>
           <View className="absolute" style={{ top: 320, right: 30, opacity: 0.08 }}>
-            <PearMark size={80} color={LEAF} />
+            <PearMark size={80} color={colors.leaf} />
           </View>
 
           <View className="flex-1 items-center justify-center px-8">
@@ -67,7 +66,7 @@ export default function Splash({ variant = 'branded' }: Props) {
       )}
 
       <View className="absolute left-0 right-0" style={{ bottom: 110 }}>
-        <PulseSpinner color={LEAF} />
+        <PulseSpinner color={colors.leaf} />
       </View>
     </View>
   );

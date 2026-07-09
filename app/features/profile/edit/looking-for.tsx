@@ -27,7 +27,7 @@ const sectionLabelStyle = {
   letterSpacing: 1.2,
   fontWeight: '500' as const,
   fontFamily: 'Menlo',
-  color: 'rgba(31,27,22,0.45)',
+  color: colors.inkAlpha45,
   marginBottom: 10,
   marginTop: 20,
   paddingHorizontal: 0,

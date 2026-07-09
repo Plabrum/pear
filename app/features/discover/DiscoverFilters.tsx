@@ -72,7 +72,7 @@ export function DiscoverFilters({
             {count != null && (
               <View
                 style={{
-                  backgroundColor: on ? 'rgba(255,255,255,0.22)' : colors.muted,
+                  backgroundColor: on ? colors.overlayWhite22 : colors.muted,
                   borderRadius: 8,
                   height: 16,
                   minWidth: 16,

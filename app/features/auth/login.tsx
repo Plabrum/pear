@@ -11,11 +11,6 @@ import { useAuthActions } from '@/context/auth';
 import { toastError } from '@/lib/api/error-toast';
 import { colors } from '@/constants/theme';
 
-// Decorative PearMark fills (SVG color props — escape-hatch hex, no token).
-const LEAF2 = '#7BAE52';
-const SKIN = '#E8C77A';
-const BLUSH = '#E9A6A0';
-
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
   const { signInWithApple } = useAuthActions();
@@ -38,7 +33,8 @@ export default function LoginScreen() {
 
       const { error } = await signInWithApple(
         credential.identityToken,
-        fullName.length > 0 ? fullName : undefined
+        fullName.length > 0 ? fullName : undefined,
+        credential.authorizationCode ?? undefined
       );
 
       if (error) {
@@ -60,15 +56,15 @@ export default function LoginScreen() {
           <View
             style={{ position: 'absolute', top: 30, left: 18, transform: [{ rotate: '-14deg' }] }}
           >
-            <PearMark size={104} color={LEAF2} leaf={colors.leaf} />
+            <PearMark size={104} color={colors.decorativeLeaf} leaf={colors.leaf} />
           </View>
           <View style={{ position: 'absolute', top: 0, left: 92, transform: [{ rotate: '8deg' }] }}>
-            <PearMark size={132} color={SKIN} leaf={colors.leaf} />
+            <PearMark size={132} color={colors.decorativeSkin} leaf={colors.leaf} />
           </View>
           <View
             style={{ position: 'absolute', top: 70, left: 168, transform: [{ rotate: '-4deg' }] }}
           >
-            <PearMark size={68} color={BLUSH} leaf={colors.leaf} />
+            <PearMark size={68} color={colors.decorativeBlush} leaf={colors.leaf} />
           </View>
         </View>
       </View>

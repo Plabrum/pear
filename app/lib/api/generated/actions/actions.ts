@@ -32,6 +32,7 @@ import type {
   CreatePhotoAction,
   CreateProfilePromptAction,
   CreatePromptResponseAction,
+  DeactivateAccountAction,
   DeclineForDaterAction,
   DeclineInviteAction,
   DeletePhotoAction,
@@ -42,6 +43,7 @@ import type {
   MarkMessagesReadAction,
   PassAction,
   PauseDatingAction,
+  ReactivateAccountAction,
   RejectPhotoAction,
   RemoveWingpersonAction,
   ReorderPhotoAction,
@@ -212,7 +214,7 @@ export const getApiActionsActionGroupExecuteActionUrl = (actionGroup: ActionGrou
 
 export const apiActionsActionGroupExecuteAction = async (
   actionGroup: ActionGroupType,
-  sendMessageActionMarkMessagesReadActionLikeActionPassActionSuggestActionDeclineForDaterActionReportActionInviteWingpersonActionAcceptInviteActionDeclineInviteActionRemoveWingpersonActionCreateProfilePromptActionDeleteProfilePromptActionCreatePromptResponseActionApprovePromptResponseActionDeletePromptResponseActionUpdateProfileActionSwitchToWingerActionSwitchToDaterActionCreateDatingProfileActionUpdateDatingProfileActionPauseDatingActionResumeDatingActionCreatePhotoActionApprovePhotoActionRejectPhotoActionDeletePhotoActionReorderPhotoAction:
+  sendMessageActionMarkMessagesReadActionLikeActionPassActionSuggestActionDeclineForDaterActionReportActionInviteWingpersonActionAcceptInviteActionDeclineInviteActionRemoveWingpersonActionCreateProfilePromptActionDeleteProfilePromptActionCreatePromptResponseActionApprovePromptResponseActionDeletePromptResponseActionUpdateProfileActionSwitchToWingerActionSwitchToDaterActionDeactivateAccountActionReactivateAccountActionCreateDatingProfileActionUpdateDatingProfileActionPauseDatingActionResumeDatingActionCreatePhotoActionApprovePhotoActionRejectPhotoActionDeletePhotoActionReorderPhotoAction:
     | SendMessageAction
     | MarkMessagesReadAction
     | LikeAction
@@ -232,6 +234,8 @@ export const apiActionsActionGroupExecuteAction = async (
     | UpdateProfileAction
     | SwitchToWingerAction
     | SwitchToDaterAction
+    | DeactivateAccountAction
+    | ReactivateAccountAction
     | CreateDatingProfileAction
     | UpdateDatingProfileAction
     | PauseDatingAction
@@ -248,7 +252,7 @@ export const apiActionsActionGroupExecuteAction = async (
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     body: JSON.stringify(
-      sendMessageActionMarkMessagesReadActionLikeActionPassActionSuggestActionDeclineForDaterActionReportActionInviteWingpersonActionAcceptInviteActionDeclineInviteActionRemoveWingpersonActionCreateProfilePromptActionDeleteProfilePromptActionCreatePromptResponseActionApprovePromptResponseActionDeletePromptResponseActionUpdateProfileActionSwitchToWingerActionSwitchToDaterActionCreateDatingProfileActionUpdateDatingProfileActionPauseDatingActionResumeDatingActionCreatePhotoActionApprovePhotoActionRejectPhotoActionDeletePhotoActionReorderPhotoAction
+      sendMessageActionMarkMessagesReadActionLikeActionPassActionSuggestActionDeclineForDaterActionReportActionInviteWingpersonActionAcceptInviteActionDeclineInviteActionRemoveWingpersonActionCreateProfilePromptActionDeleteProfilePromptActionCreatePromptResponseActionApprovePromptResponseActionDeletePromptResponseActionUpdateProfileActionSwitchToWingerActionSwitchToDaterActionDeactivateAccountActionReactivateAccountActionCreateDatingProfileActionUpdateDatingProfileActionPauseDatingActionResumeDatingActionCreatePhotoActionApprovePhotoActionRejectPhotoActionDeletePhotoActionReorderPhotoAction
     ),
   });
 };
@@ -282,6 +286,8 @@ export const getApiActionsActionGroupExecuteActionMutationOptions = <
         | UpdateProfileAction
         | SwitchToWingerAction
         | SwitchToDaterAction
+        | DeactivateAccountAction
+        | ReactivateAccountAction
         | CreateDatingProfileAction
         | UpdateDatingProfileAction
         | PauseDatingAction
@@ -320,6 +326,8 @@ export const getApiActionsActionGroupExecuteActionMutationOptions = <
       | UpdateProfileAction
       | SwitchToWingerAction
       | SwitchToDaterAction
+      | DeactivateAccountAction
+      | ReactivateAccountAction
       | CreateDatingProfileAction
       | UpdateDatingProfileAction
       | PauseDatingAction
@@ -363,6 +371,8 @@ export const getApiActionsActionGroupExecuteActionMutationOptions = <
         | UpdateProfileAction
         | SwitchToWingerAction
         | SwitchToDaterAction
+        | DeactivateAccountAction
+        | ReactivateAccountAction
         | CreateDatingProfileAction
         | UpdateDatingProfileAction
         | PauseDatingAction
@@ -405,6 +415,8 @@ export type ApiActionsActionGroupExecuteActionMutationBody =
   | UpdateProfileAction
   | SwitchToWingerAction
   | SwitchToDaterAction
+  | DeactivateAccountAction
+  | ReactivateAccountAction
   | CreateDatingProfileAction
   | UpdateDatingProfileAction
   | PauseDatingAction
@@ -449,6 +461,8 @@ export const useApiActionsActionGroupExecuteAction = <
           | UpdateProfileAction
           | SwitchToWingerAction
           | SwitchToDaterAction
+          | DeactivateAccountAction
+          | ReactivateAccountAction
           | CreateDatingProfileAction
           | UpdateDatingProfileAction
           | PauseDatingAction
@@ -489,6 +503,8 @@ export const useApiActionsActionGroupExecuteAction = <
       | UpdateProfileAction
       | SwitchToWingerAction
       | SwitchToDaterAction
+      | DeactivateAccountAction
+      | ReactivateAccountAction
       | CreateDatingProfileAction
       | UpdateDatingProfileAction
       | PauseDatingAction
@@ -681,7 +697,7 @@ export const getApiActionsActionGroupObjectIdExecuteObjectActionUrl = (
 export const apiActionsActionGroupObjectIdExecuteObjectAction = async (
   actionGroup: ActionGroupType,
   objectId: string,
-  sendMessageActionMarkMessagesReadActionLikeActionPassActionSuggestActionDeclineForDaterActionReportActionInviteWingpersonActionAcceptInviteActionDeclineInviteActionRemoveWingpersonActionCreateProfilePromptActionDeleteProfilePromptActionCreatePromptResponseActionApprovePromptResponseActionDeletePromptResponseActionUpdateProfileActionSwitchToWingerActionSwitchToDaterActionCreateDatingProfileActionUpdateDatingProfileActionPauseDatingActionResumeDatingActionCreatePhotoActionApprovePhotoActionRejectPhotoActionDeletePhotoActionReorderPhotoAction:
+  sendMessageActionMarkMessagesReadActionLikeActionPassActionSuggestActionDeclineForDaterActionReportActionInviteWingpersonActionAcceptInviteActionDeclineInviteActionRemoveWingpersonActionCreateProfilePromptActionDeleteProfilePromptActionCreatePromptResponseActionApprovePromptResponseActionDeletePromptResponseActionUpdateProfileActionSwitchToWingerActionSwitchToDaterActionDeactivateAccountActionReactivateAccountActionCreateDatingProfileActionUpdateDatingProfileActionPauseDatingActionResumeDatingActionCreatePhotoActionApprovePhotoActionRejectPhotoActionDeletePhotoActionReorderPhotoAction:
     | SendMessageAction
     | MarkMessagesReadAction
     | LikeAction
@@ -701,6 +717,8 @@ export const apiActionsActionGroupObjectIdExecuteObjectAction = async (
     | UpdateProfileAction
     | SwitchToWingerAction
     | SwitchToDaterAction
+    | DeactivateAccountAction
+    | ReactivateAccountAction
     | CreateDatingProfileAction
     | UpdateDatingProfileAction
     | PauseDatingAction
@@ -719,7 +737,7 @@ export const apiActionsActionGroupObjectIdExecuteObjectAction = async (
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...options?.headers },
       body: JSON.stringify(
-        sendMessageActionMarkMessagesReadActionLikeActionPassActionSuggestActionDeclineForDaterActionReportActionInviteWingpersonActionAcceptInviteActionDeclineInviteActionRemoveWingpersonActionCreateProfilePromptActionDeleteProfilePromptActionCreatePromptResponseActionApprovePromptResponseActionDeletePromptResponseActionUpdateProfileActionSwitchToWingerActionSwitchToDaterActionCreateDatingProfileActionUpdateDatingProfileActionPauseDatingActionResumeDatingActionCreatePhotoActionApprovePhotoActionRejectPhotoActionDeletePhotoActionReorderPhotoAction
+        sendMessageActionMarkMessagesReadActionLikeActionPassActionSuggestActionDeclineForDaterActionReportActionInviteWingpersonActionAcceptInviteActionDeclineInviteActionRemoveWingpersonActionCreateProfilePromptActionDeleteProfilePromptActionCreatePromptResponseActionApprovePromptResponseActionDeletePromptResponseActionUpdateProfileActionSwitchToWingerActionSwitchToDaterActionDeactivateAccountActionReactivateAccountActionCreateDatingProfileActionUpdateDatingProfileActionPauseDatingActionResumeDatingActionCreatePhotoActionApprovePhotoActionRejectPhotoActionDeletePhotoActionReorderPhotoAction
       ),
     }
   );
@@ -755,6 +773,8 @@ export const getApiActionsActionGroupObjectIdExecuteObjectActionMutationOptions 
         | UpdateProfileAction
         | SwitchToWingerAction
         | SwitchToDaterAction
+        | DeactivateAccountAction
+        | ReactivateAccountAction
         | CreateDatingProfileAction
         | UpdateDatingProfileAction
         | PauseDatingAction
@@ -794,6 +814,8 @@ export const getApiActionsActionGroupObjectIdExecuteObjectActionMutationOptions 
       | UpdateProfileAction
       | SwitchToWingerAction
       | SwitchToDaterAction
+      | DeactivateAccountAction
+      | ReactivateAccountAction
       | CreateDatingProfileAction
       | UpdateDatingProfileAction
       | PauseDatingAction
@@ -838,6 +860,8 @@ export const getApiActionsActionGroupObjectIdExecuteObjectActionMutationOptions 
         | UpdateProfileAction
         | SwitchToWingerAction
         | SwitchToDaterAction
+        | DeactivateAccountAction
+        | ReactivateAccountAction
         | CreateDatingProfileAction
         | UpdateDatingProfileAction
         | PauseDatingAction
@@ -885,6 +909,8 @@ export type ApiActionsActionGroupObjectIdExecuteObjectActionMutationBody =
   | UpdateProfileAction
   | SwitchToWingerAction
   | SwitchToDaterAction
+  | DeactivateAccountAction
+  | ReactivateAccountAction
   | CreateDatingProfileAction
   | UpdateDatingProfileAction
   | PauseDatingAction
@@ -931,6 +957,8 @@ export const useApiActionsActionGroupObjectIdExecuteObjectAction = <
           | UpdateProfileAction
           | SwitchToWingerAction
           | SwitchToDaterAction
+          | DeactivateAccountAction
+          | ReactivateAccountAction
           | CreateDatingProfileAction
           | UpdateDatingProfileAction
           | PauseDatingAction
@@ -972,6 +1000,8 @@ export const useApiActionsActionGroupObjectIdExecuteObjectAction = <
       | UpdateProfileAction
       | SwitchToWingerAction
       | SwitchToDaterAction
+      | DeactivateAccountAction
+      | ReactivateAccountAction
       | CreateDatingProfileAction
       | UpdateDatingProfileAction
       | PauseDatingAction

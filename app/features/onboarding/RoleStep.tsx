@@ -3,6 +3,7 @@ import { Pressable, SafeAreaView, Text, View } from '@/lib/tw';
 import { cn } from '@/lib/cn';
 import { Button } from '@/components/Button';
 import { PearMark } from '@/components/PearMark';
+import { colors } from '@/constants/theme';
 import type { UserRole } from '@/lib/api/generated/model';
 
 type Role = UserRole;
@@ -74,7 +75,7 @@ function DaterIllustration() {
           <PearMark size={64} />
         </View>
         <View style={{ transform: [{ rotate: '8deg' }, { translateX: -12 }, { translateY: 4 }] }}>
-          <PearMark size={56} variant="flat" color="#A8C99B" />
+          <PearMark size={56} variant="flat" color={colors.decorativeSage} />
         </View>
       </View>
     </View>
@@ -88,10 +89,10 @@ function WingerIllustration() {
         <View
           style={{ position: 'absolute', top: 6, right: 60, transform: [{ rotate: '-10deg' }] }}
         >
-          <PearMark size={48} variant="flat" color="#E8B4B4" />
+          <PearMark size={48} variant="flat" color={colors.decorativeRose} />
         </View>
         <View style={{ position: 'absolute', top: -4, right: 14, transform: [{ rotate: '6deg' }] }}>
-          <PearMark size={62} variant="flat" color="#A8C99B" />
+          <PearMark size={62} variant="flat" color={colors.decorativeSage} />
         </View>
       </View>
     </View>

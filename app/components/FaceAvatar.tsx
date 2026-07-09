@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Image } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { Text, View } from '@/lib/tw';
+import { colors } from '@/constants/theme';
 import { gradientFor } from './GradientBlock';
 
 type Props = {
@@ -12,11 +13,9 @@ type Props = {
   ring?: number;
 };
 
-const RING_COLOR = '#5A8C3A';
-
 export function FaceAvatar({ name, size = 40, photoUri, ring }: Props) {
   const [failedUri, setFailedUri] = useState<string | null>(null);
-  const ringStyle = ring ? { borderWidth: ring, borderColor: RING_COLOR } : undefined;
+  const ringStyle = ring ? { borderWidth: ring, borderColor: colors.leaf } : undefined;
 
   if (photoUri && photoUri !== failedUri) {
     return (

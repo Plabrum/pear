@@ -5,12 +5,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 
 import { View, Text, TextInput, Pressable } from '@/lib/tw';
 import { Dialog } from '@/components/Dialog';
-
-const INK = '#1F1B16';
-const INK3 = '#8B8170';
-const LINE = 'rgba(31,27,22,0.10)';
-const LEAF = '#5A8C3A';
-const LEAF_SOFT = 'rgba(90,140,58,0.12)';
+import { colors } from '@/constants/theme';
 
 export type ContactEntry = { id: string; name: string; phone: string };
 
@@ -56,22 +51,22 @@ export function ContactsPicker({ visible, contacts, onClose, onInvite }: Props) 
           }}
         >
           <Pressable onPress={onClose} hitSlop={12} style={{ padding: 6 }}>
-            <Ionicons name="chevron-back" size={22} color={INK} />
+            <Ionicons name="chevron-back" size={22} color={colors.ink} />
           </Pressable>
           <TextInput
             className="bg-surface"
             style={{
               flex: 1,
               borderWidth: 1,
-              borderColor: LINE,
+              borderColor: colors.divider,
               borderRadius: 12,
               paddingHorizontal: 12,
               paddingVertical: 10,
               fontSize: 14,
-              color: INK,
+              color: colors.ink,
             }}
             placeholder="Search contacts…"
-            placeholderTextColor={INK3}
+            placeholderTextColor={colors.inkDim}
             value={contactSearch}
             onChangeText={setContactSearch}
             autoCorrect={false}
@@ -93,7 +88,7 @@ export function ContactsPicker({ visible, contacts, onClose, onInvite }: Props) 
                 paddingHorizontal: 16,
                 paddingVertical: 12,
                 borderBottomWidth: 1,
-                borderColor: LINE,
+                borderColor: colors.divider,
               }}
             >
               <View
@@ -101,16 +96,16 @@ export function ContactsPicker({ visible, contacts, onClose, onInvite }: Props) 
                   width: 40,
                   height: 40,
                   borderRadius: 20,
-                  backgroundColor: LEAF_SOFT,
+                  backgroundColor: colors.leafBorder12,
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}
               >
-                <Text style={{ fontSize: 15, fontWeight: '600', color: LEAF }}>
+                <Text style={{ fontSize: 15, fontWeight: '600', color: colors.leaf }}>
                   {item.name.charAt(0).toUpperCase()}
                 </Text>
               </View>
-              <Text style={{ flex: 1, fontSize: 15, color: INK }}>{item.name}</Text>
+              <Text style={{ flex: 1, fontSize: 15, color: colors.ink }}>{item.name}</Text>
             </Pressable>
           )}
         />

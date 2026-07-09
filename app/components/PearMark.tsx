@@ -1,5 +1,6 @@
 import type { ColorValue } from 'react-native';
 import Svg, { Defs, Ellipse, Path, RadialGradient, Stop } from 'react-native-svg';
+import { colors } from '@/constants/theme';
 
 type Variant = 'soft' | 'flat' | 'outline';
 
@@ -17,12 +18,10 @@ const STEM = 'M15.8 6.2c.4-1.0 1.2-2.0 2.2-2.6';
 const LEAF = 'M17.4 4.0c2.6-1.8 5.8-1.6 7.4.2-.8 2.4-3.6 3.8-6.4 3.6-1.2-.1-2.0-2.4-1.0-3.8z';
 const LEAF_VEIN = 'M18.2 4.6c1.8.0 4.0-.2 5.8-.8';
 
-const DEFAULT_LEAF = '#5A8C3A';
-
-export function PearMark({ size = 28, color = DEFAULT_LEAF, leaf, stem, variant = 'soft' }: Props) {
+export function PearMark({ size = 28, color = colors.leaf, leaf, stem, variant = 'soft' }: Props) {
   const leafColor = leaf ?? color;
-  const stemColor = stem ?? (variant === 'outline' ? color : '#6B4A2B');
-  const shadow = <Ellipse cx="16" cy="30.6" rx="4.6" ry="0.7" fill="rgba(31,27,22,.16)" />;
+  const stemColor = stem ?? (variant === 'outline' ? color : colors.pearMarkStem);
+  const shadow = <Ellipse cx="16" cy="30.6" rx="4.6" ry="0.7" fill={colors.pearMarkShadow} />;
 
   if (variant === 'outline') {
     return (
@@ -51,8 +50,8 @@ export function PearMark({ size = 28, color = DEFAULT_LEAF, leaf, stem, variant 
     <Svg width={size} height={size} viewBox="0 0 32 32" fill="none">
       <Defs>
         <RadialGradient id={gradId} cx="38%" cy="44%" r="62%">
-          <Stop offset="0%" stopColor="#fff" stopOpacity={0.34} />
-          <Stop offset="55%" stopColor="#fff" stopOpacity={0} />
+          <Stop offset="0%" stopColor={colors.trueWhite} stopOpacity={0.34} />
+          <Stop offset="55%" stopColor={colors.trueWhite} stopOpacity={0} />
         </RadialGradient>
       </Defs>
       {shadow}
@@ -63,14 +62,14 @@ export function PearMark({ size = 28, color = DEFAULT_LEAF, leaf, stem, variant 
         cy="20.6"
         rx="2.4"
         ry="3.6"
-        fill="rgba(255,255,255,.24)"
+        fill={colors.pearMarkHighlight}
         transform="rotate(-18 11.8 20.6)"
       />
       <Path d={STEM} stroke={stemColor} strokeWidth={2} strokeLinecap="round" fill="none" />
       <Path d={LEAF} fill={leafColor} />
       <Path
         d={LEAF_VEIN}
-        stroke="rgba(255,255,255,.42)"
+        stroke={colors.pearMarkHighlightBorder}
         strokeWidth={0.7}
         strokeLinecap="round"
         fill="none"

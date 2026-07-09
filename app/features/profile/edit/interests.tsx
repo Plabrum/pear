@@ -11,6 +11,7 @@ import type { Interest } from '@/lib/api/generated/model';
 import { INTERESTS } from '@/constants/enums';
 import { View, Text, ScrollView, SafeAreaView, Pressable } from '@/lib/tw';
 import { cn } from '@/lib/cn';
+import { colors } from '@/constants/theme';
 import { NavHeader } from '@/components/NavHeader';
 import ScreenSuspense from '@/components/ScreenSuspense';
 import { createTypedForm } from '@/lib/forms/typed-form';
@@ -44,7 +45,7 @@ function InterestsScreenInner() {
           contentContainerStyle={{ padding: 16, paddingBottom: 48 }}
           showsVerticalScrollIndicator={false}
         >
-          <Text style={{ fontSize: 13, color: 'rgba(31,27,22,0.50)', marginBottom: 14 }}>
+          <Text style={{ fontSize: 13, color: colors.inkAlpha50, marginBottom: 14 }}>
             Pick anything that describes you. Shared interests show up on your profile.
           </Text>
           <InterestsForm.CustomField

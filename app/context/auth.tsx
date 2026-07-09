@@ -105,9 +105,13 @@ export function useAuthActions() {
   if (!ctx) throw new Error('useAuthActions must be used within AuthProvider');
 
   return {
-    async signInWithApple(identityToken: string, fullName?: string): Promise<AuthResult> {
+    async signInWithApple(
+      identityToken: string,
+      fullName?: string,
+      authorizationCode?: string
+    ): Promise<AuthResult> {
       try {
-        await clientSignInWithApple(identityToken, fullName);
+        await clientSignInWithApple(identityToken, fullName, authorizationCode);
         await queryClient.invalidateQueries({ queryKey: authMeQueryKey });
         return { error: null };
       } catch (e) {

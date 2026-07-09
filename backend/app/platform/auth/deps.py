@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import config
 from app.platform.auth.clients.apple import BaseAppleVerifier, build_apple_verifier
+from app.platform.auth.clients.apple_oauth import BaseAppleOAuthClient, build_apple_oauth_client
 from app.platform.auth.principal import User
 from app.platform.auth.service import AuthService
 from app.utils.deps import dep
@@ -34,6 +35,21 @@ def provide_auth_service(transaction: AsyncSession) -> AuthService:
 def provide_apple_verifier() -> BaseAppleVerifier:
     """Apple identity-token verifier: injected-key in test, JWKS in prod."""
     return build_apple_verifier(config)
+
+
+# Memoized like the push client so the real client's cached client_secret JWT
+# survives across requests — DI providers are otherwise per-request.
+_apple_oauth_clients: dict[int, BaseAppleOAuthClient] = {}
+
+
+@dep("apple_oauth_client", sync_to_thread=False)
+def provide_apple_oauth_client() -> BaseAppleOAuthClient:
+    """Outbound Apple OAuth client (code exchange + grant revoke): local in dev/test, real in prod."""
+    client = _apple_oauth_clients.get(id(config))
+    if client is None:
+        client = build_apple_oauth_client(config)
+        _apple_oauth_clients[id(config)] = client
+    return client
 
 
 @dep("email", sync_to_thread=False)

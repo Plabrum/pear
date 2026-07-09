@@ -41,7 +41,7 @@ export function AvatarPicker({ name, avatarUrl, size, userId }: AvatarPickerProp
     <Pressable onPress={handlePick} className="relative" style={{ width: size, height: size }}>
       <FaceAvatar name={name ?? ''} size={size} photoUri={avatarUrl} />
       <View
-        className="absolute items-center justify-center bg-surface"
+        className="absolute items-center justify-center bg-surface border-background"
         style={{
           right: -2,
           bottom: -2,
@@ -49,7 +49,6 @@ export function AvatarPicker({ name, avatarUrl, size, userId }: AvatarPickerProp
           height: badge,
           borderRadius: badge / 2,
           borderWidth: 1.5,
-          borderColor: '#F5F1E8',
           opacity: uploading ? 0.5 : 1,
         }}
       >

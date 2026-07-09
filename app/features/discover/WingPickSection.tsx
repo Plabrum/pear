@@ -4,6 +4,7 @@ import { View, Text } from '@/lib/tw';
 import { WingStack } from '@/components/WingStack';
 import { FaceAvatar } from '@/components/FaceAvatar';
 import { PagedCarousel } from '@/components/PagedCarousel';
+import { colors } from '@/constants/theme';
 import type { WingSuggestion } from '@/lib/api/generated/model';
 
 function SuggestionCard({ suggestion, width }: { suggestion: WingSuggestion; width: number }) {
@@ -14,7 +15,7 @@ function SuggestionCard({ suggestion, width }: { suggestion: WingSuggestion; wid
       style={{
         width,
         borderWidth: 1,
-        borderColor: 'rgba(90,140,58,0.15)',
+        borderColor: colors.leafBorder15,
         borderRadius: 14,
         padding: 12,
       }}

@@ -103,6 +103,12 @@ class Config:
     # Test/dev escape hatch: a PEM public key that verifies locally-signed Apple
     # tokens (bypasses the JWKS fetch). Empty in prod — JWKS is used.
     APPLE_TEST_PUBLIC_KEY: str = os.getenv("APPLE_TEST_PUBLIC_KEY", "")
+    # Outbound Apple OAuth (code exchange + grant revoke, for account deactivation).
+    # `APPLE_CLIENT_ID` above doubles as the `client_id`/`sub` for these calls — the
+    # app's bundle id, same value already used as the inbound `aud`.
+    APPLE_TEAM_ID: str = os.getenv("APPLE_TEAM_ID", "")
+    APPLE_KEY_ID: str = os.getenv("APPLE_KEY_ID", "")
+    APPLE_PRIVATE_KEY: str = os.getenv("APPLE_PRIVATE_KEY", "")  # .p8 contents (ES256)
 
     # ─── Magic link (email login) ──────────────────────────────────────────────
     # Public base URL of the API; the GET verify hop 302s into the app scheme.

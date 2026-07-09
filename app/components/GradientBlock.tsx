@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import LinearGradient from 'react-native-linear-gradient';
 import type { ViewStyle } from 'react-native';
 import { View, Text } from '@/lib/tw';
+import { colors } from '@/constants/theme';
 
 const GRAD_PALETTES: readonly (readonly [string, string])[] = [
   ['#F4C77B', '#E89B5A'],
@@ -76,7 +77,7 @@ export function GradientBlock({
           left: 0,
           right: 0,
           bottom: 0,
-          backgroundColor: 'rgba(255,255,255,0.08)',
+          backgroundColor: colors.overlayWhite08,
         }}
       />
       {showInitial ? (

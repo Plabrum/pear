@@ -15,7 +15,7 @@ const tabBarBackground =
         <BlurView
           blurAmount={40}
           blurType="light"
-          style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(251,248,241,0.7)' }]}
+          style={[StyleSheet.absoluteFill, { backgroundColor: colors.surfaceOverlay70 }]}
         />
       )
     : undefined;
