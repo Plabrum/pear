@@ -15,7 +15,7 @@ Core flows: Auth → Onboarding → Discover → Matches → Messaging → Wingp
 
 | Layer          | Choice                                                                                                                                     |
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| Framework      | Bare React Native 0.85 (new arch enabled) — no Expo native runtime; `ios/` is hand-maintained, built directly by Xcode Cloud, not `expo prebuild`. The `expo` npm package stays only as a CLI (`expo lint`/`expo start`/`expo export`), excluded from iOS autolinking via `react-native.config.js`. |
+| Framework      | Bare React Native 0.85 (new arch enabled) — no Expo native runtime; `ios/` is built directly by Xcode Cloud, not `expo prebuild`. The Xcode project itself (`project.pbxproj`, `.xcworkspace`) is XcodeGen-generated from `app/ios/project.yml` and not committed — edit `project.yml`, not the generated project, and run `xcodegen generate && pod install` (or `npm run dev:sim`, which does this automatically) to pick up changes. The `expo` npm package stays only as a CLI (`expo lint`/`expo start`/`expo export`), excluded from iOS autolinking via `react-native.config.js`. |
 | Navigation     | `@react-navigation` v7 (native-stack + bottom-tabs) — `App.tsx`/`navigation/RootNavigator.tsx`, not file-based routing                     |
 | Backend        | **Self-hosted Litestar** (Python) + SQLAlchemy 2.0 async + Alembic + SAQ, on a single EC2 box via docker-compose (`api`/`worker`/`postgres:17`/`redis`/`caddy`). Own Postgres with **app-managed RLS** · S3 (media) · Litestar Channels (realtime) · direct APNs (push, hand-rolled `PearNotificationsModule.swift`). |
 | Styling        | NativeWind v4 + Tailwind v3 (`nativewind/metro` on `@react-native/metro-config`, no `expo/metro-config`)                                   |
@@ -69,15 +69,17 @@ wingmate/
 │   │       └── generated/      # Orval read hooks (committed)
 │   ├── hooks/ assets/ constants/  # constants/theme.ts = hex escape-hatch values
 │   ├── scripts/                # dev/sim, etc.
-│   ├── certs/                  # OTA code-signing public cert (updates-signing.pem), bundled
-│   │                           # directly as an iOS resource (ios/Pear/updates-signing.pem)
-│   │                           # for the custom Swift OTA client's signature verification —
-│   │                           # must be regenerated whenever the Terraform-managed signing
-│   │                           # key rotates, not just copied once
-│   ├── ios/                    # Committed, hand-maintained native project — no `expo prebuild`
-│   │                           # step exists anymore (the off-Expo migration's native-ownership
+│   ├── ios/                    # Native project for Xcode Cloud — no `expo prebuild` step
+│   │                           # exists anymore (the off-Expo migration's native-ownership
 │   │                           # cutover removed the ios-drift-check workflow/hook entirely).
-│   │                           # Edit it directly like any other native project.
+│   │                           # `Pear.xcodeproj`/`Pear.xcworkspace` are XcodeGen-generated
+│   │                           # from `project.yml` (not committed) — edit `project.yml`,
+│   │                           # then `xcodegen generate && pod install`. Everything else
+│   │                           # (Swift/ObjC sources, entitlements/Info.plist content in
+│   │                           # `project.yml`, `Pear/OTA/updates-signing.pem` — the OTA
+│   │                           # code-signing public cert for the custom Swift OTA client's
+│   │                           # signature verification, regenerated only via CI/CD when the
+│   │                           # Terraform-managed signing key rotates) is hand-maintained.
 │   ├── package.json  tsconfig.json  metro.config.js  react-native.config.js
 │   ├── openapi.json            # Litestar-emitted OpenAPI spec (orval input, committed)
 │   ├── orval.config.ts
@@ -416,8 +418,10 @@ cd app && npx tsc --noEmit && npm run lint
 # Build & deploy the app (Xcode Cloud + self-hosted OTA — separate from the backend pipeline)
 cd app && npm run export:ota     # expo export -p ios — JS bundle for the OTA publish job (ota.yml)
 cd app && npm run build:device   # opens ios/Pear.xcworkspace in Xcode — pick your device, hit Run
-                                  # (cloud-managed signing means no local certs/profiles to script;
-                                  # this builds the same committed ios/ Xcode Cloud builds from)
+                                  # (requires an `xcodegen generate && pod install` first if the
+                                  # workspace hasn't been generated yet, e.g. via `npm run dev:sim`;
+                                  # cloud-managed signing means no local certs/profiles to script —
+                                  # this builds the same project Xcode Cloud builds from)
 # Native archive/sign/submit (TestFlight/App Store) runs in Xcode Cloud, triggered on `v*` tags —
 # no local EAS build/submit step.
 ```
@@ -448,9 +452,13 @@ for review. Land the `.tf` changes in a PR and let the pipeline apply them.
 ## Build Configuration
 
 - **Bundle ID:** `com.plabrum.pear`
-- **Version source:** `package.json` · **Runtime version:** fingerprint · **New Architecture:** enabled
+- **Version source:** `package.json` for the JS side; `MARKETING_VERSION`/`CURRENT_PROJECT_VERSION`
+  in `app/ios/project.yml` for `CFBundleShortVersionString`/`CFBundleVersion` (bump both on
+  release — the generated `Info.plist` only ever reflects `project.yml`, never edit it directly).
+  **Runtime version:** fingerprint · **New Architecture:** enabled
 - No EAS — native build/sign/submit is Xcode Cloud (triggered on `v*` tags), building the
-  committed `app/ios/` project directly. No `eas.json`, no EAS profiles.
+  `app/ios/` project (XcodeGen-generated from the committed `project.yml`) directly. No
+  `eas.json`, no EAS profiles.
 
 ---
 
