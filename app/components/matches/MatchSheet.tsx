@@ -1,10 +1,10 @@
 import PulseSpinner from '@/components/ui/PulseSpinner';
 import { router } from 'expo-router';
-import { Image } from 'expo-image';
 
 import { View, Text } from '@/lib/tw';
 import { Sheet } from '@/components/ui/Sheet';
 import ScreenSuspense from '@/components/ui/ScreenSuspense';
+import { CrossfadeImage } from '@/components/ui/CrossfadeImage';
 import type { MatchSummary } from '@/lib/api/generated/model';
 import { GradientBlock } from '@/components/ui/GradientBlock';
 import { Pill } from '@/components/ui/Pill';
@@ -88,11 +88,10 @@ export function MatchSheet({ match, visible, onClose }: MatchSheetProps) {
         }}
       >
         {other.firstPhoto ? (
-          <Image
-            source={{ uri: other.firstPhoto }}
+          <CrossfadeImage
+            uri={other.firstPhoto}
             style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
-            contentFit="cover"
-            transition={200}
+            resizeMode="cover"
           />
         ) : (
           <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>

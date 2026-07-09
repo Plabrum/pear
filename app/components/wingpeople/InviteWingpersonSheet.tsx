@@ -1,9 +1,9 @@
 import { useState } from 'react';
+import { Linking } from 'react-native';
 import { Controller, useForm } from 'react-hook-form';
 import { toast } from 'sonner-native';
-import * as SMS from 'expo-sms';
-import * as Contacts from 'expo-contacts';
-import { Ionicons } from '@expo/vector-icons';
+import Contacts from 'react-native-contacts';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { View } from '@/lib/tw';
@@ -64,14 +64,12 @@ export function InviteWingpersonSheet({ visible, onClose, variant = 'dater' }: P
     // user, fires a server-side push). The response no longer distinguishes
     // existing vs. new users, so we also offer the SMS invite as the delivery
     // channel for invitees who aren't on Pear yet.
-    const isAvailable = await SMS.isAvailableAsync();
+    const isAvailable = await Linking.canOpenURL('sms:');
     if (isAvailable) {
       const daterName = profile?.chosenName ?? 'Someone';
       const appUrl = 'https://apps.apple.com/app/pear/id6744145981';
-      await SMS.sendSMSAsync(
-        [e164],
-        `${daterName} invited you to be their wingperson on Pear! Download the app: ${appUrl}`
-      );
+      const body = `${daterName} invited you to be their wingperson on Pear! Download the app: ${appUrl}`;
+      await Linking.openURL(`sms:${e164}&body=${encodeURIComponent(body)}`);
     }
     queryClient.invalidateQueries({ queryKey: getGetApiWingpeopleQueryKey() });
     return true;
@@ -84,23 +82,23 @@ export function InviteWingpersonSheet({ visible, onClose, variant = 'dater' }: P
   });
 
   const openContactsPicker = async () => {
-    const { status } = await Contacts.requestPermissionsAsync();
-    if (status !== 'granted') {
+    const existingStatus = await Contacts.checkPermission();
+    const status =
+      existingStatus === 'authorized' ? existingStatus : await Contacts.requestPermission();
+    if (status !== 'authorized') {
       toast.error('Contacts permission is required to invite friends.');
       return;
     }
-    const { data } = await Contacts.getContactsAsync({
-      fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Name],
-    });
+    const data = await Contacts.getAll();
     const entries: ContactEntry[] = [];
     for (const c of data) {
-      const name = c.name ?? '';
+      const name = `${c.givenName} ${c.familyName}`.trim();
       if (!name) continue;
       for (const ph of c.phoneNumbers ?? []) {
         const raw = ph.number ?? '';
         const e164 = toE164(raw);
         if (e164) {
-          entries.push({ id: `${c.id}-${raw}`, name, phone: e164 });
+          entries.push({ id: `${c.recordID}-${raw}`, name, phone: e164 });
           break;
         }
       }

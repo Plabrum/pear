@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
+import { Image } from 'react-native';
+import LinearGradient from 'react-native-linear-gradient';
 import { Text, View } from '@/lib/tw';
 import { gradientFor } from './GradientBlock';
 
@@ -23,7 +23,7 @@ export function FaceAvatar({ name, size = 40, photoUri, ring }: Props) {
       <Image
         source={{ uri: photoUri }}
         style={[{ width: size, height: size, borderRadius: size / 2 }, ringStyle]}
-        contentFit="cover"
+        resizeMode="cover"
         onError={() => setFailedUri(photoUri)}
       />
     );

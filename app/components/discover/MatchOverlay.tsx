@@ -1,6 +1,5 @@
-import { StyleSheet } from 'react-native';
-import { Image } from 'expo-image';
-import { Ionicons } from '@expo/vector-icons';
+import { Image, StyleSheet } from 'react-native';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 
 import { View, Text, Pressable } from '@/lib/tw';
 import { colors } from '@/constants/theme';
@@ -109,7 +108,7 @@ export function MatchOverlay({
             <Image
               source={{ uri: card.photos[0].url }}
               style={StyleSheet.absoluteFill}
-              contentFit="cover"
+              resizeMode="cover"
             />
           ) : (
             <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.muted }]} />
@@ -128,7 +127,9 @@ export function MatchOverlay({
         }}
       >
         You and {card.chosenName} both swiped right.
-        {card.suggestions[0]?.wingerName != null ? ` ${card.suggestions[0].wingerName} called it.` : ''}
+        {card.suggestions[0]?.wingerName != null
+          ? ` ${card.suggestions[0].wingerName} called it.`
+          : ''}
       </Text>
 
       <View style={{ width: '100%', maxWidth: 320, gap: 10 }}>

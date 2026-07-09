@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Image } from 'expo-image';
+import { Image } from 'react-native';
 import PulseSpinner from '@/components/ui/PulseSpinner';
 import { Pressable, ScrollView, Text, View } from '@/lib/tw';
 import { cn } from '@/lib/cn';
@@ -33,7 +33,7 @@ export function PhotosStep({ dpId, onContinue }: { dpId: string | null; onContin
 
   async function handleAdd() {
     if (!dpId || photos.length >= 6) return;
-    const uri = await pickAndResizePhoto();
+    const uri = await pickAndResizePhoto({ aspect: [3, 4] });
     if (!uri) return;
     const ok = await upload(dpId, uri, `${Date.now()}.jpg`, photos.length);
     if (ok) await refresh();
@@ -121,7 +121,7 @@ function PhotoSlot({
       <Image
         source={{ uri: photo.uri }}
         style={{ width: '100%', height: '100%' }}
-        contentFit="cover"
+        resizeMode="cover"
       />
       {isMain ? (
         <View

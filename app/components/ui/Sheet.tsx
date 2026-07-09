@@ -21,7 +21,7 @@ import {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import { Portal } from '@rn-primitives/portal';
 
 import { View, Text, Pressable, ScrollView, AnimatedView } from '@/lib/tw';

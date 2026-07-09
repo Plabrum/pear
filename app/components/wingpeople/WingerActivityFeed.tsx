@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Image } from 'expo-image';
+import { Image } from 'react-native';
 
 import { View, Text, ScrollView } from '@/lib/tw';
 import { TextTabBar } from '@/components/ui/TextTabBar';
@@ -193,7 +193,7 @@ function PhotosTab() {
                   <Image
                     source={{ uri: photoUrl }}
                     style={{ width: 56, height: 72, borderRadius: 10 }}
-                    contentFit="cover"
+                    resizeMode="cover"
                   />
                 ) : (
                   <View className="rounded-xl bg-surface-muted" style={{ width: 56, height: 72 }} />

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { FlatList, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 
 import { View, Text, TextInput, Pressable } from '@/lib/tw';
 import { Dialog } from '@/components/ui/Dialog';

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 
 import { Text, View, Pressable } from '@/lib/tw';
 import { colors } from '@/constants/theme';

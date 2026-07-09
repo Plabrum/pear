@@ -1,7 +1,7 @@
-// Fallback for using MaterialIcons on Android and web.
+// Uses MaterialIcons on every platform (previously Android/web only; SF Symbols via
+// expo-symbols were dropped in favor of a single uniform icon set on iOS too).
 
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { SymbolWeight } from 'expo-symbols';
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { ComponentProps } from 'react';
 import { OpaqueColorValue, type StyleProp, type TextStyle } from 'react-native';
 
@@ -19,12 +19,15 @@ const MAPPING = {
   'chevron.left.forwardslash.chevron.right': 'code',
   'chevron.left': 'chevron-left',
   'chevron.right': 'chevron-right',
+  // MaterialIcons has no true Apple logo; 'apple' is its closest brand-icon glyph.
+  applelogo: 'apple',
+  'envelope.fill': 'email',
 } as IconMapping;
 
 /**
- * An icon component that uses native SF Symbols on iOS, and Material Icons on Android and web.
- * This ensures a consistent look across platforms, and optimal resource usage.
- * Icon `name`s are based on SF Symbols and require manual mapping to Material Icons.
+ * An icon component that uses Material Icons on every platform, for a consistent
+ * look and a single icon set to maintain. Icon `name`s are historically based on
+ * SF Symbols naming and require manual mapping to Material Icons.
  */
 export function IconSymbol({
   name,
@@ -36,7 +39,6 @@ export function IconSymbol({
   size?: number;
   color: string | OpaqueColorValue;
   style?: StyleProp<TextStyle>;
-  weight?: SymbolWeight;
 }) {
   return <MaterialIcons color={color} size={size} name={MAPPING[name]} style={style} />;
 }

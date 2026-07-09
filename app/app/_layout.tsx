@@ -7,7 +7,7 @@ import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { PortalHost } from '@rn-primitives/portal';
 import { Stack, useRouter } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
+import { StatusBar } from 'react-native';
 import { Toaster } from 'sonner-native';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { useEffect } from 'react';
@@ -118,7 +118,7 @@ export default function RootLayout() {
                 <PortalHost />
               </BottomSheetModalProvider>
               <Toaster position="bottom-center" richColors />
-              <StatusBar style="auto" />
+              <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
             </ThemeProvider>
           </AuthProvider>
         </QueryClientProvider>

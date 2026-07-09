@@ -1,37 +1,56 @@
-import { File, UploadType } from 'expo-file-system';
-import * as ImagePicker from 'expo-image-picker';
-import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
+import RNBlobUtil from 'react-native-blob-util';
+import ImagePicker from 'react-native-image-crop-picker';
+import ImageResizer from '@bam.tech/react-native-image-resizer';
 import { toast } from 'sonner-native';
 
 import { updateMyProfile } from '@/lib/api/actions';
 import { postApiMediaUploadUrl, postApiMediaUploaded } from '@/lib/api/generated/media/media';
 
 const AVATAR_CONTENT_TYPE = 'image/jpeg';
+const COMPRESS_QUALITY = 0.8;
 
-export async function pickAndResizePhoto(opts?: {
+// react-native-image-resizer fits within a width x height box (aspect ratio preserved)
+// rather than scaling off a single axis like expo-image-manipulator did. We only ever
+// want to cap by width, so pass a height large enough that width stays the binding
+// constraint for any realistic camera-roll aspect ratio.
+const UNBOUNDED_HEIGHT = 10000;
+
+export async function pickAndResizePhoto(opts: {
+  aspect: [number, number];
   width?: number;
-  aspect?: [number, number];
 }): Promise<string | null> {
-  const { width = 1200, aspect } = opts ?? {};
+  const { width = 1200, aspect } = opts;
+  const [aspectW, aspectH] = aspect;
 
-  const { granted } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-  if (!granted) {
-    toast.error('Allow photo access in Settings.');
+  // react-native-image-crop-picker prompts for photo-library permission itself
+  // (no separate requestMediaLibraryPermissionsAsync-style call) and rejects the
+  // returned promise on cancel (E_PICKER_CANCELLED) or on permission denial —
+  // treat both as a plain "no photo picked" outcome rather than a thrown error.
+  // `cropping: true` always locks to the given width/height ratio — there is no
+  // free-form-crop equivalent on this library, so every caller passes the
+  // aspect ratio it actually displays at.
+  const image = await ImagePicker.openPicker({
+    cropping: true,
+    width: Math.round(width * aspectW),
+    height: Math.round(width * aspectH),
+    mediaType: 'photo',
+    compressImageQuality: 1,
+  }).catch((error: { code?: string }) => {
+    if (error?.code !== 'E_PICKER_CANCELLED') {
+      toast.error('Allow photo access in Settings.');
+    }
     return null;
-  }
-  const result = await ImagePicker.launchImageLibraryAsync({
-    mediaTypes: ['images'],
-    allowsEditing: true,
-    aspect,
-    quality: 1,
   });
-  if (result.canceled || !result.assets[0]) return null;
+  if (!image) return null;
 
-  const ctx = ImageManipulator.manipulate(result.assets[0].uri);
-  ctx.resize({ width });
-  const imageRef = await ctx.renderAsync();
-  const saved = await imageRef.saveAsync({ compress: 0.8, format: SaveFormat.JPEG });
-  return saved.uri;
+  const { uri } = await ImageResizer.createResizedImage(
+    image.path,
+    width,
+    UNBOUNDED_HEIGHT,
+    'JPEG',
+    Math.round(COMPRESS_QUALITY * 100)
+  );
+  return uri;
 }
 
 // Three-step media upload. Mints a presigned PUT from the media domain, streams
@@ -46,16 +65,20 @@ export async function uploadMedia(
 ): Promise<string> {
   const { mediaId, uploadUrl } = await postApiMediaUploadUrl({ fileName, contentType });
 
-  // Stream the local file straight to the presigned URL via the native upload task.
-  // Don't go through fetch().blob() — Expo's winter fetch can't build a Blob from a
-  // file URI's ArrayBuffer, which throws at runtime.
-  const putRes = await new File(uri).upload(uploadUrl, {
-    httpMethod: 'PUT',
-    uploadType: UploadType.BINARY_CONTENT,
-    headers: { 'Content-Type': contentType },
-  });
-  if (putRes.status < 200 || putRes.status >= 300) {
-    throw new Error(`Upload PUT failed: ${putRes.status}`);
+  // Stream the local file straight to the presigned URL via native code. Don't go
+  // through fetch().blob() — Expo's winter fetch can't build a Blob from a file
+  // URI's ArrayBuffer, which throws at runtime. RNBlobUtil.wrap() hands fetch a
+  // file-path token that its native layer reads and streams directly, sidestepping
+  // the JS Blob polyfill entirely.
+  const putRes = await RNBlobUtil.fetch(
+    'PUT',
+    uploadUrl,
+    { 'Content-Type': contentType },
+    RNBlobUtil.wrap(uri)
+  );
+  const status = putRes.respInfo.status;
+  if (status < 200 || status >= 300) {
+    throw new Error(`Upload PUT failed: ${status}`);
   }
 
   // Flips the row toward processing; the response state is still PENDING here.

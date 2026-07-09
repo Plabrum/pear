@@ -2,7 +2,7 @@ import { Suspense, useState } from 'react';
 import { Alert } from 'react-native';
 import Splash from '@/components/ui/Splash';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 
 import { FaceAvatar } from '@/components/ui/FaceAvatar';
 import { Sprout } from '@/components/ui/Sprout';

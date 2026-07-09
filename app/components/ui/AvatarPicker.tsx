@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 
 import { View, Pressable } from '@/lib/tw';
 import { FaceAvatar } from '@/components/ui/FaceAvatar';

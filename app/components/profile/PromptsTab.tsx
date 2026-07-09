@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Alert, Dimensions, StyleSheet } from 'react-native';
 import type { UseFormReturn } from 'react-hook-form';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 
 import type { OwnDatingProfile, OwnPromptResponse } from '@/lib/api/generated/model';
 import {

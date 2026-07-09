@@ -8,7 +8,7 @@
 // is layout-only.
 import * as React from 'react';
 import { TextInput as RNTextInput, type KeyboardTypeOptions } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 
 import { View, Text, TextInput, Pressable } from '@/lib/tw';
 import { colors } from '@/constants/theme';

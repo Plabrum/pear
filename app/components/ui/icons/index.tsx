@@ -3,7 +3,7 @@
 // Colors come from design tokens via @/constants/theme (escape-hatch use:
 // SVG stroke/fill props can't take className).
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
-import Feather from '@expo/vector-icons/Feather';
+import Feather from 'react-native-vector-icons/Feather';
 
 import { colors } from '@/constants/theme';
 import { PearMark } from '@/components/ui/PearMark';

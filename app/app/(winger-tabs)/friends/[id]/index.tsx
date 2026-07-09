@@ -59,7 +59,7 @@ function FriendDetailContent() {
   );
 
   const handleSuggestPhoto = async () => {
-    const uri = await pickAndResizePhoto();
+    const uri = await pickAndResizePhoto({ aspect: [4, 5] });
     if (!uri) return;
     const filename = `${Date.now()}.jpg`;
     const nextOrder = approvedPhotos.length + myPendingPhotos.length;

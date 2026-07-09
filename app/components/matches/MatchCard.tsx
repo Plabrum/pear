@@ -1,9 +1,9 @@
-import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
+import LinearGradient from 'react-native-linear-gradient';
 
 import { View, Text, Pressable } from '@/lib/tw';
 import type { MatchSummary } from '@/lib/api/generated/model';
 import { GradientBlock } from '@/components/ui/GradientBlock';
+import { CrossfadeImage } from '@/components/ui/CrossfadeImage';
 import { cardButtonShadow } from '@/lib/styles';
 
 type MatchCardProps = {
@@ -30,11 +30,10 @@ export function MatchCard({ match, onPress }: MatchCardProps) {
       ]}
     >
       {other.firstPhoto ? (
-        <Image
-          source={{ uri: other.firstPhoto }}
+        <CrossfadeImage
+          uri={other.firstPhoto}
           style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
-          contentFit="cover"
-          transition={200}
+          resizeMode="cover"
         />
       ) : (
         <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>

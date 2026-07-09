@@ -1,5 +1,5 @@
 import { View, StyleSheet } from 'react-native';
-import { Image } from 'expo-image';
+import { CrossfadeImage } from './CrossfadeImage';
 
 type Props = {
   uri: string | null;
@@ -12,12 +12,11 @@ export function PhotoRect({ uri, ratio = 4 / 5, blur = false, style }: Props) {
   return (
     <View style={[styles.container, { aspectRatio: ratio }, style]}>
       {uri ? (
-        <Image
-          source={{ uri }}
+        <CrossfadeImage
+          uri={uri}
           style={StyleSheet.absoluteFill}
-          contentFit="cover"
+          resizeMode="cover"
           blurRadius={blur ? 20 : 0}
-          transition={200}
         />
       ) : (
         <View style={[StyleSheet.absoluteFill, styles.placeholder]} />

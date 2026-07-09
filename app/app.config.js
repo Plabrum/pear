@@ -18,6 +18,19 @@ module.exports = {
       },
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
+        // react-native-image-crop-picker needs this explicitly — expo-image-picker used to
+        // supply it implicitly via its own config-plugin (auto-applied through Expo
+        // autolinking even though it was never listed in the `plugins` array below). That
+        // implicit plugin is gone now that expo-image-picker is removed. No camera capture
+        // call site exists today, so NSCameraUsageDescription is intentionally omitted.
+        NSPhotoLibraryUsageDescription:
+          'Pear needs access to your photos so you can add them to your profile.',
+        NSContactsUsageDescription:
+          'Pear needs access to your contacts so you can invite a wingperson.',
+        // 'sms' lets Linking.canOpenURL('sms:') report true (invite-a-wingperson flow) —
+        // without a query-schemes declaration, canOpenURL for non-http(s) schemes can
+        // silently return false on iOS even when the Messages app can handle the URL.
+        LSApplicationQueriesSchemes: ['sms'],
       },
     },
     web: {
@@ -37,8 +50,6 @@ module.exports = {
       ],
       '@react-native-community/datetimepicker',
       'expo-font',
-      'expo-image',
-      'expo-status-bar',
       'expo-web-browser',
     ],
     experiments: {

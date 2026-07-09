@@ -4,7 +4,7 @@ import PulseSpinner from '@/components/ui/PulseSpinner';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { toast } from 'sonner-native';
 import { useQueryClient } from '@tanstack/react-query';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 
 import { useAuth } from '@/context/auth';
 import {
@@ -108,7 +108,7 @@ function ContributeContent() {
   );
 
   const handleSuggestPhoto = async () => {
-    const uri = await pickAndResizePhoto();
+    const uri = await pickAndResizePhoto({ aspect: [3, 4] });
     if (!uri) return;
     if (data?.datingProfile == null) return;
 
@@ -124,12 +124,10 @@ function ContributeContent() {
     if (!respondingToPrompt) return;
     const promptId = respondingToPrompt.id;
     setRespondingToPrompt(null);
-    const result = await addPromptResponse({ profilePromptId: promptId, message }).catch(
-      (err) => {
-        toastError(err, "Couldn't send comment. Try again.");
-        return null;
-      }
-    );
+    const result = await addPromptResponse({ profilePromptId: promptId, message }).catch((err) => {
+      toastError(err, "Couldn't send comment. Try again.");
+      return null;
+    });
     if (result == null) return;
     setRespondedIds((prev) => {
       const next = new Set(prev);

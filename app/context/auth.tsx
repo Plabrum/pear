@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect } from 'react';
 import * as SplashScreen from 'expo-splash-screen';
-import * as Linking from 'expo-linking';
+import { Linking } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import {
   signInWithApple as clientSignInWithApple,
@@ -44,9 +44,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     async function handleMagicLink(url: string | null): Promise<void> {
       if (!url) return;
-      const { hostname, queryParams } = Linking.parse(url);
+      const parsed = new URL(url);
+      const hostname = parsed.hostname;
       if (hostname !== 'magic-link') return;
-      const token = queryParams?.token;
+      const token = parsed.searchParams.get('token');
       if (typeof token !== 'string') return;
       try {
         await clientVerifyMagicLink(token);

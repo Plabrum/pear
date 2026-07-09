@@ -8,15 +8,15 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import LinearGradient from 'react-native-linear-gradient';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 
 import { View, Text, ScrollView, Pressable } from '@/lib/tw';
 import { colors } from '@/constants/theme';
 import type { SwipeProfile, WingingForRow } from '@/lib/api/generated/model';
 import { Pill } from '@/components/ui/Pill';
 import { FaceAvatar } from '@/components/ui/FaceAvatar';
+import { CrossfadeImage } from '@/components/ui/CrossfadeImage';
 import { ForwardSheet } from '@/components/ui/ForwardSheet';
 import { useActionFormRenderer } from '@/hooks/actions/use-action-form-renderer';
 import type { ActionDTO } from '@/lib/actions/types';
@@ -153,11 +153,10 @@ export function DiscoverCard({
           {/* Photo region */}
           <View style={{ flex: 6, position: 'relative' }}>
             {photos.length > 0 ? (
-              <Image
-                source={{ uri: photos[photoIndex].url }}
+              <CrossfadeImage
+                uri={photos[photoIndex].url}
                 style={StyleSheet.absoluteFill}
-                contentFit="cover"
-                transition={200}
+                resizeMode="cover"
               />
             ) : (
               <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.muted }]} />
@@ -188,7 +187,9 @@ export function DiscoverCard({
                   }}
                 >
                   <FaceAvatar name={photos[photoIndex].pickedByName ?? '?'} size={14} />
-                  <Text style={{ fontSize: 11, fontWeight: '600', color: 'rgba(255,255,255,0.95)' }}>
+                  <Text
+                    style={{ fontSize: 11, fontWeight: '600', color: 'rgba(255,255,255,0.95)' }}
+                  >
                     {photos[photoIndex].pickedByName}&apos;s pick
                   </Text>
                 </View>

@@ -1,5 +1,5 @@
 import type { BottomTabBarProps } from 'expo-router/js-tabs';
-import { BlurView } from 'expo-blur';
+import { BlurView } from '@react-native-community/blur';
 import { Platform, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -59,8 +59,8 @@ export function BottomTabBar({ state, descriptors, navigation, role = 'dater' }:
     >
       {Platform.OS === 'ios' && (
         <BlurView
-          intensity={40}
-          tint="light"
+          blurAmount={40}
+          blurType="light"
           style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(251,248,241,0.7)' }]}
         />
       )}

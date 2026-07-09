@@ -109,7 +109,7 @@ export function PhotosTab({ form, data, onRefresh }: Props) {
   };
 
   const handleAddPhoto = async () => {
-    const uri = await pickAndResizePhoto();
+    const uri = await pickAndResizePhoto({ aspect: [3, 4] });
     if (!uri) return;
     // The resized file's own basename is already unique (the manipulator writes
     // to a fresh temp path), so derive the upload filename from it — no need for
@@ -135,12 +135,7 @@ export function PhotosTab({ form, data, onRefresh }: Props) {
                 className="overflow-hidden"
                 style={{ borderRadius: 18, marginBottom: 10 }}
               >
-                <PhotoRect
-                  uri={photo.storageUrl}
-                  ratio={4 / 3}
-                  blur
-                  style={{ borderRadius: 0 }}
-                />
+                <PhotoRect uri={photo.storageUrl} ratio={4 / 3} blur style={{ borderRadius: 0 }} />
                 <View style={{ padding: 14 }}>
                   <View
                     style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}
@@ -187,11 +182,7 @@ export function PhotosTab({ form, data, onRefresh }: Props) {
             key={photo.id}
             style={{ width: PHOTO_COL, aspectRatio: 3 / 4, position: 'relative' }}
           >
-            <PhotoRect
-              uri={photo.storageUrl}
-              ratio={3 / 4}
-              style={{ borderRadius: 14 }}
-            />
+            <PhotoRect uri={photo.storageUrl} ratio={3 / 4} style={{ borderRadius: 14 }} />
             {idx === 0 ? (
               <View
                 className="bg-primary"
