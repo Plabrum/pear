@@ -12,6 +12,7 @@ SCHEME="Pear"
 DERIVED_DATA="ios/build"
 APP_PATH="$DERIVED_DATA/Build/Products/Debug-iphonesimulator/Pear.app"
 REV_FILE=".dev-sim-rev"
+BUNDLE_ID="com.plabrum.pear"
 
 # Boots an available iPhone simulator if none is currently booted.
 ensure_simulator_booted() {
@@ -87,6 +88,9 @@ fi
 ensure_simulator_booted
 
 echo ""
+echo "Launching Pear.app on simulator..."
+xcrun simctl launch booted "$BUNDLE_ID" >/dev/null 2>&1 || true
+
 echo "Starting Metro bundler..."
 echo "(backend must be running separately — see 'just dev-backend' / 'just dev')"
-npx expo start --ios
+npx expo start
