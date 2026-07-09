@@ -5,6 +5,9 @@
 # the off-Expo migration's native ownership cutover). No dev-client either
 # (expo-dev-client's native module was removed in that same cutover) — this
 # boots straight into whatever Metro serves, no dev-launcher chooser screen.
+# The Xcode project itself (Pear.xcodeproj/Pear.xcworkspace) is XcodeGen-generated
+# from ios/project.yml, not committed — regenerate it unconditionally below so a
+# stale checked-out project.pbxproj is never silently built against.
 set -e
 
 WORKSPACE="ios/Pear.xcworkspace"
@@ -13,6 +16,9 @@ DERIVED_DATA="ios/build"
 APP_PATH="$DERIVED_DATA/Build/Products/Debug-iphonesimulator/Pear.app"
 REV_FILE=".dev-sim-rev"
 BUNDLE_ID="com.plabrum.pear"
+
+echo "Generating Xcode project..."
+(cd ios && xcodegen generate)
 
 # Boots an available iPhone simulator if none is currently booted.
 ensure_simulator_booted() {

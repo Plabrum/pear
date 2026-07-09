@@ -32,6 +32,13 @@ export PATH="$("${ARCH_PREFIX[@]}" brew --prefix node@24)/bin:$PATH"
 echo "ci_post_clone: npm ci"
 "${ARCH_PREFIX[@]}" npm ci
 
-echo "ci_post_clone: pod install"
+echo "ci_post_clone: brew install xcodegen"
+"${ARCH_PREFIX[@]}" brew install xcodegen
+
 cd ios
+
+echo "ci_post_clone: xcodegen generate"
+"${ARCH_PREFIX[@]}" xcodegen generate
+
+echo "ci_post_clone: pod install"
 "${ARCH_PREFIX[@]}" pod install
