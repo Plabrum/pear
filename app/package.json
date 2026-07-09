@@ -7,7 +7,6 @@
     "start": "bash scripts/dev.sh",
     "dev:sim": "bash scripts/dev-sim.sh",
     "export:ota": "expo export -p ios",
-    "reset-project": "node ./scripts/reset-project.js",
     "web": "expo start --web",
     "lint": "expo lint",
     "typecheck:functions": "cd ../supabase/functions/api && deno check **/*.ts",

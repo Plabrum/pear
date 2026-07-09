@@ -41,14 +41,3 @@ export function matchedAgo(createdAt: string): string {
   const months = Math.floor(days / 30);
   return months === 1 ? 'matched 1 month ago' : `matched ${months} months ago`;
 }
-
-/** Up-to-two-letter uppercase initials from a name. */
-export function getInitials(name: string | null | undefined): string {
-  if (!name) return '?';
-  return name
-    .split(' ')
-    .map((w) => w[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
-}

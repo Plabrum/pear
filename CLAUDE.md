@@ -15,10 +15,10 @@ Core flows: Auth → Onboarding → Discover → Matches → Messaging → Wingp
 
 | Layer          | Choice                                                                                                                                     |
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| Framework      | React Native 0.81 + Expo SDK 54 (new arch enabled)                                                                                         |
-| Navigation     | expo-router v6 (file-based, typed routes)                                                                                                  |
-| Backend        | **Self-hosted Litestar** (Python) + SQLAlchemy 2.0 async + Alembic + SAQ, on a single EC2 box via docker-compose (`api`/`worker`/`postgres:17`/`redis`/`caddy`). Own Postgres with **app-managed RLS** · S3 (media) · Litestar Channels (realtime) · direct APNs (push). |
-| Styling        | NativeWind v5 preview + Tailwind v4 via `react-native-css`                                                                                 |
+| Framework      | Bare React Native 0.85 (new arch enabled) — no Expo native runtime; `ios/` is hand-maintained, built directly by Xcode Cloud, not `expo prebuild`. The `expo` npm package stays only as a CLI (`expo lint`/`expo start`/`expo export`), excluded from iOS autolinking via `react-native.config.js`. |
+| Navigation     | `@react-navigation` v7 (native-stack + bottom-tabs) — `App.tsx`/`navigation/RootNavigator.tsx`, not file-based routing                     |
+| Backend        | **Self-hosted Litestar** (Python) + SQLAlchemy 2.0 async + Alembic + SAQ, on a single EC2 box via docker-compose (`api`/`worker`/`postgres:17`/`redis`/`caddy`). Own Postgres with **app-managed RLS** · S3 (media) · Litestar Channels (realtime) · direct APNs (push, hand-rolled `PearNotificationsModule.swift`). |
+| Styling        | NativeWind v4 + Tailwind v3 (`nativewind/metro` on `@react-native/metro-config`, no `expo/metro-config`)                                   |
 | Data fetching  | TanStack React Query v5 (`useSuspenseQuery` throughout)                                                                                    |
 | Forms          | react-hook-form v7                                                                                                                         |
 | Toasts         | sonner-native (`toast.error()` for all user-facing errors)                                                                                 |
@@ -32,16 +32,24 @@ Core flows: Auth → Onboarding → Discover → Matches → Messaging → Wingp
 
 The repo is a monorepo with a root `Justfile`. Three workspaces:
 
-- **`app/`** — the Expo app (this is where the mobile project lives; cwd for all `npm`/`expo` commands).
+- **`app/`** — the bare React Native app (this is where the mobile project lives; cwd for all `npm`/`expo` CLI commands — `expo` stays only as a JS-side CLI, not the native runtime).
 - **`backend/`** — the Litestar (Python) API + worker.
 - **`infra/`** — Terraform for the single-EC2 deploy.
 
 ```
 wingmate/
 ├── Justfile                    # Root task runner (just --list) — app-*, backend, db-*, tf-* recipes
-├── app/                        # Expo app (cwd for npm/expo)
-│   ├── app/                    # expo-router routes (the routes dir)
-│   │   ├── _layout.tsx         # Root layout — providers, auth gate, Toaster
+├── app/                        # Bare React Native app (cwd for npm/expo CLI)
+│   ├── App.tsx                 # Root component — providers, fonts-free (static UIAppFonts
+│   │                           # linking), StatusBar, magic-link Linking listener, pending-
+│   │                           # winger-invite handoff
+│   ├── index.js                # AppRegistry.registerComponent entry point
+│   ├── app.json                # `{"name": "main", ...}` — AppRegistry name, must stay "main"
+│   │                           # (ios/Pear/AppDelegate.swift hardcodes it)
+│   ├── navigation/             # @react-navigation tree: RootNavigator.tsx (4-way auth-gate
+│   │                           # conditional render), types.ts (RootStackParamList),
+│   │                           # pendingIntents.ts, one file per nested Tab/Stack navigator
+│   ├── app/                    # Screen files only (not a routes dir — no file-based routing).
 │   │   ├── invite.tsx          # Deep-link handler
 │   │   ├── (auth)/             # login.tsx, sms.tsx, apple.tsx
 │   │   ├── (onboarding)/index.tsx  # Onboarding orchestrator
@@ -61,20 +69,19 @@ wingmate/
 │   │       └── generated/      # Orval read hooks (committed)
 │   ├── hooks/ assets/ constants/  # constants/theme.ts = hex escape-hatch values
 │   ├── scripts/                # dev/sim, etc.
-│   ├── certs/                  # OTA code-signing public cert (updates-signing.pem) — must be
-│   │                           # regenerated (see ios/) whenever the Terraform-managed signing
+│   ├── certs/                  # OTA code-signing public cert (updates-signing.pem), bundled
+│   │                           # directly as an iOS resource (ios/Pear/updates-signing.pem)
+│   │                           # for the custom Swift OTA client's signature verification —
+│   │                           # must be regenerated whenever the Terraform-managed signing
 │   │                           # key rotates, not just copied once
-│   ├── ios/                    # Committed native project (Xcode Cloud builds this directly,
-│   │                           # does NOT run `expo prebuild`) — build output, not hand-edited;
-│   │                           # regenerate via `expo prebuild -p ios` after any app.config.js /
-│   │                           # certs/ change and commit the diff. Drift guarded by
-│   │                           # .github/workflows/ios-drift-check.yml + a pre-commit hook +
-│   │                           # ios/ci_scripts/ci_post_clone.sh (the last one is the real gate —
-│   │                           # it aborts the Xcode Cloud build itself on drift).
-│   ├── package.json  app.config.js  tsconfig.json  metro.config.js
+│   ├── ios/                    # Committed, hand-maintained native project — no `expo prebuild`
+│   │                           # step exists anymore (the off-Expo migration's native-ownership
+│   │                           # cutover removed the ios-drift-check workflow/hook entirely).
+│   │                           # Edit it directly like any other native project.
+│   ├── package.json  tsconfig.json  metro.config.js  react-native.config.js
 │   ├── openapi.json            # Litestar-emitted OpenAPI spec (orval input, committed)
 │   ├── orval.config.ts
-│   └── global.css              # Tailwind v4 @theme tokens (source of truth)
+│   └── global.css              # Tailwind v3 tokens as plain :root custom properties (source of truth)
 ├── backend/                    # Litestar API + worker (Python, uv)
 │   ├── app/{config,factory,index}.py
 │   ├── app/domain/<feature>/{models,enums,schemas,routes,actions,queries,state_machine}.py
@@ -188,15 +195,16 @@ dependency and build queries with `select()`/`insert()`/`update()`. CI enforces 
 
 ## Routing & Auth Gate
 
-`RootNavigator` in `app/_layout.tsx` reads `session` from `useSession()`:
+`RootNavigator` (`navigation/RootNavigator.tsx`) reads `session` from `useSession()`, computes one of four statuses via `getAuthGateStatus()` (`lib/auth-session.ts`), and conditionally renders one of four top-level `<RootStack.Screen>`s — not file-based routing:
 
-- No session → `/(auth)/login`
-- No `chosen_name` → `/(onboarding)`
-- Role = `winger` → `/(winger-tabs)`
-- No `datingProfile` → `/(onboarding)`
-- Otherwise → `/(tabs)/discover`
+- No session → `Login`
+- No `chosenName`, or no dating profile and role isn't `winger` → `Onboarding`
+- Role = `winger` → `WingerTabs`
+- Otherwise → `DaterTabs`
 
-Two `useEffect`s allowed in `AuthenticatedNavigator`: deep-link invite check from AsyncStorage, and push token registration — both genuine external events.
+`Invite`, `MagicLink`, and `Settings` are always-mounted root-level screens alongside the gated ones. Cross-navigator jumps need React Navigation's nested-object `navigate()` syntax (e.g. `navigate('DaterTabs', { screen: 'Profile', params: { screen: 'WingpeopleList' } })`) — plain `navigate('ScreenName')` only bubbles up to an ancestor, never down into an unrelated sibling subtree.
+
+Two `useEffect`s allowed in `RootNavigator`: the pending-intent handoff (winger-invite deep link / onboarding destination, both recorded before their target navigator is mounted) and push-token registration — both genuine external events.
 
 ---
 
@@ -430,9 +438,10 @@ for review. Land the `.tf` changes in a PR and let the pipeline apply them.
 
 ## Image Handling
 
-- `expo-image-picker` — select from camera roll
-- `expo-image-manipulator` — resize to max 1200px, quality 0.8, JPEG
-- `expo-image` — display (not RN Image)
+- `react-native-image-crop-picker` — select from camera roll (`lib/photos.ts`'s `pickAndResizePhoto`)
+- `@bam.tech/react-native-image-resizer` — resize to max 1200px width, JPEG compress
+- RN core `<Image>` + hand-rolled `components/ui/CrossfadeImage.tsx` — display, with the
+  expo-image `transition` crossfade reimplemented as two stacked `Image`s + `Animated.timing`
 
 ---
 
