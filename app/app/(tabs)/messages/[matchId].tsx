@@ -1,9 +1,10 @@
 import React, { useRef, useState } from 'react';
 import { FlatList, Platform, StyleSheet } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { Controller, useForm } from 'react-hook-form';
-import { useBottomTabBarHeight } from 'expo-router/js-tabs';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
+import type { RootStackParamList } from '@/navigation/types';
 
 import { useAuth } from '@/context/auth';
 import { useMessages } from '@/hooks/use-messages';
@@ -24,6 +25,7 @@ type ChatHeaderProps = {
 };
 
 function ChatHeader({ name, isOnline }: ChatHeaderProps) {
+  const navigation = useNavigation();
   return (
     <View
       className="flex-row items-center bg-surface border-border"
@@ -35,7 +37,7 @@ function ChatHeader({ name, isOnline }: ChatHeaderProps) {
       }}
     >
       <Pressable
-        onPress={() => router.back()}
+        onPress={() => navigation.goBack()}
         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         style={{ padding: 4, marginLeft: -4 }}
       >
@@ -280,11 +282,8 @@ function ChatBody({ matchId, userId, otherUserId, otherName }: ChatBodyProps) {
 // ── Screen ────────────────────────────────────────────────────────────────────
 
 export default function ChatScreen() {
-  const { matchId, otherName, otherUserId } = useLocalSearchParams<{
-    matchId: string;
-    otherName?: string;
-    otherUserId?: string;
-  }>();
+  const { params } = useRoute<RouteProp<RootStackParamList, 'MessageThread'>>();
+  const { matchId, otherName, otherUserId } = params;
   const { userId } = useAuth();
   const isOnline = usePresence(otherUserId ?? null, userId);
 

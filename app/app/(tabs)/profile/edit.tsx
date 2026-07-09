@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
 import {
@@ -222,7 +222,7 @@ function WingpersonResponseRow({
 // ── Main screen ───────────────────────────────────────────────────────────────
 
 function EditProfileHub() {
-  const router = useRouter();
+  const navigation = useNavigation();
   const { data: datingProfile } = useGetApiDatingProfilesMeSuspense();
   const { data: profile } = useGetApiProfilesMeSuspense();
 
@@ -234,7 +234,7 @@ function EditProfileHub() {
           style={{ paddingHorizontal: 12, paddingTop: 8, paddingBottom: 8, gap: 4 }}
         >
           <Pressable
-            onPress={() => router.back()}
+            onPress={() => navigation.goBack()}
             hitSlop={12}
             style={{ padding: 8, marginLeft: -4 }}
           >
@@ -307,7 +307,7 @@ function EditProfileHub() {
         style={{ paddingHorizontal: 12, paddingTop: 8, paddingBottom: 8, gap: 4 }}
       >
         <Pressable
-          onPress={() => router.back()}
+          onPress={() => navigation.goBack()}
           hitSlop={12}
           style={{ padding: 8, marginLeft: -4 }}
         >
@@ -328,17 +328,17 @@ function EditProfileHub() {
         <MenuRow
           title="Photos"
           sub={photoSub}
-          onPress={() => router.push('/(tabs)/profile/edit/photos' as any)}
+          onPress={() => navigation.navigate('ProfileEditPhotos')}
         />
         <MenuRow
           title="Name & basics"
           sub={nameSub || undefined}
-          onPress={() => router.push('/(tabs)/profile/edit/basics' as any)}
+          onPress={() => navigation.navigate('ProfileEditBasics')}
         />
         <MenuRow
           title="Looking for"
           sub={lookingForSub || undefined}
-          onPress={() => router.push('/(tabs)/profile/edit/looking-for' as any)}
+          onPress={() => navigation.navigate('ProfileEditLookingFor')}
         />
 
         <SectionHeader label="Sound Like You" />
@@ -346,17 +346,13 @@ function EditProfileHub() {
           title="Prompts"
           sub={promptsSub}
           subAccent={promptsAccent}
-          onPress={() => router.push('/(tabs)/profile/edit/prompts' as any)}
+          onPress={() => navigation.navigate('ProfileEditPrompts')}
         />
-        <MenuRow
-          title="Bio"
-          sub={bioSub}
-          onPress={() => router.push('/(tabs)/profile/edit/bio' as any)}
-        />
+        <MenuRow title="Bio" sub={bioSub} onPress={() => navigation.navigate('ProfileEditBio')} />
         <MenuRow
           title="Interests"
           sub={interestsSub}
-          onPress={() => router.push('/(tabs)/profile/edit/interests' as any)}
+          onPress={() => navigation.navigate('ProfileEditInterests')}
         />
 
         {allResponses.length > 0 ? (

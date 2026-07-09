@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Dimensions, StyleSheet } from 'react-native';
 import PulseSpinner from '@/components/ui/PulseSpinner';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import { toast } from 'sonner-native';
 import { useQueryClient } from '@tanstack/react-query';
+import type { RootStackParamList } from '@/navigation/types';
 
 import { colors } from '@/constants/theme';
 import { useAuth } from '@/context/auth';
@@ -35,9 +36,10 @@ const ADD_RESPONSE: ActionDTO = {
 };
 
 function FriendDetailContent() {
-  const router = useRouter();
+  const navigation = useNavigation();
   const { userId: wingerId } = useAuth();
-  const { id: daterId } = useLocalSearchParams<{ id: string }>();
+  const { params } = useRoute<RouteProp<RootStackParamList, 'FriendDetail'>>();
+  const { daterId } = params;
   const queryClient = useQueryClient();
 
   const { data } = useGetApiProfilesUserIdSuspense(daterId);
@@ -71,7 +73,7 @@ function FriendDetailContent() {
 
   return (
     <>
-      <NavHeader back title={`Winging for ${firstName}`} onBack={() => router.back()} />
+      <NavHeader back title={`Winging for ${firstName}`} onBack={() => navigation.goBack()} />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerClassName="pb-32">
         <View className="px-5 pt-2 pb-3 flex-row items-center" style={{ gap: 14 }}>
@@ -88,11 +90,7 @@ function FriendDetailContent() {
 
         <View className="px-5 pb-3 flex-row" style={{ gap: 10 }}>
           <View style={{ flex: 1 }}>
-            <Sprout
-              block
-              size="md"
-              onPress={() => router.push(`/(winger-tabs)/friends/${daterId}/scout` as any)}
-            >
+            <Sprout block size="md" onPress={() => navigation.navigate('FriendScout', { daterId })}>
               Scout for {firstName}
             </Sprout>
           </View>

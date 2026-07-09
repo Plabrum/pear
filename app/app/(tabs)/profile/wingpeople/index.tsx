@@ -1,7 +1,7 @@
 import { Suspense, useState } from 'react';
 import { Alert } from 'react-native';
 import Splash from '@/components/ui/Splash';
-import { useRouter } from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
 import { FaceAvatar } from '@/components/ui/FaceAvatar';
@@ -26,7 +26,7 @@ interface ContentProps {
 }
 
 function WingpeopleContent({ onOpenInvite }: ContentProps) {
-  const router = useRouter();
+  const navigation = useNavigation();
   const { data } = useGetApiWingpeopleSuspense();
   const { wingpeople, invitations, wingingFor, sentInvitations, weeklyCounts } = data;
 
@@ -256,9 +256,7 @@ function WingpeopleContent({ onOpenInvite }: ContentProps) {
                         size="sm"
                         variant="secondary"
                         onPress={() =>
-                          router.push(
-                            `/(tabs)/profile/wingpeople/contribute?daterId=${daterId}` as any
-                          )
+                          navigation.navigate('WingpeopleContribute', { daterId: daterId ?? '' })
                         }
                       >
                         Add to profile
@@ -270,9 +268,7 @@ function WingpeopleContent({ onOpenInvite }: ContentProps) {
                         size="sm"
                         icon={<Ionicons name="heart" size={14} color={colors.white} />}
                         onPress={() =>
-                          router.push(
-                            `/(tabs)/profile/wingpeople/wingswipe?daterId=${daterId}` as any
-                          )
+                          navigation.navigate('WingpeopleWingswipe', { daterId: daterId ?? '' })
                         }
                       >
                         Swipe for {firstName}
@@ -292,7 +288,7 @@ function WingpeopleContent({ onOpenInvite }: ContentProps) {
 // ── Outer screen ──────────────────────────────────────────────────────────────
 
 export default function WingpeopleScreen() {
-  const router = useRouter();
+  const navigation = useNavigation();
   const [inviteVisible, setInviteVisible] = useState(false);
   const [tab, setTab] = useState(0);
 
@@ -303,7 +299,7 @@ export default function WingpeopleScreen() {
         style={{ paddingHorizontal: 12, paddingTop: 8, paddingBottom: 8, gap: 4 }}
       >
         <Pressable
-          onPress={() => router.back()}
+          onPress={() => navigation.goBack()}
           hitSlop={12}
           style={{ padding: 8, marginLeft: -4 }}
         >

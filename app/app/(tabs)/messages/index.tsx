@@ -1,5 +1,5 @@
 import { FlatList, ScrollView as RNScrollView, StyleSheet } from 'react-native';
-import { router } from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
 
 import { useAuth } from '@/context/auth';
 import { useGetApiConversationsSuspense } from '@/lib/api/generated/messages/messages';
@@ -173,20 +173,18 @@ type ContentProps = {
 };
 
 function MessagesContent({ userId, onlineIds }: ContentProps) {
+  const navigation = useNavigation();
   const { data: convos, refetch, isRefetching } = useGetApiConversationsSuspense();
 
   const sayHello = convos.filter((c) => c.lastMessage == null);
   const conversations = convos.filter((c) => c.lastMessage != null);
 
   function openChat(convo: Conversation) {
-    router.push({
-      pathname: '/(tabs)/messages/[matchId]',
-      params: {
-        matchId: convo.matchId,
-        otherName: convo.other.chosenName ?? '',
-        otherUserId: convo.other.id,
-      },
-    } as never);
+    navigation.navigate('MessageThread', {
+      matchId: convo.matchId,
+      otherName: convo.other.chosenName ?? '',
+      otherUserId: convo.other.id,
+    });
   }
 
   const ListHeader = (

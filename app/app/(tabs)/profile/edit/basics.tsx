@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
 
 import {
@@ -36,7 +36,7 @@ const sectionLabelStyle = {
 };
 
 function BasicsScreenInner() {
-  const router = useRouter();
+  const navigation = useNavigation();
   const queryClient = useQueryClient();
   const { data: datingProfile } = useGetApiDatingProfilesMeSuspense();
   const { data: profile } = useGetApiProfilesMeSuspense();
@@ -53,7 +53,7 @@ function BasicsScreenInner() {
 
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top', 'bottom']}>
-      <NavHeader back title="Name & basics" onBack={() => router.back()} />
+      <NavHeader back title="Name & basics" onBack={() => navigation.goBack()} />
       <BasicsForm.Form
         defaultValues={{ city: datingProfile?.city ?? CITIES[0] }}
         onSubmit={() => {}}

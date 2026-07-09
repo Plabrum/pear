@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { router } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import ScreenSuspense from '@/components/ui/ScreenSuspense';
 import { authMeQueryKey } from '@/lib/auth-session';
+import { setPendingOnboardingDestination } from '@/navigation/pendingIntents';
 import {
   useGetApiProfilesMeSuspense,
   useGetApiDatingProfilesMeSuspense,
@@ -33,9 +33,9 @@ export default function OnboardingScreen() {
     setStep('setup');
   }
 
-  function invalidateAndRoute(path: string) {
+  function invalidateAndRoute(destination: 'Profile' | 'Discover') {
     // Mark these stale without refetching: this screen reads both via Suspense, and a
-    // refetch racing the router.replace below would resolve into the unmounting screen
+    // refetch racing the gate flip below would resolve into the unmounting screen
     // (the "state update on an unmounted component" warning). They refetch on next read.
     queryClient.invalidateQueries({
       queryKey: getGetApiProfilesMeQueryKey(),
@@ -47,16 +47,18 @@ export default function OnboardingScreen() {
     });
     // The routing gate reads role + hasDatingProfile off the session query, so
     // refresh it too — otherwise a just-onboarded dater is bounced back here.
+    // RootNavigator's post-gate-flip effect picks this destination up once the
+    // refetch above resolves and DaterTabs actually mounts.
+    setPendingOnboardingDestination(destination);
     queryClient.invalidateQueries({ queryKey: authMeQueryKey });
-    router.replace(path as never);
   }
 
   function onFinish() {
     if (role === 'winger') {
-      invalidateAndRoute('/(tabs)/profile');
+      invalidateAndRoute('Profile');
       return;
     }
-    invalidateAndRoute('/(tabs)/discover');
+    invalidateAndRoute('Discover');
   }
 
   switch (step) {

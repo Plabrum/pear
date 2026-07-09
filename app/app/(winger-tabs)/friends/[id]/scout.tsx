@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import type { RootStackParamList } from '@/navigation/types';
 
 import { useSwipeDeck } from '@/hooks/use-swipe-deck';
 import { View, Text, Pressable, ScrollView, SafeAreaView } from '@/lib/tw';
@@ -131,8 +132,9 @@ function EmptyState({ daterName }: { daterName: string }) {
 // ── WingSwipeContent ──────────────────────────────────────────────────────────
 
 function WingSwipeContent() {
-  const router = useRouter();
-  const { id: daterId } = useLocalSearchParams<{ id: string }>();
+  const navigation = useNavigation();
+  const { params } = useRoute<RouteProp<RootStackParamList, 'FriendScout'>>();
+  const { daterId } = params;
 
   const { data: daterContext } = useGetApiProfilesUserIdSuspense(daterId);
 
@@ -165,7 +167,7 @@ function WingSwipeContent() {
       <NavHeader
         back
         title={daterName ? `Swiping for ${firstName}` : 'Wing Mode'}
-        onBack={() => router.back()}
+        onBack={() => navigation.goBack()}
       />
 
       <View className="flex-1">

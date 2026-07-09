@@ -1,28 +1,37 @@
-import { Tabs } from 'expo-router';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
 import { PearMark } from '@/components/ui/PearMark';
 import { tabScreenOptions } from '@/components/ui/tabBar';
+import type { WingerTabParamList } from './types';
+import { FriendsStackNavigator } from './FriendsStackNavigator';
+import ActivityScreen from '../app/(winger-tabs)/activity';
+import MeScreen from '../app/(winger-tabs)/me';
 
-export default function WingerTabLayout() {
+const Tab = createBottomTabNavigator<WingerTabParamList>();
+
+export function WingerTabsNavigator() {
   return (
-    <Tabs screenOptions={tabScreenOptions}>
-      <Tabs.Screen
-        name="friends"
+    <Tab.Navigator screenOptions={tabScreenOptions}>
+      <Tab.Screen
+        name="Friends"
+        component={FriendsStackNavigator}
         options={{
           title: 'Friends',
           tabBarIcon: ({ color }) => <Ionicons name="people-outline" size={22} color={color} />,
         }}
       />
-      <Tabs.Screen
-        name="activity"
+      <Tab.Screen
+        name="Activity"
+        component={ActivityScreen}
         options={{
           title: 'Activity',
           tabBarIcon: ({ color }) => <Ionicons name="sparkles" size={22} color={color} />,
         }}
       />
-      <Tabs.Screen
-        name="me"
+      <Tab.Screen
+        name="Me"
+        component={MeScreen}
         options={{
           title: 'Me',
           tabBarIcon: ({ color, focused }) => (
@@ -30,6 +39,6 @@ export default function WingerTabLayout() {
           ),
         }}
       />
-    </Tabs>
+    </Tab.Navigator>
   );
 }

@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Platform, StyleSheet } from 'react-native';
 import PulseSpinner from '@/components/ui/PulseSpinner';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import { toast } from 'sonner-native';
+import type { RootStackParamList } from '@/navigation/types';
 import { useQueryClient } from '@tanstack/react-query';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
@@ -84,9 +85,10 @@ function ResponseModal({
 // ── ContributeContent ────────────────────────────────────────────────────────
 
 function ContributeContent() {
-  const router = useRouter();
+  const navigation = useNavigation();
   const { userId: wingerId } = useAuth();
-  const { daterId } = useLocalSearchParams<{ daterId: string }>();
+  const { params } = useRoute<RouteProp<RootStackParamList, 'WingpeopleContribute'>>();
+  const { daterId } = params;
   const queryClient = useQueryClient();
 
   const { data } = useGetApiProfilesUserIdSuspense(daterId);
@@ -154,7 +156,7 @@ function ContributeContent() {
         }}
       >
         <Pressable
-          onPress={() => router.back()}
+          onPress={() => navigation.goBack()}
           hitSlop={12}
           style={{ padding: 8, marginLeft: -4 }}
         >

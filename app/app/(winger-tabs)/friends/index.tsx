@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { StyleSheet } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { colors } from '@/constants/theme';
@@ -26,7 +26,7 @@ function SectionHeader({ title }: { title: string }) {
 }
 
 function FriendsContent({ onOpenInvite }: { onOpenInvite: () => void }) {
-  const router = useRouter();
+  const navigation = useNavigation();
   const queryClient = useQueryClient();
   const { data } = useGetApiWingpeopleSuspense();
   const { wingingFor, invitations, weeklyCounts } = data;
@@ -115,7 +115,7 @@ function FriendsContent({ onOpenInvite }: { onOpenInvite: () => void }) {
             return (
               <Pressable
                 key={wf.id}
-                onPress={() => router.push(`/(winger-tabs)/friends/${wf.dater?.id ?? ''}` as any)}
+                onPress={() => navigation.navigate('FriendDetail', { daterId: wf.dater?.id ?? '' })}
                 className="bg-white rounded-[18px] p-3.5"
                 style={{
                   borderWidth: StyleSheet.hairlineWidth,

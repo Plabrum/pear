@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { useRouter } from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
 import { useFormContext } from 'react-hook-form';
 
@@ -127,7 +127,7 @@ function AgeRange({ onSave }: { onSave: (u: UpdateDatingProfileData) => void }) 
 }
 
 function LookingForScreenInner() {
-  const router = useRouter();
+  const navigation = useNavigation();
   const queryClient = useQueryClient();
   const { data: datingProfile } = useGetApiDatingProfilesMeSuspense();
   const [religionSheetOpen, setReligionSheetOpen] = useState(false);
@@ -146,7 +146,7 @@ function LookingForScreenInner() {
 
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top', 'bottom']}>
-      <NavHeader back title="Looking for" onBack={() => router.back()} />
+      <NavHeader back title="Looking for" onBack={() => navigation.goBack()} />
       <LookingForForm.Form
         mode="onChange"
         onSubmit={() => {}}
@@ -177,9 +177,7 @@ function LookingForScreenInner() {
                       <Pressable
                         key={g}
                         onPress={() => {
-                          const next = active
-                            ? selected.filter((v) => v !== g)
-                            : [...selected, g];
+                          const next = active ? selected.filter((v) => v !== g) : [...selected, g];
                           onChange(next);
                           patch({ interestedGender: next });
                         }}
@@ -187,15 +185,18 @@ function LookingForScreenInner() {
                           'px-4 rounded-[24px] border-[1.5px] border-separator bg-white',
                           active && 'border-accent bg-accent-muted'
                         )}
-                    style={{ paddingVertical: 10 }}
-                  >
-                    <Text
-                      className={cn('text-sm text-fg-muted font-medium', active && 'text-accent')}
-                    >
-                      {g}
-                    </Text>
-                  </Pressable>
-                );
+                        style={{ paddingVertical: 10 }}
+                      >
+                        <Text
+                          className={cn(
+                            'text-sm text-fg-muted font-medium',
+                            active && 'text-accent'
+                          )}
+                        >
+                          {g}
+                        </Text>
+                      </Pressable>
+                    );
                   })}
                 </View>
               );
@@ -227,10 +228,7 @@ function LookingForScreenInner() {
                       style={{ paddingVertical: 10 }}
                     >
                       <Text
-                        className={cn(
-                          'text-sm text-fg-muted font-medium',
-                          active && 'text-accent'
-                        )}
+                        className={cn('text-sm text-fg-muted font-medium', active && 'text-accent')}
                       >
                         {r}
                       </Text>
@@ -241,9 +239,7 @@ function LookingForScreenInner() {
             )}
           />
 
-          <SectionLabel style={sectionLabelStyle}>
-            {"Partner's religion (optional)"}
-          </SectionLabel>
+          <SectionLabel style={sectionLabelStyle}>{"Partner's religion (optional)"}</SectionLabel>
           <LookingForForm.CustomField
             name="religiousPref"
             optional

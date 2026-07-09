@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { router } from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
 
 import { View } from '@/lib/tw';
 import type { SwipeProfile, WingingForRow } from '@/lib/api/generated/model';
@@ -29,6 +29,7 @@ export function DiscoverDeck({
   emptyState,
   wingingFor,
 }: DiscoverDeckProps) {
+  const navigation = useNavigation();
   const { card, like, pass, report } = useDiscoverDeck({
     likesYouOnly,
     handPickedOnly,
@@ -47,14 +48,14 @@ export function DiscoverDeck({
     if (!match) return;
     const { card: matchedCard, matchId } = match;
     setMatch(null);
-    router.push({
-      pathname: '/(tabs)/messages/[matchId]',
+    navigation.navigate('Messages', {
+      screen: 'MessageThread',
       params: {
         matchId,
         otherName: matchedCard.chosenName,
         otherUserId: matchedCard.userId,
       },
-    } as never);
+    });
   }
 
   if (card == null) {
@@ -73,11 +74,7 @@ export function DiscoverDeck({
         />
       </View>
       {match && (
-        <MatchOverlay
-          card={match.card}
-          onClose={() => setMatch(null)}
-          onMessage={openMatchChat}
-        />
+        <MatchOverlay card={match.card} onClose={() => setMatch(null)} onMessage={openMatchChat} />
       )}
     </>
   );

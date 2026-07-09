@@ -1,6 +1,6 @@
 import { Platform } from 'react-native';
 import { ScrollView, Text, View } from '@/lib/tw';
-import { useRouter } from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
 import type { OwnDatingProfile } from '@/lib/api/generated/model';
 
 import { Pill } from '@/components/ui/Pill';
@@ -22,7 +22,7 @@ const labelStyle = {
 };
 
 export function AboutMeTab({ data }: Props) {
-  const router = useRouter();
+  const navigation = useNavigation();
 
   const ageText = data.ageTo ? `${data.ageFrom} — ${data.ageTo}` : `${data.ageFrom}+`;
   const lookingFor = data.interestedGender.length
@@ -90,11 +90,7 @@ export function AboutMeTab({ data }: Props) {
       ) : null}
 
       <View style={{ marginTop: 8 }}>
-        <Sprout
-          block
-          variant="secondary"
-          onPress={() => router.push('/(tabs)/profile/edit' as any)}
-        >
+        <Sprout block variant="secondary" onPress={() => navigation.navigate('ProfileEdit')}>
           Edit Profile
         </Sprout>
       </View>

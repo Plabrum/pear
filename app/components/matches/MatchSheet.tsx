@@ -1,5 +1,5 @@
 import PulseSpinner from '@/components/ui/PulseSpinner';
-import { router } from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
 
 import { View, Text } from '@/lib/tw';
 import { Sheet } from '@/components/ui/Sheet';
@@ -20,6 +20,7 @@ type MatchSheetProps = {
 };
 
 export function MatchSheet({ match, visible, onClose }: MatchSheetProps) {
+  const navigation = useNavigation();
   if (!match) return null;
 
   const { other } = match;
@@ -38,14 +39,14 @@ export function MatchSheet({ match, visible, onClose }: MatchSheetProps) {
           size="lg"
           onPress={() => {
             onClose();
-            router.push({
-              pathname: '/(tabs)/messages/[matchId]',
+            navigation.navigate('Messages', {
+              screen: 'MessageThread',
               params: {
                 matchId: match.matchId,
                 otherName: other.chosenName ?? '',
                 otherUserId: other.id,
               },
-            } as never);
+            });
           }}
         >
           {match.hasMessages ? 'Open conversation' : 'Start conversation'}

@@ -1,6 +1,6 @@
 import { StyleSheet } from 'react-native';
 import { useState } from 'react';
-import { useRouter } from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
 import { toastError } from '@/lib/api/error-toast';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -99,7 +99,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 function SettingsScreenInner() {
-  const router = useRouter();
+  const navigation = useNavigation();
   const queryClient = useQueryClient();
   const { signOut } = useAuth();
 
@@ -152,7 +152,7 @@ function SettingsScreenInner() {
       // Settings sits on top of the tab shell as a root route, so a role switch
       // swaps the shell underneath without the user seeing it. Dismiss Settings
       // so they land in the freshly-swapped tabs.
-      if (roleChanged) router.back();
+      if (roleChanged) navigation.goBack();
     },
     onError: (err) => toastError(err, "Couldn't update dating status. Try again."),
     onSettled: () => setStatusPickerVisible(false),
@@ -178,7 +178,7 @@ function SettingsScreenInner() {
         style={{ paddingHorizontal: 12, paddingTop: 8, paddingBottom: 8, gap: 4 }}
       >
         <Pressable
-          onPress={() => router.back()}
+          onPress={() => navigation.goBack()}
           hitSlop={12}
           style={{ padding: 8, marginLeft: -4 }}
         >
@@ -246,7 +246,12 @@ function SettingsScreenInner() {
           <Row
             label="Manage wingpeople"
             detail={wingCount === 1 ? '1 active' : `${wingCount} active`}
-            onPress={() => router.push('/(tabs)/profile/wingpeople' as any)}
+            onPress={() =>
+              navigation.navigate('DaterTabs', {
+                screen: 'Profile',
+                params: { screen: 'WingpeopleList' },
+              })
+            }
             last
           />
         </Section>

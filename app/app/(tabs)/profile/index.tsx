@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useRouter } from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
 import { useForm } from 'react-hook-form';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -37,10 +37,10 @@ function computeAge(dob: string): number | null {
 // ── Settings cog button (header right) ────────────────────────────────────────
 
 function SettingsButton() {
-  const router = useRouter();
+  const navigation = useNavigation();
   return (
     <Pressable
-      onPress={() => router.push('/settings' as any)}
+      onPress={() => navigation.navigate('Settings')}
       className="flex-row items-center"
       style={{ gap: 6, paddingVertical: 6, paddingHorizontal: 10 }}
       hitSlop={8}
@@ -80,7 +80,7 @@ function WingerView({
   userId: string;
   avatarUrl: string | null;
 }) {
-  const router = useRouter();
+  const navigation = useNavigation();
   return (
     <View className="flex-1 items-center justify-center" style={{ paddingHorizontal: 32 }}>
       <AvatarPicker name={name} avatarUrl={avatarUrl} size={84} userId={userId} />
@@ -95,11 +95,7 @@ function WingerView({
       </Text>
 
       <View style={{ marginTop: 16, width: '100%' }}>
-        <Sprout
-          block
-          variant="secondary"
-          onPress={() => router.push('/(tabs)/profile/wingpeople' as any)}
-        >
+        <Sprout block variant="secondary" onPress={() => navigation.navigate('WingpeopleList')}>
           Wingpeople & Invitations
         </Sprout>
       </View>
@@ -110,7 +106,7 @@ function WingerView({
 // ── Root screen ───────────────────────────────────────────────────────────────
 
 function ProfileScreenInner() {
-  const router = useRouter();
+  const navigation = useNavigation();
   const { userId } = useAuth();
   const queryClient = useQueryClient();
 
@@ -192,7 +188,7 @@ function ProfileScreenInner() {
             </Text>
           ) : null}
           <Pressable
-            onPress={() => router.push('/(tabs)/profile/wingpeople' as any)}
+            onPress={() => navigation.navigate('WingpeopleList')}
             style={{ marginTop: 6, alignSelf: 'flex-start' }}
             hitSlop={6}
           >

@@ -1,8 +1,8 @@
-@import 'tailwindcss/theme.css' layer(theme);
-@import 'tailwindcss/preflight.css' layer(base);
-@import 'tailwindcss/utilities.css';
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-@theme inline {
+:root {
   /* ── Pear redesign — role-based tokens (shadcn-style) ────────────── */
 
   /* Surfaces */

@@ -1,5 +1,5 @@
 import { Suspense, useState } from 'react';
-import { router } from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
 
 import PulseSpinner from '@/components/ui/PulseSpinner';
@@ -25,6 +25,7 @@ import {
 } from '@/components/discover/EmptyStates';
 
 function DiscoverContent() {
+  const navigation = useNavigation();
   const queryClient = useQueryClient();
   const { data: datingProfile } = useGetApiDatingProfilesMeSuspense();
   const { data: likesYouCountResponse } = useGetApiDatingProfilesSwipeCountSuspense();
@@ -81,7 +82,9 @@ function DiscoverContent() {
     activeFilters.length === 0 ? (
       <NoMoreProfilesEmptyState />
     ) : wantsHandPicked && !wantsLikes ? (
-      <WingEmptyState onInvite={() => router.push('/(tabs)/profile/wingpeople')} />
+      <WingEmptyState
+        onInvite={() => navigation.navigate('Profile', { screen: 'WingpeopleList' })}
+      />
     ) : (
       <FilterEmptyState onClear={clearFilters} />
     );

@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Image, Platform, StyleSheet } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import type { RootStackParamList } from '@/navigation/types';
 
 import { useSwipeDeck } from '@/hooks/use-swipe-deck';
 import { View, Text, Pressable, ScrollView, SafeAreaView } from '@/lib/tw';
@@ -183,8 +184,9 @@ function EmptyState({ daterFirstName }: { daterFirstName: string }) {
 // ── WingSwipeContent ─────────────────────────────────────────────────────────
 
 function WingSwipeContent() {
-  const router = useRouter();
-  const { daterId } = useLocalSearchParams<{ daterId: string }>();
+  const navigation = useNavigation();
+  const { params } = useRoute<RouteProp<RootStackParamList, 'WingpeopleWingswipe'>>();
+  const { daterId } = params;
 
   const { data: daterContext } = useGetApiProfilesUserIdSuspense(daterId);
 
@@ -232,7 +234,7 @@ function WingSwipeContent() {
         }}
       >
         <Pressable
-          onPress={() => router.back()}
+          onPress={() => navigation.goBack()}
           hitSlop={12}
           style={{ padding: 8, marginLeft: -4 }}
         >

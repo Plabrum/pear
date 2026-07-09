@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
 import { useForm } from 'react-hook-form';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -14,7 +14,7 @@ import { PhotosTab } from '@/components/profile/PhotosTab';
 import ScreenSuspense from '@/components/ui/ScreenSuspense';
 
 function PhotosScreenInner() {
-  const router = useRouter();
+  const navigation = useNavigation();
   const queryClient = useQueryClient();
   const { data: datingProfile } = useGetApiDatingProfilesMeSuspense();
 
@@ -34,7 +34,7 @@ function PhotosScreenInner() {
 
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top', 'bottom']}>
-      <NavHeader back title="Photos" onBack={() => router.back()} />
+      <NavHeader back title="Photos" onBack={() => navigation.goBack()} />
       <PhotosTab form={form} data={datingProfile} onRefresh={handleRefresh} />
     </SafeAreaView>
   );

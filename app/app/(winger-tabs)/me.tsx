@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
 
 import { useAuth } from '@/context/auth';
 import { colors } from '@/constants/theme';
@@ -10,7 +10,7 @@ import { useGetApiProfilesMeSuspense } from '@/lib/api/generated/profiles/profil
 import { useGetApiWingpeopleSuspense } from '@/lib/api/generated/contacts/contacts';
 
 function MeContent() {
-  const router = useRouter();
+  const navigation = useNavigation();
   const { userId } = useAuth();
 
   const { data: profile } = useGetApiProfilesMeSuspense();
@@ -27,7 +27,7 @@ function MeContent() {
           Me
         </Text>
         <Pressable
-          onPress={() => router.push('/settings' as any)}
+          onPress={() => navigation.navigate('Settings')}
           hitSlop={8}
           style={{ padding: 6 }}
         >

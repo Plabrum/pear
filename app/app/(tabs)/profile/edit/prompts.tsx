@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
 import { useForm } from 'react-hook-form';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -14,7 +14,7 @@ import { PromptsTab } from '@/components/profile/PromptsTab';
 import ScreenSuspense from '@/components/ui/ScreenSuspense';
 
 function PromptsScreenInner() {
-  const router = useRouter();
+  const navigation = useNavigation();
   const queryClient = useQueryClient();
   const { data: datingProfile } = useGetApiDatingProfilesMeSuspense();
 
@@ -35,7 +35,7 @@ function PromptsScreenInner() {
 
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top', 'bottom']}>
-      <NavHeader back title="Prompts" onBack={() => router.back()} />
+      <NavHeader back title="Prompts" onBack={() => navigation.goBack()} />
       <PromptsTab form={form} onRefresh={handleRefresh} />
     </SafeAreaView>
   );

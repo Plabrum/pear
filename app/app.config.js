@@ -39,7 +39,6 @@ module.exports = {
       favicon: './assets/images/favicon.png',
     },
     plugins: [
-      'expo-router',
       'expo-apple-authentication',
       'expo-notifications',
       [
@@ -53,11 +52,7 @@ module.exports = {
       'expo-web-browser',
     ],
     experiments: {
-      typedRoutes: true,
       reactCompiler: true,
-    },
-    extra: {
-      router: {},
     },
     updates: {
       url: `${process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000'}/updates/manifest`,

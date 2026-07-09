@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
 
 import {
@@ -17,7 +17,7 @@ type Values = { bio: string };
 const BioForm = createTypedForm<Values>();
 
 function BioScreenInner() {
-  const router = useRouter();
+  const navigation = useNavigation();
   const queryClient = useQueryClient();
   const { data: datingProfile } = useGetApiDatingProfilesMeSuspense();
 
@@ -34,7 +34,7 @@ function BioScreenInner() {
 
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top', 'bottom']}>
-      <NavHeader back title="Bio" onBack={() => router.back()} />
+      <NavHeader back title="Bio" onBack={() => navigation.goBack()} />
       <BioForm.Form defaultValues={{ bio: datingProfile?.bio ?? '' }} onSubmit={() => {}}>
         <ScrollView
           contentContainerStyle={{ padding: 16, paddingBottom: 48 }}

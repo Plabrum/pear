@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
 
 import {
@@ -19,7 +19,7 @@ type Values = { interests: Interest[] };
 const InterestsForm = createTypedForm<Values>();
 
 function InterestsScreenInner() {
-  const router = useRouter();
+  const navigation = useNavigation();
   const queryClient = useQueryClient();
   const { data: datingProfile } = useGetApiDatingProfilesMeSuspense();
 
@@ -35,7 +35,7 @@ function InterestsScreenInner() {
 
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top', 'bottom']}>
-      <NavHeader back title="Interests" onBack={() => router.back()} />
+      <NavHeader back title="Interests" onBack={() => navigation.goBack()} />
       <InterestsForm.Form
         defaultValues={{ interests: datingProfile?.interests ?? [] }}
         onSubmit={() => {}}

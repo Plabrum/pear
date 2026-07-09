@@ -1,6 +1,6 @@
 {
   "name": "pear",
-  "main": "expo-router/entry",
+  "main": "index.js",
   "version": "1.0.22",
   "scripts": {
     "postinstall": "patch-package",
@@ -37,9 +37,11 @@
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/blur": "^4.4.1",
     "@react-native-community/datetimepicker": "9.1.0",
+    "@react-navigation/bottom-tabs": "^7.18.8",
+    "@react-navigation/native": "^7.3.8",
+    "@react-navigation/native-stack": "^7.17.10",
     "@rn-primitives/dialog": "^1.4.0",
     "@rn-primitives/portal": "^1.4.0",
-    "@tailwindcss/postcss": "^4.2.1",
     "@tanstack/react-query": "^5.90.21",
     "clsx": "^2.1.1",
     "expo": "^56.0.12",
@@ -50,20 +52,18 @@
     "expo-font": "~56.0.7",
     "expo-haptics": "~56.0.3",
     "expo-notifications": "~56.0.18",
-    "expo-router": "~56.2.11",
     "expo-splash-screen": "~56.0.10",
     "expo-system-ui": "~56.0.5",
     "expo-updates": "~56.0.19",
     "expo-web-browser": "~56.0.5",
     "libphonenumber-js": "^1.12.39",
-    "nativewind": "^5.0.0-preview.2",
+    "nativewind": "^4.2.6",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-hook-form": "^7.71.2",
     "react-native": "0.85.3",
     "react-native-blob-util": "^0.24.10",
     "react-native-contacts": "^8.0.10",
-    "react-native-css": "^3.0.7",
     "react-native-gesture-handler": "~2.31.1",
     "react-native-image-crop-picker": "^0.51.1",
     "react-native-keyboard-controller": "1.21.6",
@@ -78,7 +78,7 @@
     "react-native-worklets": "0.8.3",
     "sonner-native": "^0.23.1",
     "tailwind-merge": "^3.5.0",
-    "tailwindcss": "^4.2.1"
+    "tailwindcss": "^3.4.19"
   },
   "devDependencies": {
     "@types/jsonwebtoken": "^9.0.10",
@@ -96,8 +96,5 @@
     "supabase": "2.75.0",
     "typescript": "~6.0.3"
   },
-  "private": true,
-  "overrides": {
-    "lightningcss": "1.30.1"
-  }
+  "private": true
 }
