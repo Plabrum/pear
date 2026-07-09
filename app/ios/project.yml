@@ -1,0 +1,158 @@
+name: Pear
+options:
+  bundleIdPrefix: com.plabrum
+  deploymentTarget:
+    iOS: "16.4"
+  createIntermediateGroups: true
+  generateEmptyDirectories: false
+  autogenerateSchemes: false
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    SWIFT_OBJC_BRIDGING_HEADER: "Pear/Pear-Bridging-Header.h"
+    MARKETING_VERSION: "1.0.22"
+    CURRENT_PROJECT_VERSION: "1"
+    TARGETED_DEVICE_FAMILY: "1,2"
+    CLANG_CXX_LANGUAGE_STANDARD: "c++20"
+    USE_HERMES: "true"
+    SWIFT_ENABLE_EXPLICIT_MODULES: "NO"
+    REACT_NATIVE_PATH: "${PODS_ROOT}/../../node_modules/react-native"
+    OTHER_CFLAGS: "$(inherited) -DRCT_REMOVE_LEGACY_ARCH=1"
+    OTHER_CPLUSPLUSFLAGS: "$(inherited) -DRCT_REMOVE_LEGACY_ARCH=1"
+    OTHER_LDFLAGS: "$(inherited) -ObjC -lc++"
+    # Xcode Cloud cloud-managed signing — preserve exactly, do not add CODE_SIGN_STYLE
+    DEVELOPMENT_TEAM: "AH7U25NYNS"
+    CODE_SIGN_IDENTITY[sdk=iphoneos*]: "iPhone Developer"
+
+targets:
+  Pear:
+    type: application
+    platform: iOS
+    sources:
+      - path: Pear
+        excludes:
+          - "Info.plist"
+          - "Pear.entitlements"
+          - "**/*.md"
+    # info.properties / entitlements.properties are the single source of truth —
+    # XcodeGen generates Pear/Info.plist and Pear/Pear.entitlements fresh on every
+    # `generate` from these, so both files are gitignored build output (see .gitignore).
+    # CFBundleShortVersionString comes from MARKETING_VERSION above — bump that (not
+    # a plist) on release.
+    info:
+      path: Pear/Info.plist
+      properties:
+        CADisableMinimumFrameDurationOnPhone: true
+        CFBundleAllowMixedLocalizations: true
+        CFBundleDisplayName: Pear
+        CFBundlePackageType: "$(PRODUCT_BUNDLE_PACKAGE_TYPE)"
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        CFBundleSignature: "????"
+        CFBundleURLTypes:
+          - CFBundleURLSchemes:
+              - pear
+              - com.plabrum.pear
+        ITSAppUsesNonExemptEncryption: false
+        LSApplicationQueriesSchemes:
+          - sms
+        LSMinimumSystemVersion: "12.0"
+        LSRequiresIPhoneOS: true
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: false
+          NSAllowsLocalNetworking: true
+        NSContactsUsageDescription: "Pear needs access to your contacts so you can invite a wingperson."
+        NSPhotoLibraryUsageDescription: "Pear needs access to your photos so you can add them to your profile."
+        RCTNewArchEnabled: true
+        UIAppFonts:
+          - DMSerifDisplay_400Regular.ttf
+          - Geist_400Regular.ttf
+        UILaunchStoryboardName: SplashScreen
+        UIRequiredDeviceCapabilities:
+          - arm64
+        UIRequiresFullScreen: false
+        UIStatusBarStyle: UIStatusBarStyleDefault
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UIUserInterfaceStyle: Light
+        UIViewControllerBasedStatusBarAppearance: false
+    entitlements:
+      path: Pear/Pear.entitlements
+      properties:
+        aps-environment: production
+        com.apple.developer.applesignin:
+          - Default
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.plabrum.pear
+      configs:
+        Debug:
+          OTHER_SWIFT_FLAGS: "$(inherited) -D EXPO_CONFIGURATION_DEBUG"
+          SWIFT_OPTIMIZATION_LEVEL: "-Onone"
+          ENABLE_BITCODE: "NO"
+          GCC_PREPROCESSOR_DEFINITIONS: "$(inherited) FB_SONARKIT_ENABLED=1"
+          ONLY_ACTIVE_ARCH: "YES"
+        Release:
+          OTHER_SWIFT_FLAGS: "$(inherited) -D EXPO_CONFIGURATION_RELEASE"
+          VALIDATE_PRODUCT: "YES"
+          ENABLE_NS_ASSERTIONS: "NO"
+    postCompileScripts:
+      - name: "Bundle React Native code and images"
+        shell: /bin/sh
+        basedOnDependencyAnalysis: false
+        inputFiles:
+          - "$(SRCROOT)/.xcode.env"
+          - "$(SRCROOT)/.xcode.env.local"
+        script: |
+          if [[ -f "$PODS_ROOT/../.xcode.env" ]]; then
+            source "$PODS_ROOT/../.xcode.env"
+          fi
+          if [[ -f "$PODS_ROOT/../.xcode.env.local" ]]; then
+            source "$PODS_ROOT/../.xcode.env.local"
+          fi
+
+          export PROJECT_ROOT="$PROJECT_DIR"/..
+
+          if [[ "$CONFIGURATION" = *Debug* ]]; then
+            export SKIP_BUNDLING=1
+          fi
+          if [[ -z "$ENTRY_FILE" ]]; then
+            export ENTRY_FILE="$("$NODE_BINARY" -e "require('expo/scripts/resolveAppEntry')" "$PROJECT_ROOT" ios absolute | tail -n 1)"
+          fi
+
+          if [[ -z "$CLI_PATH" ]]; then
+            export CLI_PATH="$("$NODE_BINARY" --print "require.resolve('@expo/cli', { paths: [require.resolve('expo/package.json')] })")"
+          fi
+          if [[ -z "$BUNDLE_COMMAND" ]]; then
+            export BUNDLE_COMMAND="export:embed"
+          fi
+
+          if [[ -f "$PODS_ROOT/../.xcode.env.updates" ]]; then
+            source "$PODS_ROOT/../.xcode.env.updates"
+          fi
+          if [[ -f "$PODS_ROOT/../.xcode.env.local" ]]; then
+            source "$PODS_ROOT/../.xcode.env.local"
+          fi
+
+          `"$NODE_BINARY" --print "require('path').dirname(require.resolve('react-native/package.json')) + '/scripts/react-native-xcode.sh'"`
+
+schemes:
+  Pear:
+    build:
+      targets:
+        Pear: [run, test, profile, analyze, archive]
+    run:
+      config: Debug
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release
