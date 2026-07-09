@@ -4,8 +4,7 @@ import { BlurView } from '@react-native-community/blur';
 import { colors } from '@/constants/theme';
 
 // Shared tab-bar chrome for both role shells — (tabs) and (winger-tabs).
-// Keeping this in one place prevents the two layouts from drifting (they had
-// already diverged on borderTopColor before this was extracted).
+// Keeping this in one place prevents the two layouts from drifting.
 
 const ACTIVE = colors.leaf;
 const INACTIVE = colors.inkDim;

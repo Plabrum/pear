@@ -1,5 +1,4 @@
-// Unified time + name helpers. Previously duplicated across matches, messages,
-// and the winger activity feed. Single source of truth for relative-time
+// Unified time + name helpers — single source of truth for relative-time
 // formatting so the whole app reads consistently.
 
 /** Parse an ISO string that may use a space separator (Postgres-style). */

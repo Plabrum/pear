@@ -61,9 +61,9 @@ export function InviteWingpersonSheet({ visible, onClose, variant = 'dater' }: P
       return false;
     }
     // The action records the contact (and, when the invitee is already a Pear
-    // user, fires a server-side push). The response no longer distinguishes
-    // existing vs. new users, so we also offer the SMS invite as the delivery
-    // channel for invitees who aren't on Pear yet.
+    // user, fires a server-side push). The response doesn't distinguish existing
+    // vs. new users, so we also offer the SMS invite as the delivery channel for
+    // invitees who aren't on Pear yet.
     const isAvailable = await Linking.canOpenURL('sms:');
     if (isAvailable) {
       const daterName = profile?.chosenName ?? 'Someone';

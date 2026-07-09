@@ -12,8 +12,8 @@ export function DiscoverPausedScreen({
   datingProfileId,
   onResume,
 }: {
-  // "winging" is no longer a dating status (it's the profile role) — the only
-  // paused dating status is `break`.
+  // The only paused dating status is `break` — "winging" is the profile role,
+  // not a dating status.
   status: Exclude<DatingStatus, 'open'>;
   datingProfileId: string;
   onResume: () => void;

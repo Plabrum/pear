@@ -1,8 +1,7 @@
 import { NativeModules, Platform } from 'react-native';
 import { updateMyProfile } from '@/lib/api/actions';
 
-// Foreground presentation (the old expo-notifications setNotificationHandler
-// equivalent) is handled natively in AppDelegate's
+// Foreground presentation is handled natively in AppDelegate's
 // UNUserNotificationCenterDelegate — iOS suppresses banners while the app is
 // foregrounded unless a delegate opts in, so that lives next to the rest of
 // the push registration in PearNotificationsModule/AppDelegate.swift.

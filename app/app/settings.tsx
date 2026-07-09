@@ -112,8 +112,8 @@ function SettingsScreenInner() {
   const wingCount = wingpeopleData.wingpeople.length;
   const phoneDetail = profile?.phoneNumber ?? undefined;
 
-  // "Winging" is no longer a dating_status — it's role === winger. Project the two
-  // independent lifecycles (profile role + dating status) back onto the 3-way UI.
+  // Project the two independent lifecycles (profile role + dating status) onto
+  // the 3-way UI — "winging" is role === winger, not a dating_status value.
   const isWinger = profile?.role === 'winger';
   const currentStatus = isWinger ? 'winging' : datingProfile?.datingStatus;
   const statusDetail = currentStatus ? STATUS_LABEL[currentStatus] : undefined;

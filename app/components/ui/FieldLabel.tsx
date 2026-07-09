@@ -2,9 +2,8 @@ import type { TextStyle } from 'react-native';
 
 import { Text } from '@/lib/tw';
 
-// Small uppercase label above a form field. Canonical version of the copy that
-// previously lived in PhotosTab / PromptsTab / AboutMeTab. Pass `style` to tweak
-// per-callsite spacing (e.g. marginBottom) without redefining the primitive.
+// Small uppercase label above a form field. Pass `style` to tweak per-callsite
+// spacing (e.g. marginBottom) without redefining the primitive.
 export function FieldLabel({ children, style }: { children: string; style?: TextStyle }) {
   return (
     <Text

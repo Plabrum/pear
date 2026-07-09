@@ -115,8 +115,6 @@ class ApprovePhoto(BaseObjectAction[ProfilePhoto, EmptyActionData]):
 
     @classmethod
     def is_available(cls, obj: ProfilePhoto, user: User, deps: ActionDeps) -> bool:
-        # Owner (dater) only, and only while the photo is still pending. Ownership
-        # is a flat column compare now that owner_id rides on the row.
         return obj.state is PhotoApprovalState.PENDING and obj.owner_id == user.id
 
     @classmethod
@@ -153,7 +151,6 @@ class RejectPhoto(BaseObjectAction[ProfilePhoto, EmptyActionData]):
 
     @classmethod
     def is_available(cls, obj: ProfilePhoto, user: User, deps: ActionDeps) -> bool:
-        # Owner (dater) only, only while pending — flat column compare on owner_id.
         return obj.state is PhotoApprovalState.PENDING and obj.owner_id == user.id
 
     @classmethod
@@ -176,7 +173,7 @@ class RejectPhoto(BaseObjectAction[ProfilePhoto, EmptyActionData]):
         await transaction.flush()
         # The rejection ROW stays (it feeds the winger-activity rejection feed). The
         # underlying bytes belong to the platform Media row, whose deletion is owned
-        # by the media domain (DELETE /media/{id}) — this domain no longer touches storage.
+        # by the media domain (DELETE /media/{id}).
         return ActionExecutionResponse(
             message="Photo rejected",
             invalidate_queries=["/photos", "/dating-profiles/me"],
@@ -195,8 +192,6 @@ class DeletePhoto(BaseObjectAction[ProfilePhoto, EmptyActionData]):
 
     @classmethod
     def is_available(cls, obj: ProfilePhoto, user: User, deps: ActionDeps) -> bool:
-        # Dater (owner) OR the wingperson who suggested it may delete the photo —
-        # both flat column compares now that owner_id rides on the row.
         return obj.owner_id == user.id or obj.suggester_id == user.id
 
     @classmethod

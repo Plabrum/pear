@@ -7,11 +7,9 @@ from app.platform.updates.enums import UpdateChannel, UpdatePlatform
 from app.utils.sqids import Sqid
 
 # ─── Publish (CI-only, POST /updates/publish) ──────────────────────────────────
-# `ManifestLaunchAsset`/`ManifestAsset` use camelCase field names
-# (`contentType`/`fileExtension`) because `AppUpdate.launch_asset`/`.assets`
-# (models.py) store the publish payload verbatim in that casing —
-# `build-ota-payload.js` posts camelCase. `protocol.py`'s `build_update_manifest`
-# re-keys these dicts to snake_case for the read path below.
+# camelCase here to match what `build-ota-payload.js` posts; stored verbatim in
+# `AppUpdate.launch_asset`/`.assets` (models.py) and re-keyed to snake_case by
+# `protocol.py`'s `build_update_manifest` for the read schemas below.
 
 
 class ManifestAsset(BaseSchema):
@@ -63,7 +61,7 @@ class UpdateAsset(BaseSchema):
     content_type: str
     url: str
     hash: str
-    """sha256, base64url — unchanged from today's `build-ota-payload.js`."""
+    """sha256, base64url."""
     file_extension: str | None = None
 
 

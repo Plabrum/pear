@@ -1,7 +1,6 @@
-// Centralized SVG icon set. Previously these were re-declared inline across
-// BottomTabBar, messages, profile, and PhotosTab — this is the single source.
-// Colors come from design tokens via @/constants/theme (escape-hatch use:
-// SVG stroke/fill props can't take className).
+// Centralized SVG icon set — the single source, avoiding re-declaration across
+// callsites. Colors come from design tokens via @/constants/theme (escape-hatch
+// use: SVG stroke/fill props can't take className).
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import Feather from 'react-native-vector-icons/Feather';
 

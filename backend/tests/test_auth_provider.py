@@ -441,11 +441,9 @@ async def test_me_without_session_rejected(auth_app: AsyncTestClient) -> None:
 async def test_logout_clears_session(auth_app: AsyncTestClient) -> None:
     await _magic_login(auth_app, "logout-clear@example.com")
 
-    # Authenticated logout succeeds and clears the cookie.
     resp = await auth_app.post("/auth/logout")
     assert resp.status_code == 204
 
-    # After logout the session no longer authenticates /auth/me.
     after = await auth_app.get("/auth/me")
     assert after.status_code in (401, 403)
 

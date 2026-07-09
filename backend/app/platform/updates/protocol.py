@@ -17,13 +17,10 @@ logger = logging.getLogger(__name__)
 
 
 def build_update_manifest(row: AppUpdate) -> UpdateManifest:
-    """Convert a stored `AppUpdate` row into the v2 wire shape.
+    """Convert a stored `AppUpdate` row into the manifest wire shape.
 
-    `row.launch_asset`/`row.assets` are JSONB dicts keyed in the v1 protocol's
-    camelCase (`contentType`, `fileExtension`) — the shape `PublishUpdateRequest`
-    stores verbatim (see `models.py`). `build-ota-payload.js`'s publish payload is
-    unaffected by this route, so the stored keys stay camelCase; only this v2 read
-    path re-keys them to snake_case for the new client.
+    `row.launch_asset`/`row.assets` are JSONB dicts keyed in the camelCase
+    `PublishUpdateRequest` stores verbatim (see `models.py`); re-key to snake_case here.
     """
     launch_asset = row.launch_asset
     return UpdateManifest(

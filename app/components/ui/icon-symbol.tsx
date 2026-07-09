@@ -26,8 +26,8 @@ const MAPPING = {
 
 /**
  * An icon component that uses Material Icons on every platform, for a consistent
- * look and a single icon set to maintain. Icon `name`s are historically based on
- * SF Symbols naming and require manual mapping to Material Icons.
+ * look and a single icon set to maintain. Icon `name`s follow SF Symbols naming
+ * and require manual mapping to Material Icons.
  */
 export function IconSymbol({
   name,
