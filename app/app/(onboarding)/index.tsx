@@ -9,11 +9,11 @@ import {
   getGetApiProfilesMeQueryKey,
   getGetApiDatingProfilesMeQueryKey,
 } from '@/lib/api/generated/profiles/profiles';
-import type { Database } from '@/types/database';
+import type { UserRole } from '@/lib/api/generated/model';
 import RoleStep from '@/components/onboarding/RoleStep';
 import ProfileSetup from '@/components/onboarding/ProfileSetup';
 
-type Role = Database['public']['Enums']['user_role'];
+type Role = UserRole;
 type Step = 'role' | 'setup';
 
 export default function OnboardingScreen() {

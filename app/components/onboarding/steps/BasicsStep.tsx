@@ -7,11 +7,11 @@ import { GENDERS } from '@/constants/enums';
 import { colors } from '@/constants/theme';
 import { updateMyProfile, createDatingProfile, switchToWinger } from '@/lib/api/actions';
 import { useAuth } from '@/context/auth';
-import type { Database } from '@/types/database';
+import type { UserRole, Gender as GenderModel } from '@/lib/api/generated/model';
 import { ChipRow, MonoLabel, StepHeader } from '@/components/onboarding/chrome';
 
-type Role = Database['public']['Enums']['user_role'];
-type Gender = Database['public']['Enums']['gender'];
+type Role = UserRole;
+type Gender = GenderModel;
 
 const PRONOUNS = ['she/her', 'he/him', 'they/them'] as const;
 
@@ -40,9 +40,7 @@ function MultiChipRow({
         return (
           <Pressable
             key={opt}
-            onPress={() =>
-              onChange(active ? value.filter((v) => v !== opt) : [...value, opt])
-            }
+            onPress={() => onChange(active ? value.filter((v) => v !== opt) : [...value, opt])}
             className={cn(
               'h-[30px] px-3 rounded-full items-center justify-center border',
               active ? 'bg-primary-soft border-transparent' : 'bg-transparent border-border'

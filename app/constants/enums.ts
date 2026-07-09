@@ -1,9 +1,4 @@
-import type { Database } from '@/types/database';
-
-type City = Database['public']['Enums']['city'];
-type Gender = Database['public']['Enums']['gender'];
-type Religion = Database['public']['Enums']['religion'];
-type Interest = Database['public']['Enums']['interest'];
+import type { City, Gender, Religion, Interest } from '@/lib/api/generated/model';
 
 export const CITIES = ['Boston', 'New York'] as const satisfies City[];
 

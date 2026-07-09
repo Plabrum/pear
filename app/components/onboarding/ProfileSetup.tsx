@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView, View } from '@/lib/tw';
-import type { Database } from '@/types/database';
+import type { UserRole } from '@/lib/api/generated/model';
 import { BackButton, Progress } from '@/components/onboarding/chrome';
 import { BasicsStep } from '@/components/onboarding/steps/BasicsStep';
 import { PhotosStep } from '@/components/onboarding/steps/PhotosStep';
 import { PromptsStep } from '@/components/onboarding/steps/PromptsStep';
 import { WingInviteStep } from '@/components/onboarding/steps/WingInviteStep';
 
-type Role = Database['public']['Enums']['user_role'];
+type Role = UserRole;
 type Step = 1 | 2 | 3 | 4;
 
 type Props = {

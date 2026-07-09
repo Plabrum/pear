@@ -3,9 +3,9 @@ import { Pressable, SafeAreaView, Text, View } from '@/lib/tw';
 import { cn } from '@/lib/cn';
 import { Sprout } from '@/components/ui/Sprout';
 import { PearMark } from '@/components/ui/PearMark';
-import type { Database } from '@/types/database';
+import type { UserRole } from '@/lib/api/generated/model';
 
-type Role = Database['public']['Enums']['user_role'];
+type Role = UserRole;
 
 type CardProps = {
   selected: boolean;
