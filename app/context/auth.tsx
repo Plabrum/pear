@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useEffect } from 'react';
-import * as SplashScreen from 'expo-splash-screen';
 import { Linking } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -30,12 +29,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // normal unauthenticated state; a query `error` means the backend is
   // unreachable (a 401 resolves to null, not an error).
   const { data: session, isPending, error, refetch } = useQuery(sessionQueryOptions);
-
-  // Hide the native splash once the session has settled (data or error), and
-  // keep it up while pending. Effect because it pokes a native module.
-  useEffect(() => {
-    if (!isPending) SplashScreen.hideAsync();
-  }, [isPending]);
 
   // Magic-link deep link — a genuine external event (inbound URL), so a
   // mount-only effect is the sanctioned exception. On a verified token we

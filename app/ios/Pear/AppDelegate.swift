@@ -1,43 +1,39 @@
-internal import Expo
 import React
+import React_RCTAppDelegate
 import ReactAppDependencyProvider
 import UserNotifications
 
 @main
-class AppDelegate: ExpoAppDelegate, UNUserNotificationCenterDelegate {
-  var window: UIWindow?
-
-  var reactNativeDelegate: ExpoReactNativeFactoryDelegate?
-  var reactNativeFactory: RCTReactNativeFactory?
-
-  public override func application(
+class AppDelegate: RCTAppDelegate, UNUserNotificationCenterDelegate {
+  override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
   ) -> Bool {
-    let delegate = ReactNativeDelegate()
-    let factory = ExpoReactNativeFactory(delegate: delegate)
-    delegate.dependencyProvider = RCTAppDependencyProvider()
+    self.moduleName = "main"
+    self.dependencyProvider = RCTAppDependencyProvider()
+    self.initialProps = [:]
 
-    reactNativeDelegate = delegate
-    reactNativeFactory = factory
     UNUserNotificationCenter.current().delegate = self
 
-#if os(iOS) || os(tvOS)
-    window = UIWindow(frame: UIScreen.main.bounds)
-    factory.startReactNative(
-      withModuleName: "main",
-      in: window,
-      launchOptions: launchOptions)
-#endif
-
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+
+  override func sourceURL(for bridge: RCTBridge) -> URL? {
+    self.bundleURL()
+  }
+
+  override func bundleURL() -> URL? {
+#if DEBUG
+    return RCTBundleURLProvider.sharedSettings().jsBundleURL(forBundleRoot: "index")
+#else
+    return Bundle.main.url(forResource: "main", withExtension: "jsbundle")
+#endif
   }
 
   override func application(
     _ application: UIApplication,
     didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
   ) {
-    super.application(application, didRegisterForRemoteNotificationsWithDeviceToken: deviceToken)
     let hexToken = deviceToken.map { String(format: "%02.2hhx", $0) }.joined()
     PearNotificationsModule.shared?.didReceive(token: hexToken)
   }
@@ -46,7 +42,6 @@ class AppDelegate: ExpoAppDelegate, UNUserNotificationCenterDelegate {
     _ application: UIApplication,
     didFailToRegisterForRemoteNotificationsWithError error: Error
   ) {
-    super.application(application, didFailToRegisterForRemoteNotificationsWithError: error)
     PearNotificationsModule.shared?.didFailToRegister()
   }
 
@@ -61,7 +56,7 @@ class AppDelegate: ExpoAppDelegate, UNUserNotificationCenterDelegate {
   }
 
   // Linking API
-  public override func application(
+  override func application(
     _ app: UIApplication,
     open url: URL,
     options: [UIApplication.OpenURLOptionsKey: Any] = [:]
@@ -70,29 +65,12 @@ class AppDelegate: ExpoAppDelegate, UNUserNotificationCenterDelegate {
   }
 
   // Universal Links
-  public override func application(
+  override func application(
     _ application: UIApplication,
     continue userActivity: NSUserActivity,
     restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void
   ) -> Bool {
     let result = RCTLinkingManager.application(application, continue: userActivity, restorationHandler: restorationHandler)
     return super.application(application, continue: userActivity, restorationHandler: restorationHandler) || result
-  }
-}
-
-class ReactNativeDelegate: ExpoReactNativeFactoryDelegate {
-  // Extension point for config-plugins
-
-  override func sourceURL(for bridge: RCTBridge) -> URL? {
-    // needed to return the correct URL for expo-dev-client.
-    bridge.bundleURL ?? bundleURL()
-  }
-
-  override func bundleURL() -> URL? {
-#if DEBUG
-    return RCTBundleURLProvider.sharedSettings().jsBundleURL(forBundleRoot: ".expo/.virtual-metro-entry")
-#else
-    return Bundle.main.url(forResource: "main", withExtension: "jsbundle")
-#endif
   }
 }

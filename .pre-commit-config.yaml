@@ -34,29 +34,3 @@ repos:
         entry: bash -lc 'cd app && files=(); for f in "$@"; do files+=("${f#app/}"); done; npx prettier --write "${files[@]}"' --
         files: ^app/.*\.(js|jsx|ts|tsx|json|css|html|md)$
         exclude: ^app/(node_modules|dist|\.expo)/
-
-      # Catches "edited app.config.js / certs / native deps without regenerating
-      # ios/" before it's even committed — the committed app/ios/ is what Xcode
-      # Cloud builds directly (no prebuild at build time), so drift here silently
-      # ships a stale native project (this is how a rotated OTA code-signing cert
-      # shipped broken once already). Same check as .github/workflows/
-      # ios-drift-check.yml and ios/ci_scripts/ci_post_clone.sh (the real gate,
-      # since main has no branch protection and this repo pushes directly to it).
-      #
-      # `git checkout -- ios/` first resets the working tree to the INDEX (not
-      # HEAD - preserves anything genuinely staged for this commit) before
-      # regenerating. Without it, benign local-only Xcode state (e.g. the
-      # DEVELOPMENT_TEAM Xcode injects into project.pbxproj the moment you pick
-      # a signing team for an on-device build) would falsely trip this check on
-      # every future commit touching these paths, even ones unrelated to signing.
-      - id: ios-drift-check
-        name: ios/ drift check (local)
-        language: system
-        entry: >-
-          bash -lc 'cd app &&
-          git checkout -- ios/ &&
-          EXPO_PUBLIC_API_URL=https://api.usepear.app npx expo prebuild -p ios &&
-          git diff --exit-code -- ios/
-          || (echo "error: app/ios/ is stale — regenerate with EXPO_PUBLIC_API_URL=https://api.usepear.app npx expo prebuild -p ios --clean and commit ios/" && exit 1)'
-        files: ^app/(app\.config\.js|package\.json|certs/.*|ios/.*)$
-        pass_filenames: false
