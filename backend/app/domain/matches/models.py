@@ -8,8 +8,7 @@ from app.utils.sqids import Sqid, SqidType
 
 # Participant-only read. INSERT is gated by `MutualMatchInsert`: a participant may
 # form the pair's match in-request, but ONLY when both directions of their decision
-# are 'approved' — RLS rejects any forged (non-mutual) pairing, so no row can be
-# faked and the match no longer needs a system-mode worker insert.
+# are 'approved' — RLS rejects any forged (non-mutual) pairing.
 class Match(
     BaseDBModel,
     RLSScopedMixin(read=Participants("user_a_id", "user_b_id"), edit={"INSERT": MutualMatchInsert()}),

@@ -31,10 +31,8 @@ async def get_manifest_v2(
     platform: UpdatePlatform = Parameter(query="platform"),
     current_update_id: str | None = Parameter(query="current_update_id", default=None),
 ) -> Response[bytes]:
-    """Plain-JSON, snake_case manifest endpoint — speaks our own wire contract to
-    our own custom OTA client, not the `expo-updates` protocol. Query params
-    instead of `expo-*` request headers since this is no longer shaped by
-    another client's spec.
+    """Plain-JSON, snake_case manifest endpoint speaking our own wire contract
+    to our own custom OTA client — query params, not headers.
     """
     logger.info(
         "updates/v2/manifest request: runtime_version=%s platform=%s channel=%s current_update_id=%s",

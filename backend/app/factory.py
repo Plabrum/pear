@@ -238,9 +238,7 @@ def create_app(
             # our custom Swift OTA client. Stays at the root, not under `/api` —
             # unauthenticated, its own query-param contract, not a session cookie.
             # `exclude_from_auth=True` on the handler itself opts it out of
-            # SessionAuth (see platform/updates/routes.py). The legacy Expo Updates
-            # protocol v1 route (`/updates/manifest`) was retired — 0 prod users were
-            # ever on it.
+            # SessionAuth (see platform/updates/routes.py).
             get_manifest_v2,
             # Client-side observability: the Swift OTA client posts here on download
             # failure, verify failure, apply, and rollback — visible in server logs
