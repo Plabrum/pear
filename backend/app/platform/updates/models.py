@@ -13,7 +13,7 @@ from app.utils.textenum import TextEnum
 
 # No RLS on this table — the same call the `profiles` identity table already made
 # (see `20260629_1457_drop_rls_on_profiles_identity_table_e74b9f4587a7`): both
-# routes that touch `app_updates` (`/updates/manifest`, `/updates/publish`) are
+# routes that touch `app_updates` (`/updates/v2/manifest`, `/updates/publish`) are
 # unauthenticated and root-mounted, outside the auth-gated `/api` — there is no
 # per-request actor (`app.user_id`) to scope a policy against, the same
 # chicken-and-egg shape that justified dropping RLS on `profiles`. `pear_app`'s
@@ -25,8 +25,8 @@ from app.utils.textenum import TextEnum
 class AppUpdate(BaseDBModel):
     """One published OTA update for a (runtime_version, channel, platform) tuple.
 
-    The source of truth the Expo Updates protocol v1 manifest route
-    (`app/platform/updates/routes.py`) serves "what's the current update" from.
+    The source of truth the v2 manifest route (`app/platform/updates/routes.py`)
+    serves "what's the current update" from.
     """
 
     __tablename__ = "app_updates"
@@ -42,10 +42,10 @@ class AppUpdate(BaseDBModel):
     )
 
     # A dedicated RFC-4122 UUID, distinct from the table's Sqid-encoded integer PK
-    # (`BaseDBModel.id`, kept for consistency with every other table). The Expo
-    # Updates protocol's manifest `id` field and the `expo-current-update-id`
-    # request header are both wire-format UUIDs — a Sqid isn't one — so this column
-    # exists purely to satisfy that external contract.
+    # (`BaseDBModel.id`, kept for consistency with every other table). The v2
+    # manifest's `update_uuid` field and the `current_update_id` query param are
+    # both wire-format UUIDs — a Sqid isn't one — so this column exists purely to
+    # satisfy that wire contract.
     update_uuid: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         server_default=sa.text("gen_random_uuid()"),

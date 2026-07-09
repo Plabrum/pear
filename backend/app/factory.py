@@ -44,7 +44,6 @@ from app.platform.plugins import SqidSchemaPlugin
 from app.platform.queue.config import queue_config
 from app.platform.realtime.routes import realtime_ws
 from app.platform.updates.routes import (
-    get_manifest,
     get_manifest_v2,
     post_client_event,
     publish_update,
@@ -235,15 +234,13 @@ def create_app(
             # auth exclude list, so SessionAuth runs on the upgrade and authenticates
             # the handshake via the session cookie (see realtime/routes.py).
             realtime_ws,
-            # Self-hosted OTA manifest endpoint (Expo Updates protocol v1). Stays at
-            # the root (`/updates/manifest`), not under `/api` — `expo-updates` speaks
-            # this protocol unauthenticated with its own `expo-*` header set, not a
-            # session cookie. `exclude_from_auth=True` on the handler itself opts it
-            # out of SessionAuth (see platform/updates/routes.py).
-            get_manifest,
-            # Plain-JSON, snake_case successor protocol — inert until a custom OTA
-            # client calls it. `/updates/manifest` above is untouched and stays live
-            # until every installed client has moved off the legacy protocol.
+            # Self-hosted OTA manifest endpoint: plain-JSON, snake_case protocol for
+            # our custom Swift OTA client. Stays at the root, not under `/api` —
+            # unauthenticated, its own query-param contract, not a session cookie.
+            # `exclude_from_auth=True` on the handler itself opts it out of
+            # SessionAuth (see platform/updates/routes.py). The legacy Expo Updates
+            # protocol v1 route (`/updates/manifest`) was retired — 0 prod users were
+            # ever on it.
             get_manifest_v2,
             # Client-side observability: the Swift OTA client posts here on download
             # failure, verify failure, apply, and rollback — visible in server logs

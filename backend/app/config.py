@@ -61,10 +61,10 @@ class Config:
     # WebP encode quality (0–100). ~80 is a good size/quality balance for photos.
     MEDIA_WEBP_QUALITY: int = int(os.getenv("MEDIA_WEBP_QUALITY", "80"))
 
-    # ─── Self-hosted OTA (expo-updates protocol v1) ────────────────────────────
-    # base64-encoded RSA private key (PEM) the `/updates/manifest` route signs
-    # manifest bodies with — the `expo-signature` response header. Pairs with the
-    # public `codeSigningCertificate` embedded in the client (app.config.js).
+    # ─── Self-hosted OTA (custom Swift client, v2 manifest protocol) ───────────
+    # base64-encoded RSA private key (PEM) the `/updates/v2/manifest` route signs
+    # manifest bodies with — the `x-update-signature` response header. Pairs with
+    # the public signing cert the custom OTA client verifies against (`app/certs/`).
     # Signing happens at SERVE time (not at GH Actions publish time) so the
     # private key lives only on this box, never in CI secrets. base64-encoded so
     # it round-trips as a single-line value through deploy.sh's .env merge; decoded

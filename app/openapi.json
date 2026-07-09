@@ -1886,26 +1886,6 @@
         "deprecated": false
       }
     },
-    "/updates/manifest": {
-      "get": {
-        "summary": "GetManifest",
-        "operationId": "UpdatesManifestGetManifest",
-        "responses": {
-          "200": {
-            "description": "Request fulfilled, document follows",
-            "headers": {},
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          }
-        },
-        "deprecated": false
-      }
-    },
     "/updates/v2/manifest": {
       "get": {
         "summary": "GetManifestV2",
@@ -2086,129 +2066,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PublishUpdateResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request syntax or unsupported method",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "status_code": {
-                      "type": "integer"
-                    },
-                    "detail": {
-                      "type": "string"
-                    },
-                    "extra": {
-                      "additionalProperties": {},
-                      "type": ["null", "object", "array"]
-                    }
-                  },
-                  "type": "object",
-                  "required": ["detail", "status_code"],
-                  "description": "Validation Exception",
-                  "examples": [
-                    {
-                      "status_code": 400,
-                      "detail": "Bad Request",
-                      "extra": {}
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "deprecated": false
-      }
-    },
-    "/updates/native-build-fingerprint": {
-      "get": {
-        "summary": "GetNativeBuildFingerprint",
-        "operationId": "UpdatesNativeBuildFingerprintGetNativeBuildFingerprint",
-        "parameters": [
-          {
-            "name": "platform",
-            "in": "query",
-            "schema": {
-              "$ref": "#/components/schemas/UpdatePlatform"
-            },
-            "required": true,
-            "deprecated": false,
-            "allowEmptyValue": false,
-            "allowReserved": false
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Request fulfilled, document follows",
-            "headers": {},
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NativeBuildFingerprintResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request syntax or unsupported method",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "status_code": {
-                      "type": "integer"
-                    },
-                    "detail": {
-                      "type": "string"
-                    },
-                    "extra": {
-                      "additionalProperties": {},
-                      "type": ["null", "object", "array"]
-                    }
-                  },
-                  "type": "object",
-                  "required": ["detail", "status_code"],
-                  "description": "Validation Exception",
-                  "examples": [
-                    {
-                      "status_code": 400,
-                      "detail": "Bad Request",
-                      "extra": {}
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "deprecated": false
-      },
-      "post": {
-        "summary": "SetNativeBuildFingerprint",
-        "operationId": "UpdatesNativeBuildFingerprintSetNativeBuildFingerprint",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SetNativeBuildFingerprintRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "description": "Document created, URL follows",
-            "headers": {},
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NativeBuildFingerprintResponse"
                 }
               }
             }
@@ -3791,26 +3648,6 @@
         "required": ["createdAt", "daterId", "daterName", "id", "status", "suggestedName"],
         "title": "MySuggestion"
       },
-      "NativeBuildFingerprintResponse": {
-        "properties": {
-          "platform": {
-            "$ref": "#/components/schemas/UpdatePlatform"
-          },
-          "fingerprint": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "type": "object",
-        "required": ["fingerprint", "platform"],
-        "title": "NativeBuildFingerprintResponse"
-      },
       "OwnDatingProfile": {
         "properties": {
           "id": {
@@ -4801,19 +4638,6 @@
         "type": "object",
         "required": ["createdAt", "id", "phoneNumber", "winger"],
         "title": "SentInvitation"
-      },
-      "SetNativeBuildFingerprintRequest": {
-        "properties": {
-          "platform": {
-            "$ref": "#/components/schemas/UpdatePlatform"
-          },
-          "fingerprint": {
-            "type": "string"
-          }
-        },
-        "type": "object",
-        "required": ["fingerprint", "platform"],
-        "title": "SetNativeBuildFingerprintRequest"
       },
       "SuggestAction": {
         "properties": {

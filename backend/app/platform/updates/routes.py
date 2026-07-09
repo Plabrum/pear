@@ -3,8 +3,7 @@ from __future__ import annotations
 import logging
 
 import msgspec
-from litestar import Request, Response, get, post
-from litestar.exceptions import ClientException
+from litestar import Response, get, post
 from litestar.params import Parameter
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,81 +11,16 @@ from app.config import config as app_config
 from app.platform.auth.guards import requires_updates_publish_token
 from app.platform.updates.enums import RolloutStatus, UpdateChannel, UpdatePlatform
 from app.platform.updates.models import AppUpdate
-from app.platform.updates.protocol import (
-    build_update_manifest,
-    directive_response,
-    manifest_response,
-    manifest_v2_response,
-)
+from app.platform.updates.protocol import build_update_manifest, manifest_v2_response
 from app.platform.updates.queries import latest_relevant_update
 from app.platform.updates.schemas import (
     ClientEventRequest,
     ManifestResponse,
-    NoUpdateAvailableDirective,
     PublishUpdateRequest,
     PublishUpdateResponse,
-    RollBackDirective,
-    RollBackDirectiveParameters,
 )
 
 logger = logging.getLogger(__name__)
-
-
-@get("/updates/manifest", exclude_from_auth=True)
-async def get_manifest(request: Request, transaction: AsyncSession) -> Response[bytes]:
-    """Expo Updates protocol v1 manifest endpoint — mounted at the root (like
-    `/ws`), NOT under the auth-gated `/api`: `expo-updates` on the client speaks
-    this protocol unauthenticated, with its own header set, not a session cookie.
-    """
-    runtime_version = request.headers.get("expo-runtime-version")
-    platform_header = request.headers.get("expo-platform")
-    channel_header = request.headers.get("expo-channel-name")
-    current_update_id = request.headers.get("expo-current-update-id")
-
-    logger.info(
-        "updates/manifest request: runtime_version=%s platform=%s channel=%s current_update_id=%s ip=%s",
-        runtime_version,
-        platform_header,
-        channel_header,
-        current_update_id,
-        request.client.host if request.client else None,
-    )
-
-    if not runtime_version or not platform_header or not channel_header:
-        raise ClientException("Missing required expo-runtime-version / expo-platform / expo-channel-name headers")
-
-    try:
-        platform = UpdatePlatform(platform_header)
-        channel = UpdateChannel(channel_header)
-    except ValueError as exc:
-        raise ClientException(f"Unsupported expo-platform/expo-channel-name: {exc}") from exc
-
-    row = await latest_relevant_update(
-        transaction,
-        runtime_version=runtime_version,
-        channel=channel,
-        platform=platform,
-    )
-
-    # No published update for this tuple yet — fail safe to "nothing to apply"
-    # rather than erroring the client's update check.
-    if row is None:
-        logger.info("updates/manifest: no update row for runtime_version=%s channel=%s", runtime_version, channel)
-        return directive_response(NoUpdateAvailableDirective(), app_config)
-
-    if current_update_id and current_update_id.strip().lower() == str(row.update_uuid):
-        logger.info("updates/manifest: client already on latest update_uuid=%s", row.update_uuid)
-        return directive_response(NoUpdateAvailableDirective(), app_config)
-
-    if row.rollout == RolloutStatus.ROLLED_BACK:
-        logger.info("updates/manifest: serving rollback directive for update_uuid=%s", row.update_uuid)
-        return directive_response(
-            RollBackDirective(parameters=RollBackDirectiveParameters(createdAt=row.created_at.isoformat())),
-            app_config,
-        )
-
-    logger.info("updates/manifest: serving manifest for update_uuid=%s", row.update_uuid)
-    return manifest_response(row, app_config)
 
 
 @get("/updates/v2/manifest", exclude_from_auth=True)
@@ -97,11 +31,10 @@ async def get_manifest_v2(
     platform: UpdatePlatform = Parameter(query="platform"),
     current_update_id: str | None = Parameter(query="current_update_id", default=None),
 ) -> Response[bytes]:
-    """Plain-JSON, snake_case successor to `/updates/manifest` — speaks our own
-    wire contract to our own custom OTA client, not the `expo-updates` protocol.
-    Query params instead of `expo-*` request headers since this is no longer
-    shaped by another client's spec. Left inert alongside the untouched v1 route
-    until a client actually calls it.
+    """Plain-JSON, snake_case manifest endpoint — speaks our own wire contract to
+    our own custom OTA client, not the `expo-updates` protocol. Query params
+    instead of `expo-*` request headers since this is no longer shaped by
+    another client's spec.
     """
     logger.info(
         "updates/v2/manifest request: runtime_version=%s platform=%s channel=%s current_update_id=%s",

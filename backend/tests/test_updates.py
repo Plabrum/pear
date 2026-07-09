@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import base64
-import json
-import re
 from collections.abc import AsyncGenerator
 
 import pytest
@@ -21,12 +19,6 @@ from app.platform.updates.models import AppUpdate
 # `asyncio_mode = "auto"` (pyproject.toml) runs `async def test_*` without a marker.
 
 _RUNTIME_VERSION = "1.0.0-fingerprint-abc123"
-_HEADERS = {
-    "expo-runtime-version": _RUNTIME_VERSION,
-    "expo-platform": "ios",
-    "expo-channel-name": "production",
-    "expo-protocol-version": "1",
-}
 
 
 def _rsa_keypair() -> tuple[str, str]:
@@ -51,151 +43,13 @@ def _rsa_keypair() -> tuple[str, str]:
 
 @pytest.fixture
 async def updates_client(db_session: AsyncSession) -> AsyncGenerator[AsyncTestClient]:
-    """Real app hitting `/updates/manifest` + `/updates/publish`, with `transaction`
-    pinned to the savepoint `db_session` — `app_updates` has no RLS (see
-    `models.py`), so seeding/reading rows needs no actor or system-mode setup.
+    """Real app hitting `/updates/v2/manifest` + `/updates/publish`, with
+    `transaction` pinned to the savepoint `db_session` — `app_updates` has no RLS
+    (see `models.py`), so seeding/reading rows needs no actor or system-mode setup.
     """
     app = create_app(dependencies_overrides={"transaction": Provide(lambda: db_session, sync_to_thread=False)})
     async with AsyncTestClient(app=app) as client:
         yield client
-
-
-def _assert_valid_signature(signature_header: str | None, body_bytes: bytes, public_pem: str) -> None:
-    """Verify the `expo-signature` part header (`sig="<base64>", keyid="main"`)
-    against the public half of the keypair injected for this test."""
-    assert signature_header is not None
-    assert 'keyid="main"' in signature_header
-    sig_b64 = signature_header.split('sig="')[1].split('"')[0]
-    public_key = serialization.load_pem_public_key(public_pem.encode())
-    assert isinstance(public_key, rsa.RSAPublicKey)
-    public_key.verify(
-        base64.b64decode(sig_b64),
-        body_bytes,
-        padding.PKCS1v15(),
-        hashes.SHA256(),
-    )
-
-
-def _parse_multipart_json(response) -> tuple[str, dict, str | None, bytes]:
-    """Pull `(part_name, json_body, expo-signature part header, raw json bytes)`
-    out of the `multipart/mixed` body this route hand-assembles (see
-    `app.platform.updates.multipart.encode_multipart_mixed`).
-    """
-    content_type = response.headers["content-type"]
-    boundary = content_type.split("boundary=")[1]
-    raw = response.content
-    # Between the opening `--<boundary>\r\n` and the closing `\r\n--<boundary>--`.
-    part = raw.split(f"--{boundary}".encode())[1].strip(b"\r\n-")
-    header_block, _, json_block = part.partition(b"\r\n\r\n")
-    header_text = header_block.decode()
-    name_match = re.search(r'name="(\w+)"', header_text)
-    sig_match = re.search(r"expo-signature: (.+)", header_text)
-    return (
-        name_match.group(1) if name_match else "",
-        json.loads(json_block),
-        sig_match.group(1).strip() if sig_match else None,
-        json_block,
-    )
-
-
-async def test_manifest_current_update_returns_no_update_directive(
-    updates_client: AsyncTestClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    private_key_b64, public_pem = _rsa_keypair()
-    monkeypatch.setattr(config, "UPDATES_SIGNING_PRIVATE_KEY", private_key_b64)
-
-    row = AppUpdate(
-        runtime_version=_RUNTIME_VERSION,
-        channel=UpdateChannel.PRODUCTION,
-        platform=UpdatePlatform.IOS,
-        launch_asset={"key": "abc", "contentType": "application/javascript", "url": "https://cdn/abc", "hash": "h"},
-        assets=[],
-        rollout=RolloutStatus.LIVE,
-    )
-    db_session.add(row)
-    await db_session.flush()
-
-    response = await updates_client.get(
-        "/updates/manifest",
-        headers={**_HEADERS, "expo-current-update-id": str(row.update_uuid)},
-    )
-
-    assert response.status_code == 200
-    assert response.headers["expo-protocol-version"] == "1"
-    part_name, body, signature_header, body_bytes = _parse_multipart_json(response)
-    assert part_name == "directive"
-    assert body == {"type": "noUpdateAvailable"}
-    _assert_valid_signature(signature_header, body_bytes, public_pem)
-
-
-async def test_manifest_rolled_back_returns_rollback_directive(
-    updates_client: AsyncTestClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    private_key_b64, public_pem = _rsa_keypair()
-    monkeypatch.setattr(config, "UPDATES_SIGNING_PRIVATE_KEY", private_key_b64)
-
-    row = AppUpdate(
-        runtime_version=_RUNTIME_VERSION,
-        channel=UpdateChannel.PRODUCTION,
-        platform=UpdatePlatform.IOS,
-        launch_asset={"key": "abc", "contentType": "application/javascript", "url": "https://cdn/abc", "hash": "h"},
-        assets=[],
-        rollout=RolloutStatus.ROLLED_BACK,
-    )
-    db_session.add(row)
-    await db_session.flush()
-
-    response = await updates_client.get("/updates/manifest", headers=_HEADERS)
-
-    assert response.status_code == 200
-    part_name, body, signature_header, body_bytes = _parse_multipart_json(response)
-    assert part_name == "directive"
-    assert body["type"] == "rollBackToEmbedded"
-    assert body["parameters"]["createdAt"] == row.created_at.isoformat()
-    _assert_valid_signature(signature_header, body_bytes, public_pem)
-
-
-async def test_manifest_normal_case_returns_signed_manifest(
-    updates_client: AsyncTestClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    private_key_b64, public_pem = _rsa_keypair()
-    monkeypatch.setattr(config, "UPDATES_SIGNING_PRIVATE_KEY", private_key_b64)
-
-    row = AppUpdate(
-        runtime_version=_RUNTIME_VERSION,
-        channel=UpdateChannel.PRODUCTION,
-        platform=UpdatePlatform.IOS,
-        launch_asset={
-            "key": "bundle-key",
-            "contentType": "application/javascript",
-            "url": "https://cdn.example.com/bundle.js",
-            "hash": "bundle-hash",
-        },
-        assets=[
-            {
-                "key": "asset-key",
-                "contentType": "image/png",
-                "url": "https://cdn.example.com/asset.png",
-                "hash": "asset-hash",
-                "fileExtension": ".png",
-            }
-        ],
-        rollout=RolloutStatus.LIVE,
-    )
-    db_session.add(row)
-    await db_session.flush()
-
-    response = await updates_client.get("/updates/manifest", headers=_HEADERS)
-
-    assert response.status_code == 200
-    part_name, manifest, signature_header, body_bytes = _parse_multipart_json(response)
-    assert part_name == "manifest"
-    assert manifest["id"] == str(row.update_uuid)
-    assert manifest["runtimeVersion"] == _RUNTIME_VERSION
-    assert manifest["launchAsset"]["url"] == "https://cdn.example.com/bundle.js"
-    assert manifest["assets"][0]["fileExtension"] == ".png"
-
-    _assert_valid_signature(signature_header, body_bytes, public_pem)
 
 
 def _v2_params(**overrides: str) -> dict[str, str]:

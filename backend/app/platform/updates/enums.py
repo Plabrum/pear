@@ -11,7 +11,7 @@ class UpdatePlatform(Enum):
 
 
 class RolloutStatus(Enum):
-    # Serves this row from `/updates/manifest` — the default state on publish.
+    # Serves this row from `/updates/v2/manifest` — the default state on publish.
     LIVE = "live"
     # Excluded from lookup but not reverted — a manual pause short of a rollback.
     PAUSED = "paused"
