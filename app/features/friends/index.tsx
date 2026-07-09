@@ -7,7 +7,7 @@ import { colors } from '@/constants/theme';
 import { View, Text, Pressable, ScrollView, SafeAreaView } from '@/lib/tw';
 import { FaceAvatar } from '@/components/FaceAvatar';
 import { PlusIcon } from '@/components/icons';
-import { Sprout } from '@/components/Sprout';
+import { Button } from '@/components/Button';
 import ScreenSuspense from '@/components/ScreenSuspense';
 import { InviteWingpersonSheet } from '@/features/wingpeople/InviteWingpersonSheet';
 import {
@@ -61,9 +61,9 @@ function FriendsContent({ onOpenInvite }: { onOpenInvite: () => void }) {
         <Text className="font-serif text-ink" style={{ fontSize: 28, letterSpacing: -0.5 }}>
           Friends
         </Text>
-        <Sprout size="sm" icon={<PlusIcon size={14} color={colors.white} />} onPress={onOpenInvite}>
+        <Button size="sm" icon={<PlusIcon size={14} color={colors.white} />} onPress={onOpenInvite}>
           Invite
-        </Sprout>
+        </Button>
       </View>
       <Text className="px-4 pb-1 text-sm text-ink-dim">
         {wingingFor.length === 0
@@ -88,12 +88,12 @@ function FriendsContent({ onOpenInvite }: { onOpenInvite: () => void }) {
                     <Text className="text-sm font-semibold text-ink">{name} invited you</Text>
                     <Text className="text-xs mt-0.5 text-ink-dim">Wing for them</Text>
                   </View>
-                  <Sprout size="sm" variant="secondary" onPress={() => handleDecline(inv.id)}>
+                  <Button size="sm" variant="secondary" onPress={() => handleDecline(inv.id)}>
                     Decline
-                  </Sprout>
-                  <Sprout size="sm" onPress={() => handleAccept(inv.id)}>
+                  </Button>
+                  <Button size="sm" onPress={() => handleAccept(inv.id)}>
                     Accept
-                  </Sprout>
+                  </Button>
                 </View>
               );
             })}

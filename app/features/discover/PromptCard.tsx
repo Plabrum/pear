@@ -21,7 +21,7 @@ function AnonymousWingMark({ size = 26 }: { size?: number }) {
   );
 }
 
-export function PromptCard({ prompt }: { prompt: DiscoverPrompt }) {
+export function DiscoverPromptCard({ prompt }: { prompt: DiscoverPrompt }) {
   const { width: screenWidth } = useWindowDimensions();
   const cardWidth = screenWidth - 32; // matches the surrounding Card's p-4 (16px) padding
   const pageCount = 1 + prompt.responses.length;

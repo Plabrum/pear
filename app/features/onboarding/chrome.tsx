@@ -1,5 +1,6 @@
 import { Pressable, Text, View } from '@/lib/tw';
 import { cn } from '@/lib/cn';
+import { Pill } from '@/components/Pill';
 
 // ── Shared onboarding chrome ────────────────────────────────────────
 
@@ -95,22 +96,8 @@ export function ChipRow<T extends string>({
       {options.map((opt) => {
         const active = value === opt;
         return (
-          <Pressable
-            key={opt}
-            onPress={() => onChange(opt)}
-            className={cn(
-              'h-[30px] px-3 rounded-full items-center justify-center border',
-              active ? 'bg-primary-soft border-transparent' : 'bg-transparent border-border'
-            )}
-          >
-            <Text
-              className={cn(
-                'text-[12.5px] font-medium',
-                active ? 'text-primary' : 'text-foreground-muted'
-              )}
-            >
-              {opt}
-            </Text>
+          <Pressable key={opt} onPress={() => onChange(opt)}>
+            <Pill label={opt} tone={active ? 'leaf' : 'outline'} size="md" />
           </Pressable>
         );
       })}

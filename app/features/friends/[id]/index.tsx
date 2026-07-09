@@ -22,7 +22,7 @@ import { View, Text, Pressable, ScrollView, SafeAreaView } from '@/lib/tw';
 import { NavHeader } from '@/components/NavHeader';
 import { PhotoRect } from '@/components/PhotoRect';
 import { FaceAvatar } from '@/components/FaceAvatar';
-import { Sprout } from '@/components/Sprout';
+import { Button } from '@/components/Button';
 import { IconSymbol } from '@/components/icon-symbol';
 import ScreenSuspense from '@/components/ScreenSuspense';
 
@@ -90,12 +90,12 @@ function FriendDetailContent() {
 
         <View className="px-5 pb-3 flex-row" style={{ gap: 10 }}>
           <View style={{ flex: 1 }}>
-            <Sprout block size="md" onPress={() => navigation.navigate('FriendScout', { daterId })}>
+            <Button block size="md" onPress={() => navigation.navigate('FriendScout', { daterId })}>
               Scout for {firstName}
-            </Sprout>
+            </Button>
           </View>
           <View style={{ flex: 1 }}>
-            <Sprout
+            <Button
               block
               size="md"
               variant="secondary"
@@ -103,7 +103,7 @@ function FriendDetailContent() {
               loading={uploading}
             >
               Suggest photo
-            </Sprout>
+            </Button>
           </View>
         </View>
 

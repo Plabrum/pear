@@ -1,19 +1,7 @@
 import { View, Text } from '@/lib/tw';
-import { Card } from '@/components/Card';
-import { Sprout } from '@/components/Sprout';
+import { Button } from '@/components/Button';
 import { PearMark } from '@/components/PearMark';
-
-// Shared dashed paper panel for the discover empty states.
-function EmptyCard({ children }: { children: React.ReactNode }) {
-  return (
-    <Card
-      className="flex-1 rounded-[22px] border-dashed items-center justify-center"
-      style={{ padding: 32, gap: 16 }}
-    >
-      {children}
-    </Card>
-  );
-}
+import { EmptyCard } from '@/components/EmptyCard';
 
 export function FilterEmptyState({ onClear }: { onClear: () => void }) {
   return (
@@ -30,9 +18,9 @@ export function FilterEmptyState({ onClear }: { onClear: () => void }) {
       >
         No one in your deck matches every filter you have on right now. Try fewer.
       </Text>
-      <Sprout variant="secondary" onPress={onClear}>
+      <Button variant="secondary" onPress={onClear}>
         Clear filters
-      </Sprout>
+      </Button>
     </EmptyCard>
   );
 }
@@ -73,9 +61,9 @@ export function WingEmptyState({ onInvite }: { onInvite: () => void }) {
         </Text>
       </View>
       <View style={{ width: '100%', maxWidth: 240, gap: 8 }}>
-        <Sprout block onPress={onInvite}>
+        <Button block onPress={onInvite}>
           Invite a wingperson
-        </Sprout>
+        </Button>
       </View>
     </EmptyCard>
   );

@@ -8,7 +8,7 @@ import { View, Text, Pressable, ScrollView, SafeAreaView } from '@/lib/tw';
 import { NavHeader } from '@/components/NavHeader';
 import { PhotoRect } from '@/components/PhotoRect';
 import { Pill } from '@/components/Pill';
-import { Sprout } from '@/components/Sprout';
+import { Button } from '@/components/Button';
 import { Sheet } from '@/components/Sheet';
 import { ForwardSheet } from '@/components/ForwardSheet';
 import { KitField, TextareaControl } from '@/lib/forms/fields';
@@ -95,12 +95,12 @@ function NoteModal({
       subtitle="Let them know why you think they'd get along."
       footer={
         <View style={{ gap: 10 }}>
-          <Sprout block size="lg" onPress={() => handleSend(true)} disabled={!note.trim()}>
+          <Button block size="lg" onPress={() => handleSend(true)} disabled={!note.trim()}>
             Add note & send
-          </Sprout>
-          <Sprout block variant="secondary" onPress={() => handleSend(false)}>
+          </Button>
+          <Button block variant="secondary" onPress={() => handleSend(false)}>
             Skip & send
-          </Sprout>
+          </Button>
         </View>
       }
     >

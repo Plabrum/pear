@@ -3,7 +3,7 @@ import { KeyboardAvoidingView, Modal, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { View, Text, Pressable, TextInput } from '@/lib/tw';
-import { Sprout } from '@/components/Sprout';
+import { Button } from '@/components/Button';
 
 const LINE = 'rgba(31,27,22,0.10)';
 const INK3 = '#8B8170';
@@ -87,14 +87,14 @@ export function NoteModal({
             />
             <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
               <View style={{ flex: 1 }}>
-                <Sprout block variant="secondary" onPress={() => handleSend(false)}>
+                <Button block variant="secondary" onPress={() => handleSend(false)}>
                   Skip & send
-                </Sprout>
+                </Button>
               </View>
               <View style={{ flex: 1 }}>
-                <Sprout block onPress={() => handleSend(true)}>
+                <Button block onPress={() => handleSend(true)}>
                   Add note & send
-                </Sprout>
+                </Button>
               </View>
             </View>
           </View>

@@ -13,7 +13,7 @@ import { shortKey, type ActionDTO } from '@/lib/actions/types';
 import { ScrollView, Text, Pressable, View } from '@/lib/tw';
 import { PhotoRect } from '@/components/PhotoRect';
 import { FaceAvatar } from '@/components/FaceAvatar';
-import { Sprout } from '@/components/Sprout';
+import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { FieldLabel } from '@/components/FieldLabel';
 import { PlusIcon, ArrowUpIcon, XIcon } from '@/components/icons';
@@ -150,19 +150,19 @@ export function PhotosTab({ form, data, onRefresh }: Props) {
                   </Text>
                   <View style={{ flexDirection: 'row', gap: 8 }}>
                     <View style={{ flex: 1 }}>
-                      <Sprout block size="sm" onPress={() => handleApprove(photo.id)}>
+                      <Button block size="sm" onPress={() => handleApprove(photo.id)}>
                         Approve
-                      </Sprout>
+                      </Button>
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Sprout
+                      <Button
                         block
                         size="sm"
                         variant="secondary"
                         onPress={() => handleReject(photo.id)}
                       >
                         Reject
-                      </Sprout>
+                      </Button>
                     </View>
                   </View>
                 </View>

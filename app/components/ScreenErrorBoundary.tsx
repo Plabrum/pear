@@ -1,6 +1,7 @@
 import { Component, type ReactNode } from 'react';
-import { View, Text, Pressable } from '@/lib/tw';
+import { View, Text } from '@/lib/tw';
 import Splash from '@/components/Splash';
+import { Button } from '@/components/Button';
 import { isApiError } from '@/lib/api/errors';
 
 interface Props {
@@ -45,12 +46,9 @@ export default class ScreenErrorBoundary extends Component<Props, State> {
         {body && (
           <Text className="text-foreground-muted text-15 font-sans text-center">{body}</Text>
         )}
-        <Pressable
-          onPress={this.handleRetry}
-          className="mt-2 px-6 py-3 bg-primary rounded-13 active:opacity-80"
-        >
-          <Text className="text-white text-15 font-sans font-semibold">Try again</Text>
-        </Pressable>
+        <View className="mt-2">
+          <Button onPress={this.handleRetry}>Try again</Button>
+        </View>
       </View>
     );
   }

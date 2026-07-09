@@ -10,6 +10,7 @@ import { View, Text, ScrollView, SafeAreaView, Pressable } from '@/lib/tw';
 import { FaceAvatar } from '@/components/FaceAvatar';
 import { colors } from '@/constants/theme';
 import ScreenSuspense from '@/components/ScreenSuspense';
+import { LargeNavHeader } from '@/components/LargeNavHeader';
 
 // ── Ripeness helpers ──────────────────────────────────────────────────────────
 
@@ -229,24 +230,7 @@ function EditProfileHub() {
   if (!datingProfile) {
     return (
       <SafeAreaView className="flex-1 bg-background" edges={['top', 'bottom']}>
-        <View
-          className="flex-row items-center"
-          style={{ paddingHorizontal: 12, paddingTop: 8, paddingBottom: 8, gap: 4 }}
-        >
-          <Pressable
-            onPress={() => navigation.goBack()}
-            hitSlop={12}
-            style={{ padding: 8, marginLeft: -4 }}
-          >
-            <Ionicons name="chevron-back" size={22} color={colors.ink} />
-          </Pressable>
-          <Text
-            className="font-serif text-fg"
-            style={{ fontSize: 26, letterSpacing: -0.4, flex: 1 }}
-          >
-            Edit profile
-          </Text>
-        </View>
+        <LargeNavHeader back onBack={() => navigation.goBack()} title="Edit profile" />
       </SafeAreaView>
     );
   }
@@ -302,21 +286,7 @@ function EditProfileHub() {
 
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top', 'bottom']}>
-      <View
-        className="flex-row items-center"
-        style={{ paddingHorizontal: 12, paddingTop: 8, paddingBottom: 8, gap: 4 }}
-      >
-        <Pressable
-          onPress={() => navigation.goBack()}
-          hitSlop={12}
-          style={{ padding: 8, marginLeft: -4 }}
-        >
-          <Ionicons name="chevron-back" size={22} color={colors.ink} />
-        </Pressable>
-        <Text className="font-serif text-fg" style={{ fontSize: 26, letterSpacing: -0.4, flex: 1 }}>
-          Edit profile
-        </Text>
-      </View>
+      <LargeNavHeader back onBack={() => navigation.goBack()} title="Edit profile" />
 
       <ScrollView
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 48 }}

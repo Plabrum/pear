@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from '@/lib/tw';
 import { cn } from '@/lib/cn';
-import { Sprout } from '@/components/Sprout';
+import { Button } from '@/components/Button';
 import { Sheet } from '@/components/Sheet';
 import { colors } from '@/constants/theme';
 import { useGetApiPromptTemplatesOnboardingSuspense } from '@/lib/api/generated/prompts/prompts';
@@ -148,7 +148,7 @@ export function PromptsStep({ onContinue }: { onContinue: () => void }) {
             />
             <View className="flex-row mt-4" style={{ gap: 8 }}>
               <View className="flex-1">
-                <Sprout
+                <Button
                   block
                   size="md"
                   variant="secondary"
@@ -158,10 +158,10 @@ export function PromptsStep({ onContinue }: { onContinue: () => void }) {
                   }}
                 >
                   Back
-                </Sprout>
+                </Button>
               </View>
               <View className="flex-1">
-                <Sprout
+                <Button
                   block
                   size="md"
                   onPress={saveAnswer}
@@ -169,7 +169,7 @@ export function PromptsStep({ onContinue }: { onContinue: () => void }) {
                   loading={submitting}
                 >
                   Save
-                </Sprout>
+                </Button>
               </View>
             </View>
           </View>
@@ -193,9 +193,9 @@ export function PromptsStep({ onContinue }: { onContinue: () => void }) {
         )}
       </Sheet>
 
-      <Sprout block size="md" onPress={onContinue} disabled={!canContinue}>
+      <Button block size="md" onPress={onContinue} disabled={!canContinue}>
         Continue
-      </Sprout>
+      </Button>
     </View>
   );
 }

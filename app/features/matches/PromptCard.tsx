@@ -3,14 +3,14 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import { View, Text, Pressable } from '@/lib/tw';
 import { colors } from '@/constants/theme';
 
-type PromptCardProps = {
+type ReplyPromptCardProps = {
   question: string | null;
   answer: string;
   sent: boolean;
   onOpen: () => void;
 };
 
-export function PromptCard({ question, answer, sent, onOpen }: PromptCardProps) {
+export function ReplyPromptCard({ question, answer, sent, onOpen }: ReplyPromptCardProps) {
   return (
     <View
       style={{

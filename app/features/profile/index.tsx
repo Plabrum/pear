@@ -15,7 +15,7 @@ import { useGetApiWingpeopleSuspense } from '@/lib/api/generated/contacts/contac
 import { View, Text, Pressable, SafeAreaView } from '@/lib/tw';
 import { TextTabBar } from '@/components/TextTabBar';
 import { WingStack } from '@/components/WingStack';
-import { Sprout } from '@/components/Sprout';
+import { Button } from '@/components/Button';
 import { AvatarPicker } from '@/components/AvatarPicker';
 import { SettingsIcon } from '@/components/icons';
 import ScreenSuspense from '@/components/ScreenSuspense';
@@ -95,9 +95,9 @@ function WingerView({
       </Text>
 
       <View style={{ marginTop: 16, width: '100%' }}>
-        <Sprout block variant="secondary" onPress={() => navigation.navigate('WingpeopleList')}>
+        <Button block variant="secondary" onPress={() => navigation.navigate('WingpeopleList')}>
           Wingpeople & Invitations
-        </Sprout>
+        </Button>
       </View>
     </View>
   );

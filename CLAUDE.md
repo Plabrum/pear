@@ -325,21 +325,23 @@ Key enums: `role`: `dater|winger` · `dating_status`: `open|break|winging` · `w
 
 ---
 
-## Shared UI Components (`components/ui/`)
+## Shared UI Components (`components/`)
 
 | Component                                | Key props                                   |
 | ---------------------------------------- | ------------------------------------------- |
-| `Pill`                                   | `label`                                     |
+| `Pill`                                   | `label?`, `children?`, `tone?`, `size?`     |
 | `WingStack`                              | `initials: string[]`, `size?`               |
 | `PhotoRect`                              | `uri`, `ratio?`, `blur?`                    |
 | `FaceAvatar`                             | `initials`, `bg`, `size?`                   |
 | `LargeHeader`                            | `title`, `right?`                           |
 | `NavHeader`                              | `back`, `onBack`, `title`, `sub?`, `right?` |
+| `LargeNavHeader`                         | `back`, `onBack`, `title`, `right?` — large-serif chrome for full-screen sub-pages (settings, wingpeople, profile edit, contribute) |
+| `EmptyCard`                              | `children` — dashed-border empty-state panel |
 | `TextTabBar`                             | `tabs`, `active`, `setActive`               |
 | `DateInput`                              | platform-split date picker                  |
 | `ScreenSuspense` / `ScreenErrorBoundary` | screen wrappers                             |
 
-**Button** lives in `lib/forms/` — `import { Button } from '@/lib/forms'`. Variants: `default`, `outline`, `ghost`, `destructive`. Never hardcode a filled CTA manually.
+**Button** lives in `components/Button.tsx` — `import { Button } from '@/components/Button'`. Variants: `primary`, `secondary`, `accent`, `ghost`, `danger`. Sizes: `sm`, `md`, `lg`. Props: `block`, `icon`, `disabled`, `loading`. Never hardcode a filled CTA manually.
 
 ---
 
@@ -351,6 +353,7 @@ Key enums: `role`: `dater|winger` · `dating_status`: `open|break|winging` · `w
 - Never use function-style `style` on `Pressable` (NativeWind bug #1105 — children don't render). Use `active:` pseudo-class.
 - `cn()` from `@/lib/cn` for conditional classes.
 - Design tokens in `global.css` under `@theme` — never add raw hex to `constants/theme.ts`.
+- Never hard-code raw hex/`rgba(...)` literals in component files either — always go through a `className` color utility or `colors.*` from `@/constants/theme`. If a needed color doesn't have a token yet, add it to `theme.ts`/`global.css` rather than inlining it.
 
 **Modal color caveat:** CSS variables aren't injected in Modal's native layer. Use `ModalView` from `@/lib/tw` with a `backgroundColor` style prop (not className) for colors inside Modals.
 
@@ -385,6 +388,7 @@ Key enums: `role`: `dater|winger` · `dating_status`: `open|break|winging` · `w
 - **Forms:** react-hook-form everywhere — `Controller`, `handleSubmit`, `isSubmitting`, `isValid`, `mode: 'onChange'`.
 - **Queries:** Transforms belong in the query function. Unwrapping boilerplate belongs in the query wrapper, not callsites. No magic string cache keys.
 - `async/await` over `.then()`.
+- **Reuse the shared kit:** don't hand-roll a back-chevron header, tag pill, or filled CTA button — use `NavHeader`/`LargeNavHeader`, `Pill`, or `Button` from `components/` before writing new `Pressable`/`TouchableOpacity` markup.
 
 ---
 
@@ -443,7 +447,7 @@ for review. Land the `.tf` changes in a PR and let the pipeline apply them.
 
 - `react-native-image-crop-picker` — select from camera roll (`lib/photos.ts`'s `pickAndResizePhoto`)
 - `@bam.tech/react-native-image-resizer` — resize to max 1200px width, JPEG compress
-- RN core `<Image>` + hand-rolled `components/ui/CrossfadeImage.tsx` — display, with the
+- RN core `<Image>` + hand-rolled `components/CrossfadeImage.tsx` — display, with the
   expo-image `transition` crossfade reimplemented as two stacked `Image`s + `Animated.timing`
 
 ---

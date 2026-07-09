@@ -4,7 +4,7 @@ import { toast } from 'sonner-native';
 import { View, Text } from '@/lib/tw';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PearMark } from '@/components/PearMark';
-import { Sprout } from '@/components/Sprout';
+import { Button } from '@/components/Button';
 import { IconSymbol } from '@/components/icon-symbol';
 import { EmailSheet } from '@/features/auth/EmailSheet';
 import { useAuthActions } from '@/context/auth';
@@ -120,15 +120,15 @@ export default function LoginScreen() {
       </View>
 
       <View className="px-7" style={{ gap: 10 }}>
-        <Sprout
+        <Button
           block
           size="lg"
           icon={<IconSymbol name="applelogo" size={18} color={colors.white} />}
           onPress={handleAppleSignIn}
         >
           Continue with Apple
-        </Sprout>
-        <Sprout
+        </Button>
+        <Button
           block
           size="lg"
           variant="secondary"
@@ -136,7 +136,7 @@ export default function LoginScreen() {
           onPress={() => setEmailOpen(true)}
         >
           Email
-        </Sprout>
+        </Button>
         <Text
           className="text-foreground-subtle text-center mt-2"
           style={{ fontSize: 11, lineHeight: 17 }}

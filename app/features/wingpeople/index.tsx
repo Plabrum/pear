@@ -5,7 +5,7 @@ import { useNavigation } from '@react-navigation/native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
 import { FaceAvatar } from '@/components/FaceAvatar';
-import { Sprout } from '@/components/Sprout';
+import { Button } from '@/components/Button';
 import { View, Text, ScrollView, SafeAreaView, Pressable } from '@/lib/tw';
 import { useGetApiWingpeopleSuspense } from '@/lib/api/generated/contacts/contacts';
 import { useActionExecutor } from '@/hooks/actions/use-action-executor';
@@ -14,6 +14,7 @@ import { InviteWingpersonSheet } from '@/features/wingpeople/InviteWingpersonShe
 import { WingerActivityFeed } from '@/features/wingpeople/WingerActivityFeed';
 import { SectionLabel } from '@/components/SectionLabel';
 import { TextTabBar } from '@/components/TextTabBar';
+import { LargeNavHeader } from '@/components/LargeNavHeader';
 import { colors } from '@/constants/theme';
 
 // Preserve this screen's slightly tighter section heading spacing.
@@ -151,9 +152,9 @@ function WingpeopleContent() {
                       Invite pending
                     </Text>
                   </View>
-                  <Sprout size="sm" variant="secondary" onPress={() => handleCancelInvite(inv)}>
+                  <Button size="sm" variant="secondary" onPress={() => handleCancelInvite(inv)}>
                     Cancel
-                  </Sprout>
+                  </Button>
                 </View>
               );
             })}
@@ -194,12 +195,12 @@ function WingpeopleContent() {
                       {"'"}s feed.
                     </Text>
                   </View>
-                  <Sprout size="sm" variant="secondary" onPress={() => handleDecline(inv)}>
+                  <Button size="sm" variant="secondary" onPress={() => handleDecline(inv)}>
                     Decline
-                  </Sprout>
-                  <Sprout size="sm" onPress={() => handleAccept(inv)}>
+                  </Button>
+                  <Button size="sm" onPress={() => handleAccept(inv)}>
                     Accept
-                  </Sprout>
+                  </Button>
                 </View>
               );
             })}
@@ -247,7 +248,7 @@ function WingpeopleContent() {
                   </View>
                   <View style={{ flexDirection: 'row', gap: 8 }}>
                     <View style={{ flex: 1 }}>
-                      <Sprout
+                      <Button
                         block
                         size="sm"
                         variant="secondary"
@@ -256,10 +257,10 @@ function WingpeopleContent() {
                         }
                       >
                         Add to profile
-                      </Sprout>
+                      </Button>
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Sprout
+                      <Button
                         block
                         size="sm"
                         icon={<Ionicons name="heart" size={14} color={colors.white} />}
@@ -268,7 +269,7 @@ function WingpeopleContent() {
                         }
                       >
                         Swipe for {firstName}
-                      </Sprout>
+                      </Button>
                     </View>
                   </View>
                 </View>
@@ -290,33 +291,22 @@ export default function WingpeopleScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-canvas" edges={['top']}>
-      <View
-        className="flex-row items-center"
-        style={{ paddingHorizontal: 12, paddingTop: 8, paddingBottom: 8, gap: 4 }}
-      >
-        <Pressable
-          onPress={() => navigation.goBack()}
-          hitSlop={12}
-          style={{ padding: 8, marginLeft: -4 }}
-        >
-          <Ionicons name="chevron-back" size={22} color={colors.ink} />
-        </Pressable>
-        <Text
-          className="font-serif text-ink"
-          style={{ fontSize: 26, letterSpacing: -0.4, flex: 1 }}
-        >
-          Wingpeople
-        </Text>
-        {tab === 0 && (
-          <Sprout
-            size="sm"
-            icon={<Ionicons name="add" size={14} color={colors.white} />}
-            onPress={() => setInviteVisible(true)}
-          >
-            Invite
-          </Sprout>
-        )}
-      </View>
+      <LargeNavHeader
+        back
+        onBack={() => navigation.goBack()}
+        title="Wingpeople"
+        right={
+          tab === 0 && (
+            <Button
+              size="sm"
+              icon={<Ionicons name="add" size={14} color={colors.white} />}
+              onPress={() => setInviteVisible(true)}
+            >
+              Invite
+            </Button>
+          )
+        }
+      />
 
       <TextTabBar tabs={['Wingpeople', 'Winging Activity']} active={tab} setActive={setTab} />
 

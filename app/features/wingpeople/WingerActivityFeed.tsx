@@ -5,8 +5,8 @@ import { View, Text, ScrollView } from '@/lib/tw';
 import { TextTabBar } from '@/components/TextTabBar';
 import { FaceAvatar } from '@/components/FaceAvatar';
 import { Card } from '@/components/Card';
+import { Pill } from '@/components/Pill';
 import ScreenSuspense from '@/components/ScreenSuspense';
-import { cn } from '@/lib/cn';
 import { relativeTime } from '@/lib/time';
 import { useGetApiDecisionsMySuggestionsSuspense } from '@/lib/api/generated/decisions/decisions';
 import { useGetApiPhotosSuggestedSuspense } from '@/lib/api/generated/photos/photos';
@@ -21,20 +21,8 @@ type PillVariant = 'positive' | 'neutral' | 'muted';
 
 export function StatusPill({ label, variant }: { label: string; variant: PillVariant }) {
   return (
-    <View
-      className={cn(
-        'self-start rounded-full px-2.5 py-0.5 mt-2',
-        variant === 'positive' ? 'bg-primary-soft' : 'bg-surface-muted'
-      )}
-    >
-      <Text
-        className={cn(
-          'text-xs font-medium',
-          variant === 'positive' ? 'text-primary' : 'text-fg-muted'
-        )}
-      >
-        {label}
-      </Text>
+    <View className="mt-2">
+      <Pill label={label} tone={variant === 'positive' ? 'leaf' : 'cream'} size="sm" />
     </View>
   );
 }

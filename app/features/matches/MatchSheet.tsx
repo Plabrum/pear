@@ -8,7 +8,7 @@ import { CrossfadeImage } from '@/components/CrossfadeImage';
 import type { MatchSummary } from '@/lib/api/generated/model';
 import { GradientBlock } from '@/components/GradientBlock';
 import { Pill } from '@/components/Pill';
-import { Sprout } from '@/components/Sprout';
+import { Button } from '@/components/Button';
 import { colors } from '@/constants/theme';
 import { matchedAgo } from '@/lib/time';
 import { SheetBody } from './SheetBody';
@@ -34,7 +34,7 @@ export function MatchSheet({ match, visible, onClose }: MatchSheetProps) {
       onClose={onClose}
       size="full"
       footer={
-        <Sprout
+        <Button
           block
           size="lg"
           onPress={() => {
@@ -50,7 +50,7 @@ export function MatchSheet({ match, visible, onClose }: MatchSheetProps) {
           }}
         >
           {match.hasMessages ? 'Open conversation' : 'Start conversation'}
-        </Sprout>
+        </Button>
       }
     >
       {/* Header: name + age + subtitle */}

@@ -5,7 +5,7 @@ import type { DatingStatus } from '@/lib/api/generated/model';
 import { resumeDating } from '@/lib/api/actions';
 import { toastError } from '@/lib/api/error-toast';
 import { LargeHeader } from '@/components/LargeHeader';
-import { Sprout } from '@/components/Sprout';
+import { Button } from '@/components/Button';
 
 export function DiscoverPausedScreen({
   status: _status,
@@ -43,9 +43,9 @@ export function DiscoverPausedScreen({
         <Text className="text-sm text-foreground-muted text-center leading-[22px]">
           Your profile is hidden while you{"'"}re on a break. Take all the time you need.
         </Text>
-        <Sprout onPress={handleSubmit(resume)} loading={isSubmitting}>
+        <Button onPress={handleSubmit(resume)} loading={isSubmitting}>
           Resume Discover
-        </Sprout>
+        </Button>
       </View>
     </SafeAreaView>
   );

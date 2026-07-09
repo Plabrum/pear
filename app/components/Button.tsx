@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { ActivityIndicator } from 'react-native';
 import { Pressable, Text, View } from '@/lib/tw';
 import { cn } from '@/lib/cn';
+import { colors } from '@/constants/theme';
 
 type Variant = 'primary' | 'secondary' | 'accent' | 'ghost' | 'danger';
 type Size = 'sm' | 'md' | 'lg';
@@ -46,14 +47,14 @@ const VARIANT_FG: Record<Variant, string> = {
 };
 
 const SPINNER_COLOR: Record<Variant, string> = {
-  primary: '#FBF8F1',
-  secondary: '#1F1B16',
-  accent: '#1F1B16',
-  ghost: '#1F1B16',
-  danger: '#C77878',
+  primary: colors.white,
+  secondary: colors.ink,
+  accent: colors.ink,
+  ghost: colors.ink,
+  danger: colors.dangerSoft,
 };
 
-export function Sprout({
+export function Button({
   children,
   onPress,
   variant = 'primary',

@@ -4,7 +4,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { OwnDatingProfile } from '@/lib/api/generated/model';
 
 import { Pill } from '@/components/Pill';
-import { Sprout } from '@/components/Sprout';
+import { Button } from '@/components/Button';
 import { FieldLabel } from '@/components/FieldLabel';
 
 interface Props {
@@ -90,9 +90,9 @@ export function AboutMeTab({ data }: Props) {
       ) : null}
 
       <View style={{ marginTop: 8 }}>
-        <Sprout block variant="secondary" onPress={() => navigation.navigate('ProfileEdit')}>
+        <Button block variant="secondary" onPress={() => navigation.navigate('ProfileEdit')}>
           Edit Profile
-        </Sprout>
+        </Button>
       </View>
     </ScrollView>
   );

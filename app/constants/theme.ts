@@ -21,6 +21,8 @@ export const colors = {
 
   // Pass — swipe-decline red
   passRed: '#CC4444',
+  // Danger — softer red for destructive-button chrome (spinner/text), distinct from passRed
+  dangerSoft: '#C77878',
 
   // Foreground
   ink: '#1F1B16',

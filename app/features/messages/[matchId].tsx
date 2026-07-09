@@ -259,7 +259,7 @@ function ChatBody({ matchId, userId, otherUserId, otherName }: ChatBodyProps) {
             )}
           />
         </View>
-        {/* Sprout-styled circular send: matches prototype's ScreenChat composer */}
+        {/* Button-styled circular send: matches prototype's ScreenChat composer */}
         <Pressable
           onPress={onSubmit}
           disabled={!canSend}

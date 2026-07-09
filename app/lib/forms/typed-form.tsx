@@ -36,7 +36,7 @@ import { type KeyboardTypeOptions } from 'react-native';
 
 import { View } from '@/lib/tw';
 import { toastError } from '@/lib/api/error-toast';
-import { Sprout } from '@/components/Sprout';
+import { Button } from '@/components/Button';
 import { Sheet } from '@/components/Sheet';
 import { Dialog } from '@/components/Dialog';
 import { FullSheet } from '@/components/FullSheet';
@@ -308,7 +308,7 @@ export function createTypedForm<TData extends FieldValues>() {
   }) {
     const { submit, isSubmitting } = useSubmit();
     return (
-      <Sprout
+      <Button
         block={block}
         size={size}
         onPress={submit}
@@ -316,7 +316,7 @@ export function createTypedForm<TData extends FieldValues>() {
         loading={isSubmitting}
       >
         {label}
-      </Sprout>
+      </Button>
     );
   }
 

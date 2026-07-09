@@ -13,7 +13,7 @@ import { toastError } from '@/lib/api/error-toast';
 
 import { FaceAvatar } from '@/components/FaceAvatar';
 import { ScrollView, Text, View, Pressable } from '@/lib/tw';
-import { Sprout } from '@/components/Sprout';
+import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { FieldLabel } from '@/components/FieldLabel';
 import { PagedCarousel } from '@/components/PagedCarousel';
@@ -254,19 +254,19 @@ export function PromptsTab({ form, onRefresh }: Props) {
                             {r.message}
                           </Text>
                           <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-                            <Sprout
+                            <Button
                               size="sm"
                               onPress={() => handleApproveResponse(prompt.id, r.id)}
                             >
                               Approve
-                            </Sprout>
-                            <Sprout
+                            </Button>
+                            <Button
                               size="sm"
                               variant="secondary"
                               onPress={() => handleRejectResponse(prompt.id, r.id)}
                             >
                               Reject
-                            </Sprout>
+                            </Button>
                           </View>
                         </View>
                       </View>

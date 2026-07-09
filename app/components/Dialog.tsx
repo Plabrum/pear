@@ -10,17 +10,17 @@ import * as DialogPrimitive from '@rn-primitives/dialog';
 import Animated, { FadeIn, FadeOut, ZoomIn } from 'react-native-reanimated';
 
 import { View, Text, Pressable } from '@/lib/tw';
-import { Sprout } from '@/components/Sprout';
+import { Button } from '@/components/Button';
 
 const SCRIM = 'rgba(31,27,22,0.5)';
 /** Design danger ink — transparent red used by destructive dialogs/icons. */
 export const DIALOG_DANGER = '#A33';
 
-type SproutVariant = 'primary' | 'secondary' | 'accent' | 'ghost' | 'danger';
+type ButtonVariant = 'primary' | 'secondary' | 'accent' | 'ghost' | 'danger';
 
 type DialogAction = {
   label: string;
-  variant?: SproutVariant;
+  variant?: ButtonVariant;
   onClick: () => void;
   loading?: boolean;
   disabled?: boolean;
@@ -133,7 +133,7 @@ export function Dialog({
                     {actions.length > 0 ? (
                       <View className="mt-5" style={{ gap: 8 }}>
                         {actions.map((a, i) => {
-                          const variant: SproutVariant =
+                          const variant: ButtonVariant =
                             a.variant ??
                             (tone === 'danger' && i === 0
                               ? 'danger'
@@ -141,7 +141,7 @@ export function Dialog({
                                 ? 'primary'
                                 : 'secondary');
                           return (
-                            <Sprout
+                            <Button
                               key={a.label}
                               block
                               variant={variant}
@@ -150,7 +150,7 @@ export function Dialog({
                               disabled={a.disabled}
                             >
                               {a.label}
-                            </Sprout>
+                            </Button>
                           );
                         })}
                       </View>

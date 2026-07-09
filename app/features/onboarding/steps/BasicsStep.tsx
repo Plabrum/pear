@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Pressable, ScrollView, Text, TextInput, View } from '@/lib/tw';
+import { Pressable, ScrollView, TextInput, View } from '@/lib/tw';
 import { cn } from '@/lib/cn';
 import DateInput from '@/components/DateInput';
+import { Pill } from '@/components/Pill';
 import { createTypedForm } from '@/lib/forms/typed-form';
 import { GENDERS } from '@/constants/enums';
 import { colors } from '@/constants/theme';
@@ -41,19 +42,8 @@ function MultiChipRow({
           <Pressable
             key={opt}
             onPress={() => onChange(active ? value.filter((v) => v !== opt) : [...value, opt])}
-            className={cn(
-              'h-[30px] px-3 rounded-full items-center justify-center border',
-              active ? 'bg-primary-soft border-transparent' : 'bg-transparent border-border'
-            )}
           >
-            <Text
-              className={cn(
-                'text-[12.5px] font-medium',
-                active ? 'text-primary' : 'text-foreground-muted'
-              )}
-            >
-              {opt}
-            </Text>
+            <Pill label={opt} tone={active ? 'leaf' : 'outline'} size="md" />
           </Pressable>
         );
       })}

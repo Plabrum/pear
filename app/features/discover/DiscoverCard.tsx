@@ -25,7 +25,7 @@ import { cardButtonShadow } from '@/lib/styles';
 import { SWIPE_THRESHOLD, SCREEN_WIDTH } from './constants';
 import { PassStamp, LikeStamp } from './Stamps';
 import { WingPickSection } from './WingPickSection';
-import { PromptCard } from './PromptCard';
+import { DiscoverPromptCard } from './PromptCard';
 
 // Report is an object action on the swiped DatingProfile; the form (registry)
 // collects the reason, the deck hook records it against `card.profileId`.
@@ -61,7 +61,7 @@ export function DiscoverCard({
     (direction: 'like' | 'pass') => {
       // reanimated shared values are mutated through `.value` by design; the
       // React Compiler immutability rule can't model this and false-positives.
-      // eslint-disable-next-line react-hooks/immutability
+
       swipeX.value = withTiming(0, { duration: 0 });
       if (direction === 'like') onLike();
       else onPass();
@@ -73,13 +73,13 @@ export function DiscoverCard({
     .activeOffsetX([-10, 10])
     .onUpdate((e) => {
       // reanimated shared value mutation — intended API (see note above).
-      // eslint-disable-next-line react-hooks/immutability
+
       swipeX.value = e.translationX;
     })
     .onEnd((e) => {
       if (e.translationX > SWIPE_THRESHOLD) {
         // reanimated shared value mutation — intended API (see note above).
-        // eslint-disable-next-line react-hooks/immutability
+
         swipeX.value = withTiming(SCREEN_WIDTH, { duration: 180 }, () => {
           runOnJS(finishSwipe)('like');
         });
@@ -328,7 +328,7 @@ export function DiscoverCard({
                 <WingPickSection suggestions={card.suggestions} chosenName={card.chosenName} />
               )}
               {card.prompts.map((prompt, i) => (
-                <PromptCard key={i} prompt={prompt} />
+                <DiscoverPromptCard key={i} prompt={prompt} />
               ))}
               {card.bio != null && (
                 <Text className="text-ink-mid" style={{ fontSize: 14, lineHeight: 20 }}>

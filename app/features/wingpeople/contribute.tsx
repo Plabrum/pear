@@ -19,7 +19,8 @@ import { useUploadProfilePhoto } from '@/hooks/use-upload-profile-photo';
 
 import { View, Text, Pressable, ScrollView, SafeAreaView } from '@/lib/tw';
 import { PhotoRect } from '@/components/PhotoRect';
-import { Sprout } from '@/components/Sprout';
+import { Button } from '@/components/Button';
+import { LargeNavHeader } from '@/components/LargeNavHeader';
 import { Sheet } from '@/components/Sheet';
 import { KitField, TextareaControl } from '@/lib/forms/fields';
 import { SectionLabel } from '@/components/SectionLabel';
@@ -65,9 +66,9 @@ function ResponseModal({
       title="Add a comment"
       subtitle={promptQuestion}
       footer={
-        <Sprout block size="lg" onPress={handleSubmit} disabled={!message.trim()}>
+        <Button block size="lg" onPress={handleSubmit} disabled={!message.trim()}>
           Send comment
-        </Sprout>
+        </Button>
       }
     >
       <KitField label="Comment">
@@ -143,33 +144,7 @@ function ContributeContent() {
 
   return (
     <>
-      <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: 10,
-          paddingHorizontal: 12,
-          paddingTop: 8,
-          paddingBottom: 10,
-          borderBottomWidth: 1,
-          borderBottomColor: colors.divider,
-        }}
-      >
-        <Pressable
-          onPress={() => navigation.goBack()}
-          hitSlop={12}
-          style={{ padding: 8, marginLeft: -4 }}
-        >
-          <Ionicons name="chevron-back" size={22} color={colors.ink} />
-        </Pressable>
-        <Text
-          className="font-serif text-ink"
-          style={{ fontSize: 22, letterSpacing: -0.3, flex: 1 }}
-        >
-          {firstName}
-          {"'"}s profile
-        </Text>
-      </View>
+      <LargeNavHeader back onBack={() => navigation.goBack()} title={`${firstName}'s profile`} />
 
       <ScrollView
         showsVerticalScrollIndicator={false}

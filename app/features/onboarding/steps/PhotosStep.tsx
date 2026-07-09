@@ -3,7 +3,7 @@ import { Image } from 'react-native';
 import PulseSpinner from '@/components/PulseSpinner';
 import { Pressable, ScrollView, Text, View } from '@/lib/tw';
 import { cn } from '@/lib/cn';
-import { Sprout } from '@/components/Sprout';
+import { Button } from '@/components/Button';
 import { PearMark } from '@/components/PearMark';
 import { XIcon } from '@/components/icons';
 import { colors } from '@/constants/theme';
@@ -95,9 +95,9 @@ export function PhotosStep({ dpId, onContinue }: { dpId: string | null; onContin
           </Text>
         </View>
       </ScrollView>
-      <Sprout block size="md" onPress={onContinue} disabled={!canContinue}>
+      <Button block size="md" onPress={onContinue} disabled={!canContinue}>
         Continue
-      </Sprout>
+      </Button>
     </View>
   );
 }

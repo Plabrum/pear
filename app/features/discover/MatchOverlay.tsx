@@ -4,7 +4,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import { View, Text, Pressable } from '@/lib/tw';
 import { colors } from '@/constants/theme';
 import type { SwipeProfile } from '@/lib/api/generated/model';
-import { Sprout } from '@/components/Sprout';
+import { Button } from '@/components/Button';
 
 export function MatchOverlay({
   card,
@@ -133,12 +133,12 @@ export function MatchOverlay({
       </Text>
 
       <View style={{ width: '100%', maxWidth: 320, gap: 10 }}>
-        <Sprout block size="lg" onPress={onMessage}>
+        <Button block size="lg" onPress={onMessage}>
           Send a message
-        </Sprout>
-        <Sprout block size="lg" variant="secondary" onPress={onClose}>
+        </Button>
+        <Button block size="lg" variant="secondary" onPress={onClose}>
           Keep swiping
-        </Sprout>
+        </Button>
       </View>
     </View>
   );

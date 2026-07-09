@@ -7,7 +7,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { View } from '@/lib/tw';
-import { Sprout } from '@/components/Sprout';
+import { Button } from '@/components/Button';
 import { Sheet } from '@/components/Sheet';
 import { KitField, PhoneControl } from '@/lib/forms/fields';
 import { colors } from '@/constants/theme';
@@ -121,7 +121,7 @@ export function InviteWingpersonSheet({ visible, onClose, variant = 'dater' }: P
         }
         footer={
           <View style={{ gap: 10 }}>
-            <Sprout
+            <Button
               block
               size="lg"
               onPress={onSendInvite}
@@ -129,15 +129,15 @@ export function InviteWingpersonSheet({ visible, onClose, variant = 'dater' }: P
               disabled={!isValid || isSubmitting}
             >
               Send invite
-            </Sprout>
-            <Sprout
+            </Button>
+            <Button
               block
               variant="secondary"
               onPress={openContactsPicker}
               icon={<Ionicons name="people-outline" size={18} color={colors.ink} />}
             >
               Invite from contacts
-            </Sprout>
+            </Button>
           </View>
         }
       >

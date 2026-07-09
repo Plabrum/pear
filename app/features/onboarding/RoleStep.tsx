@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Pressable, SafeAreaView, Text, View } from '@/lib/tw';
 import { cn } from '@/lib/cn';
-import { Sprout } from '@/components/Sprout';
+import { Button } from '@/components/Button';
 import { PearMark } from '@/components/PearMark';
 import type { UserRole } from '@/lib/api/generated/model';
 
@@ -152,9 +152,9 @@ export default function RoleStep({ onNext }: Props) {
           </View>
         </View>
 
-        <Sprout block size="md" disabled={!selected} onPress={() => selected && onNext(selected)}>
+        <Button block size="md" disabled={!selected} onPress={() => selected && onNext(selected)}>
           Continue
-        </Sprout>
+        </Button>
       </View>
     </SafeAreaView>
   );

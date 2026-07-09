@@ -19,6 +19,7 @@ import { View, Text, ScrollView, Pressable, SafeAreaView } from '@/lib/tw';
 import { Sheet } from '@/components/Sheet';
 import ScreenSuspense from '@/components/ScreenSuspense';
 import { SectionLabel } from '@/components/SectionLabel';
+import { LargeNavHeader } from '@/components/LargeNavHeader';
 import { colors } from '@/constants/theme';
 
 const INK = colors.ink;
@@ -173,21 +174,7 @@ function SettingsScreenInner() {
 
   return (
     <SafeAreaView className="flex-1 bg-canvas" edges={['top']}>
-      <View
-        className="flex-row items-center"
-        style={{ paddingHorizontal: 12, paddingTop: 8, paddingBottom: 8, gap: 4 }}
-      >
-        <Pressable
-          onPress={() => navigation.goBack()}
-          hitSlop={12}
-          style={{ padding: 8, marginLeft: -4 }}
-        >
-          <Ionicons name="chevron-back" size={22} color={INK} />
-        </Pressable>
-        <Text className="font-serif text-ink" style={{ fontSize: 26, letterSpacing: -0.4 }}>
-          Settings
-        </Text>
-      </View>
+      <LargeNavHeader back onBack={() => navigation.goBack()} title="Settings" />
 
       <ScrollView
         showsVerticalScrollIndicator={false}

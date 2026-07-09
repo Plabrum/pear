@@ -5,7 +5,7 @@
 import { useState } from 'react';
 
 import { Text } from '@/lib/tw';
-import { Sprout } from '@/components/Sprout';
+import { Button } from '@/components/Button';
 import { Sheet } from '@/components/Sheet';
 import { useAuthActions } from '@/context/auth';
 import { createTypedForm, EMAIL_PATTERN } from '@/lib/forms/typed-form';
@@ -56,9 +56,9 @@ export function EmailSheet({ visible, onClose }: { visible: boolean; onClose: ()
             : undefined
         }
         footer={
-          <Sprout block size="lg" variant="secondary" onPress={() => setSentTo(null)}>
+          <Button block size="lg" variant="secondary" onPress={() => setSentTo(null)}>
             Use a different email
-          </Sprout>
+          </Button>
         }
       >
         <Text style={{ fontSize: 13, color: colors.inkDim, lineHeight: 19 }}>

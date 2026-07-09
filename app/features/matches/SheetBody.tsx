@@ -11,7 +11,7 @@ import { useActionExecutor } from '@/hooks/actions/use-action-executor';
 import { useActionFormRenderer } from '@/hooks/actions/use-action-form-renderer';
 import type { ActionDTO } from '@/lib/actions/types';
 import { FaceAvatar } from '@/components/FaceAvatar';
-import { PromptCard } from './PromptCard';
+import { ReplyPromptCard } from './PromptCard';
 
 // The matched person's reply to a prompt — a top-level create on prompt_response_actions.
 const ADD_RESPONSE: ActionDTO = {
@@ -73,7 +73,7 @@ export function SheetBody({ match }: { match: MatchSummary }) {
       )}
 
       {prompts.map((prompt) => (
-        <PromptCard
+        <ReplyPromptCard
           key={prompt.id}
           question={prompt.template?.question ?? null}
           answer={prompt.answer}

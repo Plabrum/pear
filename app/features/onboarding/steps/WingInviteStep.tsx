@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Share } from 'react-native';
 import { ScrollView, Text, View } from '@/lib/tw';
-import { Sprout } from '@/components/Sprout';
+import { Button } from '@/components/Button';
 import { FaceAvatar } from '@/components/FaceAvatar';
 import { StepHeader } from '@/features/onboarding/chrome';
 import { InviteWingpersonSheet } from '@/features/wingpeople/InviteWingpersonSheet';
@@ -45,21 +45,21 @@ export function WingInviteStep({ onFinish }: { onFinish: () => void }) {
             . Quality {'>'} quantity.
           </Text>
           <View style={{ gap: 8 }}>
-            <Sprout block size="md" onPress={() => setInviteVisible(true)}>
+            <Button block size="md" onPress={() => setInviteVisible(true)}>
               From contacts
-            </Sprout>
-            <Sprout block size="md" variant="secondary" onPress={shareLink}>
+            </Button>
+            <Button block size="md" variant="secondary" onPress={shareLink}>
               Share a link
-            </Sprout>
+            </Button>
           </View>
         </View>
         <Text className="mt-3.5 text-xs text-foreground-subtle text-center leading-[18px]">
           You can do this later. Pear works either way.
         </Text>
       </ScrollView>
-      <Sprout block size="md" onPress={onFinish}>
+      <Button block size="md" onPress={onFinish}>
         Finish setup
-      </Sprout>
+      </Button>
 
       <InviteWingpersonSheet visible={inviteVisible} onClose={() => setInviteVisible(false)} />
     </View>
