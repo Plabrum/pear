@@ -16,9 +16,9 @@
   --color-foreground-subtle: #8b8170;
 
   /* Primary — pear leaf (CTA) */
-  --color-primary: oklch(0.46 0.1 145);
+  --color-primary: #2f6633;
   --color-primary-foreground: #fbf8f1;
-  --color-primary-soft: oklch(0.92 0.04 145);
+  --color-primary-soft: #d5ecd5;
 
   /* Leaf — brighter swipe/affirmative green (distinct from primary CTA leaf) */
   --color-leaf: #5a8c3a;
@@ -28,11 +28,11 @@
   --color-pass-red: #cc4444;
 
   /* Accent — pear skin */
-  --color-accent: oklch(0.8 0.12 95);
+  --color-accent: #d6bd5c;
   --color-accent-foreground: #1f1b16;
 
   /* Destructive / blush */
-  --color-destructive: oklch(0.82 0.08 35);
+  --color-destructive: #f3b2a1;
 
   /* Borders / dividers */
   --color-border: rgba(31, 27, 22, 0.1);
@@ -62,12 +62,12 @@
 
   /* Brand-color aliases */
   --color-accent-muted: var(--color-primary-soft);
-  --color-accent-press: oklch(0.4 0.1 145);
+  --color-accent-press: #1d5522;
 
   /* Border aliases */
   --color-separator: var(--color-border);
 
   /* Status aliases */
   --color-error: var(--color-destructive);
-  --color-green: oklch(0.72 0.16 145);
+  --color-green: #5bbe62;
 }

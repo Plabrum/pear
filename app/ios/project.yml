@@ -68,6 +68,9 @@ targets:
         UIAppFonts:
           - DMSerifDisplay_400Regular.ttf
           - Geist_400Regular.ttf
+          - Ionicons.ttf
+          - MaterialIcons.ttf
+          - Feather.ttf
         UILaunchStoryboardName: SplashScreen
         UIRequiredDeviceCapabilities:
           - arm64
