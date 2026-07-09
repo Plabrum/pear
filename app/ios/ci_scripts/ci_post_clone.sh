@@ -1,6 +1,6 @@
 #!/bin/zsh
 # Xcode Cloud post-clone hook. Runs after repo clone, before the archive build.
-# CI_PRIMARY_REPOSITORY_PATH is the repo root (monorepo) — the Expo app lives in app/.
+# CI_PRIMARY_REPOSITORY_PATH is the repo root (monorepo) — the app lives in app/.
 set -eo pipefail
 
 cd "$CI_PRIMARY_REPOSITORY_PATH/app"

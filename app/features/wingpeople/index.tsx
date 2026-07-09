@@ -21,11 +21,7 @@ const sectionLabelStyle = { letterSpacing: 1.2, paddingTop: 18 };
 
 // ── Inner content (Suspense boundary child) ────────────────────────────────────
 
-interface ContentProps {
-  onOpenInvite: () => void;
-}
-
-function WingpeopleContent({ onOpenInvite }: ContentProps) {
+function WingpeopleContent() {
   const navigation = useNavigation();
   const { data } = useGetApiWingpeopleSuspense();
   const { wingpeople, invitations, wingingFor, sentInvitations, weeklyCounts } = data;
@@ -326,7 +322,7 @@ export default function WingpeopleScreen() {
 
       {tab === 0 ? (
         <Suspense fallback={<Splash variant="spinner" />}>
-          <WingpeopleContent onOpenInvite={() => setInviteVisible(true)} />
+          <WingpeopleContent />
         </Suspense>
       ) : (
         <WingerActivityFeed />

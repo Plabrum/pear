@@ -25,7 +25,7 @@ repos:
       - id: eslint
         name: eslint (local)
         language: system
-        entry: bash -lc 'cd app && files=(); for f in "$@"; do files+=("${f#app/}"); done; npx expo lint --fix "${files[@]}"' --
+        entry: bash -lc 'cd app && files=(); for f in "$@"; do files+=("${f#app/}"); done; npx eslint --fix "${files[@]}"' --
         files: ^app/.*\.(js|jsx|ts|tsx)$
         exclude: ^app/(node_modules|dist|\.expo)/
       - id: prettier

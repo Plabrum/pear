@@ -8,7 +8,7 @@ import { LargeHeader } from '@/components/LargeHeader';
 import { Sprout } from '@/components/Sprout';
 
 export function DiscoverPausedScreen({
-  status,
+  status: _status,
   datingProfileId,
   onResume,
 }: {

@@ -15,10 +15,10 @@ Core flows: Auth → Onboarding → Discover → Matches → Messaging → Wingp
 
 | Layer          | Choice                                                                                                                                     |
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| Framework      | Bare React Native 0.85 (new arch enabled) — no Expo native runtime; `ios/` is built directly by Xcode Cloud, not `expo prebuild`. The Xcode project itself (`project.pbxproj`, `.xcworkspace`) is XcodeGen-generated from `app/ios/project.yml` and not committed — edit `project.yml`, not the generated project, and run `xcodegen generate && pod install` (or `npm run dev:sim`, which does this automatically) to pick up changes. The `expo` npm package stays only as a CLI (`expo lint`/`expo start`/`expo export`), excluded from iOS autolinking via `react-native.config.js`. |
+| Framework      | Bare React Native 0.85 (new arch enabled) — zero Expo: no `expo` package, no `EXPO_*` env vars, no `babel-preset-expo`/`eslint-config-expo`, nothing Expo-branded anywhere in the dependency graph or build pipeline. `ios/` is built directly by Xcode Cloud, not `expo prebuild`. The Xcode project itself (`project.pbxproj`, `.xcworkspace`) is XcodeGen-generated from `app/ios/project.yml` and not committed — edit `project.yml`, not the generated project, and run `xcodegen generate && pod install` (or `npm run dev:sim`, which does this automatically) to pick up changes. |
 | Navigation     | `@react-navigation` v7 (native-stack + bottom-tabs) — `App.tsx`/`navigation/RootNavigator.tsx`, not file-based routing                     |
 | Backend        | **Self-hosted Litestar** (Python) + SQLAlchemy 2.0 async + Alembic + SAQ, on a single EC2 box via docker-compose (`api`/`worker`/`postgres:17`/`redis`/`caddy`). Own Postgres with **app-managed RLS** · S3 (media) · Litestar Channels (realtime) · direct APNs (push, hand-rolled `PearNotificationsModule.swift`). |
-| Styling        | NativeWind v4 + Tailwind v3 (`nativewind/metro` on `@react-native/metro-config`, no `expo/metro-config`)                                   |
+| Styling        | NativeWind v4 + Tailwind v3 (`nativewind/metro` on `@react-native/metro-config`)                                   |
 | Data fetching  | TanStack React Query v5 (`useSuspenseQuery` throughout)                                                                                    |
 | Forms          | react-hook-form v7                                                                                                                         |
 | Toasts         | sonner-native (`toast.error()` for all user-facing errors)                                                                                 |
@@ -32,14 +32,14 @@ Core flows: Auth → Onboarding → Discover → Matches → Messaging → Wingp
 
 The repo is a monorepo with a root `Justfile`. Three workspaces:
 
-- **`app/`** — the bare React Native app (this is where the mobile project lives; cwd for all `npm`/`expo` CLI commands — `expo` stays only as a JS-side CLI, not the native runtime).
+- **`app/`** — the bare React Native app (this is where the mobile project lives; cwd for all `npm` CLI commands).
 - **`backend/`** — the Litestar (Python) API + worker.
 - **`infra/`** — Terraform for the single-EC2 deploy.
 
 ```
 wingmate/
 ├── Justfile                    # Root task runner (just --list) — app-*, backend, db-*, tf-* recipes
-├── app/                        # Bare React Native app (cwd for npm/expo CLI)
+├── app/                        # Bare React Native app (cwd for npm CLI)
 │   ├── App.tsx                 # Root component — providers, fonts-free (static UIAppFonts
 │   │                           # linking), StatusBar, magic-link Linking listener, pending-
 │   │                           # winger-invite handoff
@@ -69,8 +69,8 @@ wingmate/
 │   │       └── generated/      # Orval read hooks (committed)
 │   ├── hooks/ assets/ constants/  # constants/theme.ts = hex escape-hatch values
 │   ├── scripts/                # dev/sim, etc.
-│   ├── ios/                    # Native project for Xcode Cloud — no `expo prebuild` step
-│   │                           # exists anymore (the off-Expo migration's native-ownership
+│   ├── ios/                    # Native project for Xcode Cloud — no `expo prebuild` step,
+│   │                           # zero Expo (the off-Expo migration's native-ownership
 │   │                           # cutover removed the ios-drift-check workflow/hook entirely).
 │   │                           # `Pear.xcodeproj`/`Pear.xcworkspace` are XcodeGen-generated
 │   │                           # from `project.yml` (not committed) — edit `project.yml`,
@@ -80,7 +80,7 @@ wingmate/
 │   │                           # code-signing public cert for the custom Swift OTA client's
 │   │                           # signature verification, regenerated only via CI/CD when the
 │   │                           # Terraform-managed signing key rotates) is hand-maintained.
-│   ├── package.json  tsconfig.json  metro.config.js  react-native.config.js
+│   ├── package.json  tsconfig.json  metro.config.js
 │   ├── openapi.json            # Litestar-emitted OpenAPI spec (orval input, committed)
 │   ├── orval.config.ts
 │   └── global.css              # Tailwind v3 tokens as plain :root custom properties (source of truth)
@@ -246,7 +246,7 @@ callsites; it sends the session cookie (`credentials: 'include'`) and throws on 
 + `invalidateQueries`.
 
 Realtime is the Litestar Channels websocket (`lib/ws-client.ts`, connects to
-`EXPO_PUBLIC_API_URL`'s `/ws` with its own `?token=`). Don't add ad-hoc client
+`APP_PUBLIC_API_URL`'s `/ws` with its own `?token=`). Don't add ad-hoc client
 selects — add a Litestar GET route (read) or an action (write).
 
 ---
@@ -396,7 +396,7 @@ The repo is a monorepo. All app commands run from `app/` — either via the root
 All recipes are in the root `Justfile` (`just --list`). The common ones:
 
 ```bash
-# Everything at once (backend api + worker + Expo sim)
+# Everything at once (backend api + worker + iOS sim)
 just dev
 
 # Backend (Litestar, Python/uv — from repo root)
@@ -409,14 +409,13 @@ just test             # pytest
 just lint-backend     # ruff check --fix + format
 just check-backend    # basedpyright
 
-# App (Expo — these cd into app/)
+# App (these cd into app/)
 cd app && npm run dev:sim        # iOS Simulator
-cd app && npm run web            # Expo web
 cd app && npm run api:gen        # Orval ← app/openapi.json (after a backend contract change)
 cd app && npx tsc --noEmit && npm run lint
 
 # Build & deploy the app (Xcode Cloud + self-hosted OTA — separate from the backend pipeline)
-cd app && npm run export:ota     # expo export -p ios — JS bundle for the OTA publish job (ota.yml)
+cd app && npm run export:ota     # scripts/export-ota-bundle.js — JS bundle for the OTA publish job (ota.yml)
 cd app && npm run build:device   # opens ios/Pear.xcworkspace in Xcode — pick your device, hit Run
                                   # (requires an `xcodegen generate && pod install` first if the
                                   # workspace hasn't been generated yet, e.g. via `npm run dev:sim`;
@@ -429,7 +428,7 @@ cd app && npm run build:device   # opens ios/Pear.xcworkspace in Xcode — pick 
 **Env.** `backend/.env.local` (or repo-root `.env.local`) carries the backend secrets
 (`DB_*`, `SECRET_KEY`, `REDIS_URL`, `APPLE_*`, `APNS_*`, `S3_*`, `SES_*`); local dev falls back
 to safe defaults (port 5432, `Local*` clients). The app needs
-`EXPO_PUBLIC_API_URL=https://api.<domain>` (or `http://localhost:8000` locally) — it is
+`APP_PUBLIC_API_URL=https://api.<domain>` (or `http://localhost:8000` locally) — it is
 the only backend coordinate the client needs.
 
 **Terraform (`infra/`).** All infra changes are committed to the repo and applied via

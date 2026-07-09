@@ -1,10 +1,10 @@
 name: OTA Publish
 
-# Publishes a JS-only Expo Updates bundle to our self-hosted manifest server
+# Publishes a JS-only OTA bundle to our self-hosted manifest server
 # (docs/migration/09-off-eas.md, 9b "Publish side"). This is the FAST path: no
-# native compile, ubuntu-latest only. `expo export -p ios` runs Metro + Hermes
-# over JS/assets — the native archive (Xcode Cloud, gated on `v*` tags) is a
-# separate, slower pipeline.
+# native compile, ubuntu-latest only. scripts/export-ota-bundle.js runs Metro +
+# Hermes over JS/assets — the native archive (Xcode Cloud, gated on `v*` tags)
+# is a separate, slower pipeline.
 #
 # SCOPE: app/** only. Pure backend/infra changes must not fire this (mirrors the
 # monorepo path-filter convention in build-test-deploy.yml, inverted: that
@@ -127,7 +127,7 @@ jobs:
 
       - name: Export JS bundle + assets
         env:
-          EXPO_PUBLIC_API_URL: ${{ env.API_BASE_URL }}
+          APP_PUBLIC_API_URL: ${{ env.API_BASE_URL }}
         run: npm run export:ota
 
       - name: Upload bundle to S3
@@ -142,7 +142,7 @@ jobs:
         run: |
           ASSET_BASE_URL="https://${CLOUDFRONT_DOMAIN}/updates/${UPDATE_ID}"
 
-          PAYLOAD=$(node scripts/build-ota-payload.js dist "$ASSET_BASE_URL" "$RUNTIME_VERSION" production ios)
+          PAYLOAD=$(node scripts/build-ota-payload.js dist/bundle.hbc dist/assets "$ASSET_BASE_URL" "$RUNTIME_VERSION" production ios)
 
           HTTP_STATUS=$(curl -sS -o response.json -w '%{http_code}' \
             -X POST "${API_BASE_URL}/updates/publish" \

@@ -99,4 +99,4 @@ xcrun simctl launch booted "$BUNDLE_ID" >/dev/null 2>&1 || true
 
 echo "Starting Metro bundler..."
 echo "(backend must be running separately — see 'just dev-backend' / 'just dev')"
-npx expo start
+npx react-native start

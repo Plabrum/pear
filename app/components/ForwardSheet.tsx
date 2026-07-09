@@ -5,7 +5,7 @@ import type { Gender, WingingForRow } from '@/lib/api/generated/model';
 import { useActionExecutor } from '@/hooks/actions/use-action-executor';
 import { useActionFormRenderer } from '@/hooks/actions/use-action-form-renderer';
 import type { ActionDTO } from '@/lib/actions/types';
-import { View, Text, Pressable } from '@/lib/tw';
+import { Text, Pressable } from '@/lib/tw';
 import { Sheet } from '@/components/Sheet';
 import { FaceAvatar } from '@/components/FaceAvatar';
 import { colors } from '@/constants/theme';

@@ -1,6 +1,7 @@
 module.exports = function (api) {
   api.cache(true);
   return {
-    presets: [['babel-preset-expo', { jsxImportSource: 'nativewind' }], 'nativewind/babel'],
+    presets: ['module:@react-native/babel-preset', 'nativewind/babel'],
+    plugins: [['transform-inline-environment-variables', { include: ['APP_PUBLIC_API_URL'] }]],
   };
 };

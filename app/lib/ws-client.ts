@@ -5,7 +5,7 @@
 // presence, the messages-list presence set, typing, and the new-message stream).
 // The hooks in `hooks/*` and `lib/messages-realtime.ts` consume this manager.
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000';
+const API_URL = process.env.APP_PUBLIC_API_URL ?? 'http://localhost:8000';
 
 // ws(s)://<api-host>/ws — derive from the http(s) API URL. Auth is the session
 // cookie on the handshake, so no query param / header is appended.
@@ -213,10 +213,7 @@ class WsManager {
 
   private scheduleReconnect(): void {
     if (this.reconnectTimer) return;
-    const delay = Math.min(
-      RECONNECT_BASE_MS * 2 ** this.reconnectAttempts,
-      RECONNECT_MAX_MS,
-    );
+    const delay = Math.min(RECONNECT_BASE_MS * 2 ** this.reconnectAttempts, RECONNECT_MAX_MS);
     this.reconnectAttempts += 1;
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
