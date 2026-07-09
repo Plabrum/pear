@@ -1,5 +1,5 @@
 #!/bin/bash
-# dev-sim.sh — Rebuild the simulator build if native changed, then start Metro.
+# dev-sim.sh — Rebuild the simulator build if native changed, install it, then start Metro.
 # Builds directly against the hand-maintained ios/ project (no expo prebuild —
 # that regeneration step and the app.config.js it read from are both gone as of
 # the off-Expo migration's native ownership cutover). No dev-client either
@@ -12,6 +12,27 @@ SCHEME="Pear"
 DERIVED_DATA="ios/build"
 APP_PATH="$DERIVED_DATA/Build/Products/Debug-iphonesimulator/Pear.app"
 REV_FILE=".dev-sim-rev"
+
+# Boots an available iPhone simulator if none is currently booted.
+ensure_simulator_booted() {
+  BOOTED=$(xcrun simctl list devices booted 2>/dev/null | grep -c "(Booted)" || true)
+  if [ "$BOOTED" -eq 0 ]; then
+    UDID=$(xcrun simctl list devices available -j \
+      | node -e "let s=''; process.stdin.on('data',d=>s+=d); process.stdin.on('end',()=>{
+          const devs=JSON.parse(s).devices;
+          const iphone=Object.values(devs).flat().find(x=>x.name.includes('iPhone')&&x.isAvailable);
+          console.log(iphone?iphone.udid:'');
+        })")
+    if [ -z "$UDID" ]; then
+      echo "Error: no available iPhone simulator found."
+      exit 1
+    fi
+    echo "Booting simulator $UDID..."
+    xcrun simctl boot "$UDID"
+    open -a Simulator
+    sleep 3
+  fi
+}
 
 # Rebuild-avoidance: hash every native-affecting path's current working-tree
 # content (tracked + uncommitted) and compare against what was last built.
@@ -56,27 +77,14 @@ if [ "$NEEDS_BUILD" = true ]; then
     "${BUILD_CMD[@]}"
   fi
 
-  bash scripts/install-dev-sim.sh
+  echo "Installing on booted simulator..."
+  ensure_simulator_booted
+  xcrun simctl install booted "$APP_PATH"
   echo "$CURRENT" > "$REV_FILE"
 fi
 
 # Ensure a simulator is booted before starting Metro
-BOOTED=$(xcrun simctl list devices booted 2>/dev/null | grep -c "(Booted)" || true)
-if [ "$BOOTED" -eq 0 ]; then
-  UDID=$(xcrun simctl list devices available -j \
-    | node -e "let s=''; process.stdin.on('data',d=>s+=d); process.stdin.on('end',()=>{
-        const devs=JSON.parse(s).devices;
-        const iphone=Object.values(devs).flat().find(x=>x.name.includes('iPhone')&&x.isAvailable);
-        console.log(iphone?iphone.udid:'');
-      })")
-  if [ -z "$UDID" ]; then
-    echo "Error: no available iPhone simulator found."
-    exit 1
-  fi
-  echo "Booting simulator $UDID..."
-  xcrun simctl boot "$UDID"
-  open -a Simulator
-fi
+ensure_simulator_booted
 
 echo ""
 echo "Starting Metro bundler..."

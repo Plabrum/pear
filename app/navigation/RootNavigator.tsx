@@ -22,11 +22,11 @@ import {
 } from './pendingIntents';
 import { WingerTabsNavigator } from './WingerTabsNavigator';
 import { DaterTabsNavigator } from './DaterTabsNavigator';
-import LoginScreen from '../app/(auth)/login';
-import OnboardingScreen from '../app/(onboarding)/index';
-import InviteScreen from '../app/invite';
-import MagicLinkScreen from '../app/magic-link';
-import SettingsScreen from '../app/settings';
+import LoginScreen from '../features/auth/login';
+import OnboardingScreen from '../features/onboarding/index';
+import InviteScreen from '../features/root/invite';
+import MagicLinkScreen from '../features/root/magic-link';
+import SettingsScreen from '../features/root/settings';
 
 const RootStack = createNativeStackNavigator<RootStackParamList>();
 

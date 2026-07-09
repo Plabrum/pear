@@ -25,7 +25,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		03B9DC18B461F1FA02DD2B04 /* PearUpdatesModule.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = Pear/PearUpdatesModule.m; sourceTree = "<group>"; };
+		03B9DC18B461F1FA02DD2B04 /* PearUpdatesModule.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = PearUpdatesModule.m; sourceTree = "<group>"; };
 		13B07F961A680F5B00A75B9A /* Pear.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Pear.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = Pear/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = Pear/Info.plist; sourceTree = "<group>"; };
@@ -34,12 +34,12 @@
 		4900A37174712151BDC93EEB /* PearNotificationsModule.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Pear/PearNotificationsModule.swift; sourceTree = "<group>"; };
 		75B596D5F66194B2DBF8601A /* PearAppleAuthModule.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = Pear/PearAppleAuthModule.m; sourceTree = "<group>"; };
 		78B3A86FCA8ACBBDD950475C /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = Pear/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
-		8CFE32BABD2577F5AEB5C7B9 /* UpdatesManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Pear/UpdatesManager.swift; sourceTree = "<group>"; };
+		8CFE32BABD2577F5AEB5C7B9 /* UpdatesManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = UpdatesManager.swift; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = Pear/SplashScreen.storyboard; sourceTree = "<group>"; };
 		AD59EE2F944E23B96A61E5DB /* Pods-Pear.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Pear.debug.xcconfig"; path = "Target Support Files/Pods-Pear/Pods-Pear.debug.xcconfig"; sourceTree = "<group>"; };
 		B5F83F06B9A8B75C471A04FD /* PearNotificationsModule.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = Pear/PearNotificationsModule.m; sourceTree = "<group>"; };
-		C09298A82E2A32A454399D00 /* updates-signing.pem */ = {isa = PBXFileReference; includeInIndex = 1; path = "Pear/updates-signing.pem"; sourceTree = "<group>"; };
-		CFAABA1103BC1FE366D19ECE /* PearUpdatesModule.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Pear/PearUpdatesModule.swift; sourceTree = "<group>"; };
+		C09298A82E2A32A454399D00 /* updates-signing.pem */ = {isa = PBXFileReference; includeInIndex = 1; path = "updates-signing.pem"; sourceTree = "<group>"; };
+		CFAABA1103BC1FE366D19ECE /* PearUpdatesModule.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PearUpdatesModule.swift; sourceTree = "<group>"; };
 		D478BE2C3606764703B3E1FF /* Geist_400Regular.ttf */ = {isa = PBXFileReference; includeInIndex = 1; path = Geist_400Regular.ttf; sourceTree = "<group>"; };
 		EACA28872DADC41D1BF1C12A /* PearAppleAuthModule.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Pear/PearAppleAuthModule.swift; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
@@ -75,12 +75,21 @@
 				B5F83F06B9A8B75C471A04FD /* PearNotificationsModule.m */,
 				EACA28872DADC41D1BF1C12A /* PearAppleAuthModule.swift */,
 				75B596D5F66194B2DBF8601A /* PearAppleAuthModule.m */,
+				9A5C1E0B0A1B4C2D8E6F3D71 /* OTA */,
+			);
+			name = Pear;
+			sourceTree = "<group>";
+		};
+		9A5C1E0B0A1B4C2D8E6F3D71 /* OTA */ = {
+			isa = PBXGroup;
+			children = (
 				C09298A82E2A32A454399D00 /* updates-signing.pem */,
 				8CFE32BABD2577F5AEB5C7B9 /* UpdatesManager.swift */,
 				CFAABA1103BC1FE366D19ECE /* PearUpdatesModule.swift */,
 				03B9DC18B461F1FA02DD2B04 /* PearUpdatesModule.m */,
 			);
-			name = Pear;
+			name = OTA;
+			path = Pear/OTA;
 			sourceTree = "<group>";
 		};
 		2D16E6871FA4F8E400B85C8A /* Frameworks */ = {

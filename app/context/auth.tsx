@@ -9,8 +9,8 @@ import {
 } from '@/lib/auth-client';
 import { queryClient } from '@/lib/queryClient';
 import { authMeQueryKey, sessionQueryOptions, type Session } from '@/lib/auth-session';
-import Splash from '@/components/ui/Splash';
-import ScreenErrorBoundary from '@/components/ui/ScreenErrorBoundary';
+import Splash from '@/components/Splash';
+import ScreenErrorBoundary from '@/components/ScreenErrorBoundary';
 
 export type { Session };
 

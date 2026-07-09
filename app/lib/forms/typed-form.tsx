@@ -36,10 +36,10 @@ import { type KeyboardTypeOptions } from 'react-native';
 
 import { View } from '@/lib/tw';
 import { toastError } from '@/lib/api/error-toast';
-import { Sprout } from '@/components/ui/Sprout';
-import { Sheet } from '@/components/ui/Sheet';
-import { Dialog } from '@/components/ui/Dialog';
-import { FullSheet } from '@/components/ui/FullSheet';
+import { Sprout } from '@/components/Sprout';
+import { Sheet } from '@/components/Sheet';
+import { Dialog } from '@/components/Dialog';
+import { FullSheet } from '@/components/FullSheet';
 import {
   KitField,
   TextControl,
@@ -308,7 +308,13 @@ export function createTypedForm<TData extends FieldValues>() {
   }) {
     const { submit, isSubmitting } = useSubmit();
     return (
-      <Sprout block={block} size={size} onPress={submit} disabled={isSubmitting} loading={isSubmitting}>
+      <Sprout
+        block={block}
+        size={size}
+        onPress={submit}
+        disabled={isSubmitting}
+        loading={isSubmitting}
+      >
         {label}
       </Sprout>
     );

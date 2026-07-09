@@ -1,9 +1,9 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import type { FriendsStackParamList } from './types';
-import FriendsListScreen from '../app/(winger-tabs)/friends/index';
-import FriendDetailScreen from '../app/(winger-tabs)/friends/[id]/index';
-import FriendScoutScreen from '../app/(winger-tabs)/friends/[id]/scout';
+import FriendsListScreen from '../features/friends/index';
+import FriendDetailScreen from '../features/friends/[id]/index';
+import FriendScoutScreen from '../features/friends/[id]/scout';
 
 const Stack = createNativeStackNavigator<FriendsStackParamList>();
 

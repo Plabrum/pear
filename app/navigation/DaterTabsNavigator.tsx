@@ -1,13 +1,13 @@
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
-import { PearMark } from '@/components/ui/PearMark';
-import { tabScreenOptions } from '@/components/ui/tabBar';
+import { PearMark } from '@/components/PearMark';
+import { tabScreenOptions } from '@/components/tabBar';
 import type { DaterTabParamList } from './types';
 import { MessagesStackNavigator } from './MessagesStackNavigator';
 import { ProfileStackNavigator } from './ProfileStackNavigator';
-import DiscoverScreen from '../app/(tabs)/discover';
-import MatchesScreen from '../app/(tabs)/matches';
+import DiscoverScreen from '../features/discover/discover';
+import MatchesScreen from '../features/matches/matches';
 
 const Tab = createBottomTabNavigator<DaterTabParamList>();
 

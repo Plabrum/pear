@@ -1,12 +1,12 @@
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
-import { PearMark } from '@/components/ui/PearMark';
-import { tabScreenOptions } from '@/components/ui/tabBar';
+import { PearMark } from '@/components/PearMark';
+import { tabScreenOptions } from '@/components/tabBar';
 import type { WingerTabParamList } from './types';
 import { FriendsStackNavigator } from './FriendsStackNavigator';
-import ActivityScreen from '../app/(winger-tabs)/activity';
-import MeScreen from '../app/(winger-tabs)/me';
+import ActivityScreen from '../features/winger/activity';
+import MeScreen from '../features/winger/me';
 
 const Tab = createBottomTabNavigator<WingerTabParamList>();
 

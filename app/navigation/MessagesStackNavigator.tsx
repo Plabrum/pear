@@ -1,8 +1,8 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import type { MessagesStackParamList } from './types';
-import MessagesListScreen from '../app/(tabs)/messages/index';
-import MessageThreadScreen from '../app/(tabs)/messages/[matchId]';
+import MessagesListScreen from '../features/messages/index';
+import MessageThreadScreen from '../features/messages/[matchId]';
 
 const Stack = createNativeStackNavigator<MessagesStackParamList>();
 

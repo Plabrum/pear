@@ -1,17 +1,17 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import type { ProfileStackParamList } from './types';
-import ProfileHomeScreen from '../app/(tabs)/profile/index';
-import ProfileEditScreen from '../app/(tabs)/profile/edit';
-import ProfileEditBasicsScreen from '../app/(tabs)/profile/edit/basics';
-import ProfileEditBioScreen from '../app/(tabs)/profile/edit/bio';
-import ProfileEditInterestsScreen from '../app/(tabs)/profile/edit/interests';
-import ProfileEditLookingForScreen from '../app/(tabs)/profile/edit/looking-for';
-import ProfileEditPhotosScreen from '../app/(tabs)/profile/edit/photos';
-import ProfileEditPromptsScreen from '../app/(tabs)/profile/edit/prompts';
-import WingpeopleListScreen from '../app/(tabs)/profile/wingpeople/index';
-import WingpeopleContributeScreen from '../app/(tabs)/profile/wingpeople/contribute';
-import WingpeopleWingswipeScreen from '../app/(tabs)/profile/wingpeople/wingswipe';
+import ProfileHomeScreen from '../features/profile/index';
+import ProfileEditScreen from '../features/profile/edit';
+import ProfileEditBasicsScreen from '../features/profile/edit/basics';
+import ProfileEditBioScreen from '../features/profile/edit/bio';
+import ProfileEditInterestsScreen from '../features/profile/edit/interests';
+import ProfileEditLookingForScreen from '../features/profile/edit/looking-for';
+import ProfileEditPhotosScreen from '../features/profile/edit/photos';
+import ProfileEditPromptsScreen from '../features/profile/edit/prompts';
+import WingpeopleListScreen from '../features/wingpeople/index';
+import WingpeopleContributeScreen from '../features/wingpeople/contribute';
+import WingpeopleWingswipeScreen from '../features/wingpeople/wingswipe';
 
 const Stack = createNativeStackNavigator<ProfileStackParamList>();
 
