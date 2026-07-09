@@ -10,9 +10,15 @@
 		101EDCD3E28EFC31BC3FFA3F /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C3778FE58A9AD78C33ABCF9 /* ExpoModulesProvider.swift */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
+		56509577C998DA1B084A22A5 /* DMSerifDisplay_400Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = EFA09D3F4A9577A3D0D340C0 /* DMSerifDisplay_400Regular.ttf */; };
+		764575F38E0DC9AA0C150DA5 /* Geist_400Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = D478BE2C3606764703B3E1FF /* Geist_400Regular.ttf */; };
+		88AEF07975784D31148F5911 /* PearNotificationsModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4900A37174712151BDC93EEB /* PearNotificationsModule.swift */; };
+		8E590F2E82A9B140958A180F /* PearNotificationsModule.m in Sources */ = {isa = PBXBuildFile; fileRef = B5F83F06B9A8B75C471A04FD /* PearNotificationsModule.m */; };
 		ACF465160E708962A339ACE1 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 78B3A86FCA8ACBBDD950475C /* PrivacyInfo.xcprivacy */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
 		D47B3C018AD7F3994EB0E354 /* libPods-Pear.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 1884D235C5D36B9534A46F6C /* libPods-Pear.a */; };
+		DB0A13A13E3207D8D99212C9 /* PearAppleAuthModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = EACA28872DADC41D1BF1C12A /* PearAppleAuthModule.swift */; };
+		EE4B7E0287DAC6DF1E4275F8 /* PearAppleAuthModule.m in Sources */ = {isa = PBXBuildFile; fileRef = 75B596D5F66194B2DBF8601A /* PearAppleAuthModule.m */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
 /* End PBXBuildFile section */
 
@@ -23,11 +29,17 @@
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = Pear/Info.plist; sourceTree = "<group>"; };
 		1884D235C5D36B9534A46F6C /* libPods-Pear.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-Pear.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		402923C246218760FA77D671 /* Pods-Pear.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Pear.release.xcconfig"; path = "Target Support Files/Pods-Pear/Pods-Pear.release.xcconfig"; sourceTree = "<group>"; };
+		4900A37174712151BDC93EEB /* PearNotificationsModule.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Pear/PearNotificationsModule.swift; sourceTree = "<group>"; };
+		75B596D5F66194B2DBF8601A /* PearAppleAuthModule.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = Pear/PearAppleAuthModule.m; sourceTree = "<group>"; };
 		78B3A86FCA8ACBBDD950475C /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = Pear/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = Pear/SplashScreen.storyboard; sourceTree = "<group>"; };
 		AD59EE2F944E23B96A61E5DB /* Pods-Pear.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Pear.debug.xcconfig"; path = "Target Support Files/Pods-Pear/Pods-Pear.debug.xcconfig"; sourceTree = "<group>"; };
+		B5F83F06B9A8B75C471A04FD /* PearNotificationsModule.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = Pear/PearNotificationsModule.m; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
+		D478BE2C3606764703B3E1FF /* Geist_400Regular.ttf */ = {isa = PBXFileReference; includeInIndex = 1; path = Geist_400Regular.ttf; sourceTree = "<group>"; };
+		EACA28872DADC41D1BF1C12A /* PearAppleAuthModule.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Pear/PearAppleAuthModule.swift; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
+		EFA09D3F4A9577A3D0D340C0 /* DMSerifDisplay_400Regular.ttf */ = {isa = PBXFileReference; includeInIndex = 1; path = DMSerifDisplay_400Regular.ttf; sourceTree = "<group>"; };
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = Pear/AppDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* Pear-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "Pear-Bridging-Header.h"; path = "Pear/Pear-Bridging-Header.h"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -54,6 +66,11 @@
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */,
 				78B3A86FCA8ACBBDD950475C /* PrivacyInfo.xcprivacy */,
+				851635280772B44D74C868B4 /* Fonts */,
+				4900A37174712151BDC93EEB /* PearNotificationsModule.swift */,
+				B5F83F06B9A8B75C471A04FD /* PearNotificationsModule.m */,
+				EACA28872DADC41D1BF1C12A /* PearAppleAuthModule.swift */,
+				75B596D5F66194B2DBF8601A /* PearAppleAuthModule.m */,
 			);
 			name = Pear;
 			sourceTree = "<group>";
@@ -103,6 +120,16 @@
 				13B07F961A680F5B00A75B9A /* Pear.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		851635280772B44D74C868B4 /* Fonts */ = {
+			isa = PBXGroup;
+			children = (
+				EFA09D3F4A9577A3D0D340C0 /* DMSerifDisplay_400Regular.ttf */,
+				D478BE2C3606764703B3E1FF /* Geist_400Regular.ttf */,
+			);
+			name = Fonts;
+			path = Pear/Fonts;
 			sourceTree = "<group>";
 		};
 		A39A3ACC4CB86840F88BB83C /* Pods */ = {
@@ -197,6 +224,8 @@
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */,
 				ACF465160E708962A339ACE1 /* PrivacyInfo.xcprivacy in Resources */,
+				56509577C998DA1B084A22A5 /* DMSerifDisplay_400Regular.ttf in Resources */,
+				764575F38E0DC9AA0C150DA5 /* Geist_400Regular.ttf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -295,13 +324,10 @@
 			);
 			inputPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Pear/Pods-Pear-resources.sh",
-				"${PODS_CONFIGURATION_BUILD_DIR}/EXApplication/ExpoApplication_privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/EXConstants/EXConstants.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/EXConstants/ExpoConstants_privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/EXUpdates/EXUpdates.bundle",
-				"${PODS_CONFIGURATION_BUILD_DIR}/ExpoDevice/ExpoDevice_privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/ExpoFileSystem/ExpoFileSystem_privacy.bundle",
-				"${PODS_CONFIGURATION_BUILD_DIR}/ExpoNotifications/ExpoNotifications_privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/ExpoSystemUI/ExpoSystemUI_privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/RNCAsyncStorage/RNCAsyncStorage_resources.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/RNImageCropPicker/RNImageCropPickerPrivacyInfo.bundle",
@@ -336,13 +362,10 @@
 			);
 			name = "[CP] Copy Pods Resources";
 			outputPaths = (
-				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoApplication_privacy.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/EXConstants.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoConstants_privacy.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/EXUpdates.bundle",
-				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoDevice_privacy.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoFileSystem_privacy.bundle",
-				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoNotifications_privacy.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoSystemUI_privacy.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/RNCAsyncStorage_resources.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/RNImageCropPickerPrivacyInfo.bundle",
@@ -413,6 +436,10 @@
 			files = (
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
 				101EDCD3E28EFC31BC3FFA3F /* ExpoModulesProvider.swift in Sources */,
+				88AEF07975784D31148F5911 /* PearNotificationsModule.swift in Sources */,
+				8E590F2E82A9B140958A180F /* PearNotificationsModule.m in Sources */,
+				DB0A13A13E3207D8D99212C9 /* PearAppleAuthModule.swift in Sources */,
+				EE4B7E0287DAC6DF1E4275F8 /* PearAppleAuthModule.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

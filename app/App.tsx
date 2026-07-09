@@ -9,32 +9,13 @@ import { StatusBar } from 'react-native';
 import { Toaster } from 'sonner-native';
 import { QueryClientProvider } from '@tanstack/react-query';
 
-import { useFonts } from 'expo-font';
-import { DMSerifDisplay_400Regular } from '@expo-google-fonts/dm-serif-display';
-import {
-  Geist_400Regular,
-  Geist_500Medium,
-  Geist_600SemiBold,
-  Geist_700Bold,
-} from '@expo-google-fonts/geist';
-
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { AuthProvider } from '@/context/auth';
 import { queryClient } from '@/lib/queryClient';
-import Splash from '@/components/ui/Splash';
 import { RootNavigator } from '@/navigation/RootNavigator';
 
 export default function App() {
   const colorScheme = useColorScheme();
-  const [fontsLoaded] = useFonts({
-    DMSerifDisplay: DMSerifDisplay_400Regular,
-    Geist: Geist_400Regular,
-    Geist_500Medium,
-    Geist_600SemiBold,
-    Geist_700Bold,
-  });
-
-  if (!fontsLoaded) return <Splash />;
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

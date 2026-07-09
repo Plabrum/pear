@@ -39,8 +39,6 @@ module.exports = {
       favicon: './assets/images/favicon.png',
     },
     plugins: [
-      'expo-apple-authentication',
-      'expo-notifications',
       [
         'expo-splash-screen',
         {
@@ -48,7 +46,6 @@ module.exports = {
         },
       ],
       '@react-native-community/datetimepicker',
-      'expo-font',
       'expo-web-browser',
     ],
     experiments: {

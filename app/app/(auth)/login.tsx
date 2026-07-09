@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import * as AppleAuthentication from 'expo-apple-authentication';
-import { Platform } from 'react-native';
+import { NativeModules, Platform } from 'react-native';
 import { toast } from 'sonner-native';
 import { View, Text } from '@/lib/tw';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -25,31 +24,21 @@ export default function LoginScreen() {
   const handleAppleSignIn = async () => {
     if (Platform.OS !== 'ios') return;
     try {
-      const credential = await AppleAuthentication.signInAsync({
-        requestedScopes: [
-          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
-          AppleAuthentication.AppleAuthenticationScope.EMAIL,
-        ],
-      });
+      const credential = await NativeModules.PearAppleAuthModule.signIn();
+      if (!credential) return; // user cancelled
 
       if (!credential.identityToken) {
         toast.error('Apple sign-in did not return an identity token.');
         return;
       }
 
-      const fullName = credential.fullName
-        ? [
-            credential.fullName.givenName,
-            credential.fullName.middleName,
-            credential.fullName.familyName,
-          ]
-            .filter(Boolean)
-            .join(' ')
-        : undefined;
+      const fullName = [credential.givenName, credential.middleName, credential.familyName]
+        .filter(Boolean)
+        .join(' ');
 
       const { error } = await signInWithApple(
         credential.identityToken,
-        fullName && fullName.length > 0 ? fullName : undefined
+        fullName.length > 0 ? fullName : undefined
       );
 
       if (error) {
@@ -57,7 +46,6 @@ export default function LoginScreen() {
         return;
       }
     } catch (e: any) {
-      if (e.code === 'ERR_REQUEST_CANCELED') return;
       toastError(e, 'Apple sign-in failed');
     }
   };
