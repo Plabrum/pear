@@ -57,7 +57,7 @@ ios/*.xcuserstate
 
 # fingerprint cache (local build state)
 .build-fingerprint
-.dev-sim-fingerprint
+.dev-sim-rev
 
 # drizzle-kit introspect artifacts (we only commit schema.ts + relations.ts)
 .drizzle/

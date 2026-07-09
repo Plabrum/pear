@@ -1,15 +1,10 @@
 #!/bin/bash
-# install-dev-sim.sh — Install and fingerprint the dev-sim build.
-# Called by dev-sim.sh after a build.
+# install-dev-sim.sh — Install the simulator build.
+# Called by dev-sim.sh after a build; dev-sim.sh owns writing the
+# rebuild-avoidance rev file (.dev-sim-rev), not this script.
 set -e
 
 APP_PATH="ios/build/Build/Products/Debug-iphonesimulator/Pear.app"
-FP_FILE=".dev-sim-fingerprint"
-
-get_fingerprint() {
-  npx expo-updates fingerprint:generate --platform ios 2>/dev/null \
-    | node -e "let s=''; process.stdin.on('data',d=>s+=d); process.stdin.on('end',()=>console.log(JSON.parse(s).hash))"
-}
 
 if [ ! -e "$APP_PATH" ]; then
   echo "Error: no build found at $APP_PATH"
@@ -36,7 +31,4 @@ if [ "$BOOTED" -eq 0 ]; then
 fi
 xcrun simctl install booted "$APP_PATH"
 
-echo "Saving fingerprint..."
-get_fingerprint > "$FP_FILE"
-
-echo "Done — dev client installed (fingerprint: $(cat "$FP_FILE"))"
+echo "Done — build installed."
