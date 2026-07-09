@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { NativeModules } from 'react-native';
 import {
   NavigationContainer,
   useNavigationContainerRef,
@@ -92,6 +93,7 @@ export function RootNavigator() {
       ref={navigationRef}
       linking={linking}
       theme={colorScheme === 'dark' ? DarkTheme : DefaultTheme}
+      onReady={() => NativeModules.PearUpdatesModule?.markBootSuccessful()}
     >
       <RootStack.Navigator screenOptions={{ headerShown: false, animation: 'none' }}>
         {status === 'unauthenticated' && <RootStack.Screen name="Login" component={LoginScreen} />}

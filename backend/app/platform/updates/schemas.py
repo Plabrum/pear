@@ -133,3 +133,18 @@ class ManifestResponse(BaseSchema):
     status: Literal["update_available", "no_update", "rollback"]
     manifest: UpdateManifest | None = None
     rollback_created_at: str | None = None
+
+
+class ClientEventRequest(BaseSchema):
+    """Body the Swift OTA client (`UpdatesManager.swift`) posts on download
+    failure, verify failure, apply, and rollback — the direct fix for "no
+    useful signal": these become visible in server logs instead of only
+    discoverable via a support ticket or a device in hand. Log-only, no
+    dedicated table — this is an observability signal, not a record that
+    needs to be queried back.
+    """
+
+    event: Literal["download_failed", "verify_failed", "applied", "rolled_back"]
+    runtime_version: str
+    update_uuid: str | None = None
+    detail: str | None = None

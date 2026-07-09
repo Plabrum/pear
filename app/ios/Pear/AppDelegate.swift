@@ -15,7 +15,17 @@ class AppDelegate: RCTAppDelegate, UNUserNotificationCenterDelegate {
 
     UNUserNotificationCenter.current().delegate = self
 
-    return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+    let result = super.application(application, didFinishLaunchingWithOptions: launchOptions)
+
+#if !DEBUG
+    // Fire-and-forget, after super.application(...) so it never blocks this
+    // launch — checks/downloads apply on the *next* cold start via the pointer
+    // file bundleURL() reads. DEBUG builds always load from Metro and never
+    // reach this at all (see bundleURL() below).
+    UpdatesManager.shared.checkForUpdate()
+#endif
+
+    return result
   }
 
   override func sourceURL(for bridge: RCTBridge) -> URL? {
@@ -26,7 +36,8 @@ class AppDelegate: RCTAppDelegate, UNUserNotificationCenterDelegate {
 #if DEBUG
     return RCTBundleURLProvider.sharedSettings().jsBundleURL(forBundleRoot: "index")
 #else
-    return Bundle.main.url(forResource: "main", withExtension: "jsbundle")
+    let embedded = Bundle.main.url(forResource: "main", withExtension: "jsbundle")!
+    return UpdatesManager.shared.launchBundleURL(embeddedURL: embedded)
 #endif
   }
 

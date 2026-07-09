@@ -21,6 +21,7 @@ from app.platform.updates.protocol import (
 )
 from app.platform.updates.queries import latest_relevant_update
 from app.platform.updates.schemas import (
+    ClientEventRequest,
     ManifestResponse,
     NativeBuildFingerprintResponse,
     NoUpdateAvailableDirective,
@@ -139,6 +140,23 @@ async def get_manifest_v2(
     return manifest_v2_response(
         ManifestResponse(status="update_available", manifest=build_update_manifest(row)),
         app_config,
+    )
+
+
+@post("/updates/client-event", exclude_from_auth=True)
+async def post_client_event(data: ClientEventRequest) -> None:
+    """Fired by the Swift OTA client on download failure, verify failure, apply,
+    and rollback — the direct fix for "no useful signal": these become visible
+    here in server logs instead of only discoverable via a support ticket or a
+    device in hand. Log-only (no DB write) — an observability signal, not a
+    record that needs to be queried back.
+    """
+    logger.info(
+        "updates/client-event: event=%s runtime_version=%s update_uuid=%s detail=%s",
+        data.event,
+        data.runtime_version,
+        data.update_uuid,
+        data.detail,
     )
 
 

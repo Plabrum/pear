@@ -47,6 +47,7 @@ from app.platform.updates.routes import (
     get_manifest,
     get_manifest_v2,
     get_native_build_fingerprint,
+    post_client_event,
     publish_update,
     set_native_build_fingerprint,
 )
@@ -246,6 +247,10 @@ def create_app(
             # client calls it. `/updates/manifest` above is untouched and stays live
             # until every installed client has moved off the legacy protocol.
             get_manifest_v2,
+            # Client-side observability: the Swift OTA client posts here on download
+            # failure, verify failure, apply, and rollback — visible in server logs
+            # instead of only discoverable via a support ticket or a device in hand.
+            post_client_event,
             # CI-only publish endpoint: `ota.yml` calls this after uploading a bundle
             # to S3 to register the new `app_updates` row. Bearer-token guarded
             # (`requires_updates_publish_token`), not session-auth'd, so it also stays
