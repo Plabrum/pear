@@ -118,6 +118,17 @@ class Config:
     # Magic-link token TTL (one-time, single-use). Default 15m.
     MAGIC_LINK_TTL_SECONDS: int = int(os.getenv("MAGIC_LINK_TTL_SECONDS", str(60 * 15)))
 
+    # ─── Wingperson invite link ────────────────────────────────────────────────
+    # Invite token TTL — longer than the magic-link TTL since invites are shared
+    # async (SMS/share sheet) and may sit unopened. Default 7d.
+    WINGPERSON_INVITE_TTL_SECONDS: int = int(os.getenv("WINGPERSON_INVITE_TTL_SECONDS", str(60 * 60 * 24 * 7)))
+    # Base URL for the invite link — MUST be the bare apex (e.g. https://usepear.app),
+    # not API_BASE_URL's api.<domain> subdomain: the iOS Associated Domains
+    # entitlement only covers `applinks:usepear.app`, so a link minted on the API
+    # subdomain would never verify as a universal link. Defaults to API_BASE_URL's
+    # own default since local dev has no subdomain split.
+    UNIVERSAL_LINK_BASE_URL: str = os.getenv("UNIVERSAL_LINK_BASE_URL", "http://localhost:8000")
+
     # ─── APNs (direct push) ────────────────────────────────────────────────────
     # Token-based auth (.p8 key). One key covers the whole team and never expires;
     # the same key works for both sandbox and production hosts — only the *host*

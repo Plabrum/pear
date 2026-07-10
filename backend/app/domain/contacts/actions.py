@@ -5,6 +5,7 @@ from typing import ClassVar
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import config
 from app.domain.contacts.enums import WingpersonStatus
 from app.domain.contacts.models import Contact
 from app.domain.contacts.queries import (
@@ -12,7 +13,8 @@ from app.domain.contacts.queries import (
     find_profile_id_by_phone,
     has_live_contact,
 )
-from app.domain.contacts.schemas import InviteWingpersonData
+from app.domain.contacts.schemas import AcceptInviteByTokenData, InviteWingpersonData
+from app.domain.contacts.service import ContactService
 from app.domain.contacts.state_machine import contact_machine
 from app.platform.actions.base import (
     BaseObjectAction,
@@ -31,6 +33,7 @@ from app.utils.exceptions import UserFacingError
 class ContactActionKey(StrEnum):
     INVITE = "invite"
     ACCEPT = "accept"
+    ACCEPT_BY_TOKEN = "accept_by_token"
     DECLINE = "decline"
     REMOVE = "remove"
 
@@ -92,10 +95,17 @@ class InviteWingperson(BaseTopLevelAction[InviteWingpersonData]):
                     "Someone wants you to be their wingperson on Pear.",
                 )
 
+        contact_service = ContactService(db=transaction, config=deps.config)
+        token = await contact_service.issue_invite_token(contact.id)
+        # Must be the apex (UNIVERSAL_LINK_BASE_URL), not API_BASE_URL's api.<domain>
+        # subdomain — the Associated Domains entitlement only covers usepear.app.
+        invite_url = f"{config.UNIVERSAL_LINK_BASE_URL}/invite/verify?token={token}"
+
         return ActionExecutionResponse(
             message="Invitation sent",
             invalidate_queries=["/wingpeople", "/winger-tabs"],
             created_id=contact.id,
+            invite_url=invite_url,
         )
 
 
@@ -129,6 +139,65 @@ class AcceptInvite(BaseObjectAction[Contact, EmptyActionData]):
             WingpersonStatus.ACTIVE,
             actor=user,
         )
+        return ActionExecutionResponse(
+            message="Invitation accepted",
+            invalidate_queries=["/wingpeople", "/winger-tabs"],
+        )
+
+
+# ── POST /actions/contact_actions (top-level) — accept via invite link ─────────
+
+
+@contact_actions
+class AcceptInviteByToken(BaseTopLevelAction[AcceptInviteByTokenData]):
+    """Accept a wingperson invite from the token in a shared link.
+
+    `AcceptInvite` (above) only works once `winger_id` is already resolved to the
+    caller (phone-match at invite time, or by an already-registered invitee tapping
+    Accept from their in-app invitations list) — a brand-new invitee's `Contact` row
+    can't even be RLS-read by them yet (`Owner("user_id") | Owner("winger_id")`), so
+    the existing object-action dispatch is unusable. This top-level action instead
+    resolves the token itself, links `winger_id` on first use, and converges on the
+    same `ACTIVE` state.
+    """
+
+    action_key: ClassVar[ContactActionKey] = ContactActionKey.ACCEPT_BY_TOKEN
+    label = "Accept Invite"
+    icon = ActionIcon.CHECK
+    target_state = WingpersonStatus.ACTIVE
+    # Not a generically-available action — the invite screen calls it directly with
+    # a token from a deep link. Hidden from `GET /actions/contact_actions`'s list.
+    is_hidden = True
+
+    @classmethod
+    async def execute(
+        cls,
+        data: AcceptInviteByTokenData,
+        transaction: AsyncSession,
+        user: User,
+        deps: ActionDeps,
+    ) -> ActionExecutionResponse:
+        contact_service = ContactService(db=transaction, config=deps.config)
+        contact = await contact_service.preview_invite_token(data.token)
+        if contact is None:
+            raise UserFacingError("This invite link is invalid or has expired.")
+        if contact.state != WingpersonStatus.INVITED:
+            raise UserFacingError("This invite is no longer available.")
+        if contact.winger_id is not None and contact.winger_id != user.id:
+            raise UserFacingError("This invite has already been claimed by someone else.")
+
+        if contact.winger_id is None:
+            contact.winger_id = user.id
+            await transaction.flush()
+
+        await deps.state_machine_service.transition(
+            contact_machine,
+            contact,
+            WingpersonStatus.ACTIVE,
+            actor=user,
+        )
+        await contact_service.finalize_invite_token(data.token)
+
         return ActionExecutionResponse(
             message="Invitation accepted",
             invalidate_queries=["/wingpeople", "/winger-tabs"],

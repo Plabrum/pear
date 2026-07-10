@@ -7,6 +7,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import config as app_config
 from app.domain.contacts.actions import (
     AcceptInvite,
     DeclineInvite,
@@ -64,7 +65,7 @@ def _deps(session: AsyncSession, *, user_id, role: Role = Role.DATER, push_send:
         transaction=session,
         user=User(id=user_id, role=role),
         request=MagicMock(),
-        config=MagicMock(),
+        config=app_config,
         push=push,
         email=MagicMock(),
         state_machine_service=StateMachineService(transaction=session),

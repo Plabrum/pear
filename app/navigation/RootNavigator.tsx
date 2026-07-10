@@ -32,13 +32,26 @@ import SettingsScreen from '../features/root/settings';
 const RootStack = createNativeStackNavigator<RootStackParamList>();
 
 // Only the two real deep-link entry points are URL-addressable — everything
-// else is reached by in-app navigation, same as before (scheme `pear` only,
-// no universal links).
+// else is reached by in-app navigation. `Invite` carries a `?token=` query
+// param the backend's `/invite/verify` redirect (and the universal-link
+// fallback page) both attach — `parse` extracts it as a typed route param
+// instead of a second useEffect reading it out of the raw URL.
+//
+// `https://usepear.app` is a real universal link (Associated Domains
+// entitlement + AASA served from the backend, see project.yml and
+// backend/app/platform/universal_links) — it opens the app directly when
+// installed and falls back to a hosted landing page otherwise. `pear://`
+// stays for the custom-scheme hops the backend's redirect routes emit.
 const linking: LinkingOptions<RootStackParamList> = {
-  prefixes: ['pear://'],
+  prefixes: ['pear://', 'https://usepear.app'],
   config: {
     screens: {
-      Invite: 'invite',
+      Invite: {
+        path: 'invite',
+        parse: {
+          token: (token: string) => token,
+        },
+      },
       MagicLink: 'magic-link',
     },
   },
@@ -62,20 +75,21 @@ export function RootNavigator() {
 
   // Pending-intent handoff (winger-invite deep link, onboarding destination):
   // both are recorded while their target navigator isn't mounted yet, and
-  // consumed here once `status` flips to 'dater' — by then the conditional
-  // <RootStack.Screen name="DaterTabs" .../> below has already rendered in
-  // the same commit, so this navigate is mount-safe (no race against the
-  // query refetch that flips `status`).
+  // consumed here once `status` settles past onboarding — by then the
+  // conditional <RootStack.Screen name="WingerTabs"/"DaterTabs" .../> below has
+  // already rendered in the same commit, so this navigate is mount-safe (no
+  // race against the query refetch that flips `status`). The invite intent
+  // routes back to the always-mounted Invite screen (not straight to
+  // WingpeopleList) so its token-preview confirm step still renders.
   useEffect(() => {
-    if (status !== 'dater') return;
-    if (peekPendingWingerInvite()) {
+    if (status !== 'dater' && status !== 'winger') return;
+    const pendingInvite = peekPendingWingerInvite();
+    if (pendingInvite) {
       clearPendingWingerInvite();
-      navigationRef.current?.navigate('DaterTabs', {
-        screen: 'Profile',
-        params: { screen: 'WingpeopleList' },
-      });
+      navigationRef.current?.navigate('Invite', { token: pendingInvite.token });
       return;
     }
+    if (status !== 'dater') return;
     const dest = peekPendingOnboardingDestination();
     if (dest === 'Profile') {
       clearPendingOnboardingDestination();

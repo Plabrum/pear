@@ -76,6 +76,7 @@ SES_CONFIGURATION_SET=${ses_config_set}
 FRONTEND_ORIGIN=${frontend_origin}
 SUCCESS_REDIRECT_URL=${frontend_origin}
 API_BASE_URL=${api_base_url}
+UNIVERSAL_LINK_BASE_URL=${universal_link_base_url}
 %{ for k, v in extra_env ~}
 ${k}=${v}
 %{ endfor ~}

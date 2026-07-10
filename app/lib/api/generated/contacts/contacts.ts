@@ -4,17 +4,28 @@
  * Litestar API
  * OpenAPI spec version: 1.0.0
  */
-import { useSuspenseQuery } from '@tanstack/react-query';
+import { useMutation, useSuspenseQuery } from '@tanstack/react-query';
 import type {
   DataTag,
+  MutationFunction,
   QueryClient,
   QueryFunction,
   QueryKey,
+  UseMutationOptions,
+  UseMutationResult,
   UseSuspenseQueryOptions,
   UseSuspenseQueryResult,
 } from '@tanstack/react-query';
 
-import type { WingingForTab, WingpeopleResponse } from '../model';
+import type {
+  InviteVerifyIn,
+  InviteVerifyInviteVerify400,
+  InviteVerifyInviteVerifyRedirect400,
+  InviteVerifyInviteVerifyRedirectParams,
+  InviteVerifyOut,
+  WingingForTab,
+  WingpeopleResponse,
+} from '../model';
 
 import { pearFetch } from '../../http';
 
@@ -235,3 +246,244 @@ export function useGetApiWingerTabsSuspense<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary InviteVerifyRedirect
+ */
+export const getInviteVerifyInviteVerifyRedirectUrl = (
+  params: InviteVerifyInviteVerifyRedirectParams
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/invite/verify?${stringifiedParams}` : `/invite/verify`;
+};
+
+export const inviteVerifyInviteVerifyRedirect = async (
+  params: InviteVerifyInviteVerifyRedirectParams,
+  options?: RequestInit
+): Promise<void> => {
+  return pearFetch<void>(getInviteVerifyInviteVerifyRedirectUrl(params), {
+    ...options,
+    method: 'GET',
+  });
+};
+
+export const getInviteVerifyInviteVerifyRedirectQueryKey = (
+  params?: InviteVerifyInviteVerifyRedirectParams
+) => {
+  return [`/invite/verify`, ...(params ? [params] : [])] as const;
+};
+
+export const getInviteVerifyInviteVerifyRedirectSuspenseQueryOptions = <
+  TData = Awaited<ReturnType<typeof inviteVerifyInviteVerifyRedirect>>,
+  TError = InviteVerifyInviteVerifyRedirect400,
+>(
+  params: InviteVerifyInviteVerifyRedirectParams,
+  options?: {
+    query?: Partial<
+      UseSuspenseQueryOptions<
+        Awaited<ReturnType<typeof inviteVerifyInviteVerifyRedirect>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof pearFetch>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getInviteVerifyInviteVerifyRedirectQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof inviteVerifyInviteVerifyRedirect>>> = ({
+    signal,
+  }) => inviteVerifyInviteVerifyRedirect(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseSuspenseQueryOptions<
+    Awaited<ReturnType<typeof inviteVerifyInviteVerifyRedirect>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type InviteVerifyInviteVerifyRedirectSuspenseQueryResult = NonNullable<
+  Awaited<ReturnType<typeof inviteVerifyInviteVerifyRedirect>>
+>;
+export type InviteVerifyInviteVerifyRedirectSuspenseQueryError =
+  InviteVerifyInviteVerifyRedirect400;
+
+export function useInviteVerifyInviteVerifyRedirectSuspense<
+  TData = Awaited<ReturnType<typeof inviteVerifyInviteVerifyRedirect>>,
+  TError = InviteVerifyInviteVerifyRedirect400,
+>(
+  params: InviteVerifyInviteVerifyRedirectParams,
+  options: {
+    query: Partial<
+      UseSuspenseQueryOptions<
+        Awaited<ReturnType<typeof inviteVerifyInviteVerifyRedirect>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof pearFetch>;
+  },
+  queryClient?: QueryClient
+): UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useInviteVerifyInviteVerifyRedirectSuspense<
+  TData = Awaited<ReturnType<typeof inviteVerifyInviteVerifyRedirect>>,
+  TError = InviteVerifyInviteVerifyRedirect400,
+>(
+  params: InviteVerifyInviteVerifyRedirectParams,
+  options?: {
+    query?: Partial<
+      UseSuspenseQueryOptions<
+        Awaited<ReturnType<typeof inviteVerifyInviteVerifyRedirect>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof pearFetch>;
+  },
+  queryClient?: QueryClient
+): UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useInviteVerifyInviteVerifyRedirectSuspense<
+  TData = Awaited<ReturnType<typeof inviteVerifyInviteVerifyRedirect>>,
+  TError = InviteVerifyInviteVerifyRedirect400,
+>(
+  params: InviteVerifyInviteVerifyRedirectParams,
+  options?: {
+    query?: Partial<
+      UseSuspenseQueryOptions<
+        Awaited<ReturnType<typeof inviteVerifyInviteVerifyRedirect>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof pearFetch>;
+  },
+  queryClient?: QueryClient
+): UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary InviteVerifyRedirect
+ */
+
+export function useInviteVerifyInviteVerifyRedirectSuspense<
+  TData = Awaited<ReturnType<typeof inviteVerifyInviteVerifyRedirect>>,
+  TError = InviteVerifyInviteVerifyRedirect400,
+>(
+  params: InviteVerifyInviteVerifyRedirectParams,
+  options?: {
+    query?: Partial<
+      UseSuspenseQueryOptions<
+        Awaited<ReturnType<typeof inviteVerifyInviteVerifyRedirect>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof pearFetch>;
+  },
+  queryClient?: QueryClient
+): UseSuspenseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getInviteVerifyInviteVerifyRedirectSuspenseQueryOptions(params, options);
+
+  const query = useSuspenseQuery(queryOptions, queryClient) as UseSuspenseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary InviteVerify
+ */
+export const getInviteVerifyInviteVerifyUrl = () => {
+  return `/invite/verify`;
+};
+
+export const inviteVerifyInviteVerify = async (
+  inviteVerifyIn: InviteVerifyIn,
+  options?: RequestInit
+): Promise<InviteVerifyOut> => {
+  return pearFetch<InviteVerifyOut>(getInviteVerifyInviteVerifyUrl(), {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(inviteVerifyIn),
+  });
+};
+
+export const getInviteVerifyInviteVerifyMutationOptions = <
+  TError = InviteVerifyInviteVerify400,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof inviteVerifyInviteVerify>>,
+    TError,
+    { data: InviteVerifyIn },
+    TContext
+  >;
+  request?: SecondParameter<typeof pearFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof inviteVerifyInviteVerify>>,
+  TError,
+  { data: InviteVerifyIn },
+  TContext
+> => {
+  const mutationKey = ['inviteVerifyInviteVerify'];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof inviteVerifyInviteVerify>>,
+    { data: InviteVerifyIn }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return inviteVerifyInviteVerify(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type InviteVerifyInviteVerifyMutationResult = NonNullable<
+  Awaited<ReturnType<typeof inviteVerifyInviteVerify>>
+>;
+export type InviteVerifyInviteVerifyMutationBody = InviteVerifyIn;
+export type InviteVerifyInviteVerifyMutationError = InviteVerifyInviteVerify400;
+
+/**
+ * @summary InviteVerify
+ */
+export const useInviteVerifyInviteVerify = <
+  TError = InviteVerifyInviteVerify400,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof inviteVerifyInviteVerify>>,
+      TError,
+      { data: InviteVerifyIn },
+      TContext
+    >;
+    request?: SecondParameter<typeof pearFetch>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof inviteVerifyInviteVerify>>,
+  TError,
+  { data: InviteVerifyIn },
+  TContext
+> => {
+  return useMutation(getInviteVerifyInviteVerifyMutationOptions(options), queryClient);
+};

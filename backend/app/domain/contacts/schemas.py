@@ -90,3 +90,27 @@ class InviteWingpersonData(BaseSchema):
     """POST /wingpeople/invite body."""
 
     phoneNumber: str
+
+
+# ── Invite-token verify (GET/POST /invite/verify) ────────────────────────────
+
+
+class InviteVerifyIn(BaseSchema):
+    """POST /invite/verify body."""
+
+    token: str
+
+
+class InviteVerifyOut(BaseSchema):
+    """Preview of an invite token's target contact — no mutation."""
+
+    contactId: Sqid
+    daterName: str | None
+    alreadyLinked: bool
+
+
+# ── Accept invite by token (a top-level CONTACT_ACTIONS action) ──────────────
+
+
+class AcceptInviteByTokenData(BaseSchema):
+    token: str

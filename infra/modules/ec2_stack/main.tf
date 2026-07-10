@@ -292,22 +292,23 @@ resource "aws_instance" "app" {
   vpc_security_group_ids = [aws_security_group.app.id]
 
   user_data = base64encode(templatefile("${path.module}/user_data.sh", {
-    compose_content   = file("${path.module}/docker-compose.yml")
-    caddyfile_content = file("${path.module}/Caddyfile")
-    aws_region        = var.aws_region
-    ecr_repo_url      = var.ecr_repository_url
-    image_tag         = var.image_tag
-    domain            = var.domain
-    api_subdomain     = var.api_subdomain
-    db_name           = var.db_name
-    db_user           = var.db_username
-    db_password       = var.db_password
-    secrets_arn       = aws_secretsmanager_secret.app.arn
-    ses_config_set    = aws_ses_configuration_set.main.name
-    s3_media_bucket   = module.media.bucket_name
-    frontend_origin   = "https://app.${var.domain}"
-    api_base_url      = "https://${var.api_subdomain}.${var.domain}"
-    extra_env         = var.extra_env
+    compose_content         = file("${path.module}/docker-compose.yml")
+    caddyfile_content       = file("${path.module}/Caddyfile")
+    aws_region              = var.aws_region
+    ecr_repo_url            = var.ecr_repository_url
+    image_tag               = var.image_tag
+    domain                  = var.domain
+    api_subdomain           = var.api_subdomain
+    db_name                 = var.db_name
+    db_user                 = var.db_username
+    db_password             = var.db_password
+    secrets_arn             = aws_secretsmanager_secret.app.arn
+    ses_config_set          = aws_ses_configuration_set.main.name
+    s3_media_bucket         = module.media.bucket_name
+    frontend_origin         = "https://app.${var.domain}"
+    api_base_url            = "https://${var.api_subdomain}.${var.domain}"
+    universal_link_base_url = "https://${var.domain}"
+    extra_env               = var.extra_env
   }))
 
   root_block_device {
@@ -338,6 +339,32 @@ resource "aws_instance" "app" {
 resource "aws_route53_record" "api" {
   zone_id = var.hosted_zone_id
   name    = "${var.api_subdomain}.${var.domain}"
+  type    = "A"
+  ttl     = 60
+  records = [aws_instance.app.public_ip]
+}
+
+# Points the bare apex (usepear.app) at the same instance — not a web frontend
+# (Pear is iOS-only, see infra/main.tf's NOTE), but the backend needs to serve
+# the wingperson-invite AASA file + fallback landing page from this exact host
+# for Associated Domains universal links to verify.
+#
+# EXPECTED TO CHANGE SOON: a Vercel-hosted marketing landing page (mirroring
+# sloopquest's `landing/` — Next.js 15 App Router, apex A-record -> Vercel's
+# anycast IP 76.76.21.21, www CNAME -> cname.vercel-dns.com) is planned to take
+# over this apex. When that lands, do NOT just repoint this A-record — the AASA
+# file and the `/invite*` fallback page must keep resolving at the apex or
+# universal links silently break (Apple's iOS Associated Domains verification
+# fails closed with no client-visible error). Add `rewrites()` in the landing
+# project's `next.config.ts` proxying `/.well-known/apple-app-site-association`
+# and `/invite*` to `https://${var.api_subdomain}.${var.domain}/...` (a
+# server-side proxy, so it's still same-origin from the browser/iOS's POV) —
+# then this record can move to Vercel with the backend routes in
+# `app/platform/universal_links/routes.py` and `app/domain/contacts/routes_methods.py`
+# left completely untouched.
+resource "aws_route53_record" "apex" {
+  zone_id = var.hosted_zone_id
+  name    = var.domain
   type    = "A"
   ttl     = 60
   records = [aws_instance.app.public_ip]
