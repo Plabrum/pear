@@ -8,6 +8,7 @@ import {
 } from '@react-navigation/native';
 import type { LinkingOptions } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { PortalHost } from '@rn-primitives/portal';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useSession } from '@/context/auth';
@@ -109,6 +110,9 @@ export function RootNavigator() {
         <RootStack.Screen name="MagicLink" component={MagicLinkScreen} />
         <RootStack.Screen name="Settings" component={SettingsScreen} />
       </RootStack.Navigator>
+      {/* PortalHost lives inside NavigationContainer so portaled overlays
+          (Dialog / Sheet) can still call useNavigation(). */}
+      <PortalHost />
     </NavigationContainer>
   );
 }

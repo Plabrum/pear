@@ -13,7 +13,8 @@ import { StyleSheet, useWindowDimensions } from 'react-native';
 import { useReanimatedKeyboardAnimation } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import {
+import Animated, {
+  Extrapolation,
   interpolate,
   runOnJS,
   useAnimatedStyle,
@@ -24,7 +25,7 @@ import {
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { Portal } from '@rn-primitives/portal';
 
-import { View, Text, Pressable, ScrollView, AnimatedView } from '@/lib/tw';
+import { View, Text, Pressable, ScrollView } from '@/lib/tw';
 import { colors } from '@/constants/theme';
 
 const OPEN = { duration: 300 } as const;
@@ -78,7 +79,6 @@ export function Sheet({
 
   React.useEffect(() => {
     if (visible) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setMounted(true);
       onShow?.();
       translateY.value = winH;
@@ -98,20 +98,24 @@ export function Sheet({
   const backdropStyle = useAnimatedStyle(() => ({
     opacity: interpolate(translateY.value, [0, winH], [0.45, 0]),
   }));
+  // Home-indicator clearance only makes sense with no keyboard covering it —
+  // collapse it away as the keyboard rises so the footer doesn't leave a gap
+  // above the keyboard.
+  const footerPaddingStyle = useAnimatedStyle(() => ({
+    paddingBottom: interpolate(kb.value, [-20, 0], [12, insets.bottom + 12], Extrapolation.CLAMP),
+  }));
 
   // Swipe-down-to-dismiss lives on the grab handle (not the whole card) so it never
   // fights an inner ScrollView.
   const pan = Gesture.Pan()
     .enabled(dismissable)
     .onUpdate((e) => {
-      // eslint-disable-next-line react-hooks/immutability
       translateY.value = Math.max(0, e.translationY);
     })
     .onEnd((e) => {
       if (e.translationY > 110 || e.velocityY > 800) {
         runOnJS(onClose)();
       } else {
-        // eslint-disable-next-line react-hooks/immutability
         translateY.value = withSpring(0, { damping: 22, stiffness: 240 });
       }
     });
@@ -140,17 +144,14 @@ export function Sheet({
         <View className="flex-1 min-w-0">
           {title ? (
             <Text
-              className="font-serif text-foreground"
-              style={{ fontSize: 26, lineHeight: 28, letterSpacing: -0.5 }}
+              className="font-serif"
+              style={{ fontSize: 26, lineHeight: 28, letterSpacing: -0.5, color: colors.ink }}
             >
               {title}
             </Text>
           ) : null}
           {subtitle ? (
-            <Text
-              className="text-foreground-subtle"
-              style={{ fontSize: 13.5, lineHeight: 20, marginTop: 6 }}
-            >
+            <Text style={{ fontSize: 13.5, lineHeight: 20, marginTop: 6, color: colors.inkDim }}>
               {subtitle}
             </Text>
           ) : null}
@@ -159,7 +160,8 @@ export function Sheet({
           <Pressable
             onPress={onClose}
             hitSlop={8}
-            className="w-[30px] h-[30px] rounded-[15px] items-center justify-center bg-surface-muted"
+            className="w-[30px] h-[30px] rounded-[15px] items-center justify-center"
+            style={{ backgroundColor: colors.muted }}
           >
             <Ionicons name="close" size={16} color={colors.inkMid} />
           </Pressable>
@@ -169,35 +171,34 @@ export function Sheet({
 
   const bodyInner = <View className="px-5 pt-3">{children}</View>;
   const footerBlock = footer ? (
-    <View
-      className="bg-surface px-5 pt-3"
-      style={{
-        paddingBottom: insets.bottom + 12,
-        borderTopWidth: StyleSheet.hairlineWidth,
-        borderTopColor: colors.divider,
-      }}
+    <Animated.View
+      style={[
+        {
+          backgroundColor: colors.white,
+          paddingHorizontal: 20,
+          paddingTop: 12,
+          borderTopWidth: StyleSheet.hairlineWidth,
+          borderTopColor: colors.divider,
+        },
+        footerPaddingStyle,
+      ]}
     >
       {footer}
-    </View>
+    </Animated.View>
   ) : null;
 
   return (
     <Portal name={portalName}>
-      <View style={StyleSheet.absoluteFill}>
-        <AnimatedView
+      <View style={[StyleSheet.absoluteFill, { justifyContent: 'flex-end' }]}>
+        <Animated.View
           style={[StyleSheet.absoluteFill, { backgroundColor: colors.ink }, backdropStyle]}
         />
         <Pressable style={StyleSheet.absoluteFill} onPress={dismissable ? onClose : undefined} />
-        <AnimatedView
-          className="bg-background"
+        <Animated.View
           style={[
             {
-              position: 'absolute',
-              left: 0,
-              right: 0,
-              bottom: 0,
-              borderTopLeftRadius: 26,
-              borderTopRightRadius: 26,
+              backgroundColor: colors.canvas,
+              borderRadius: 26,
               overflow: 'hidden',
               maxHeight: '90%',
               ...(fixedHeight != null ? { height: fixedHeight } : null),
@@ -225,7 +226,7 @@ export function Sheet({
               {footer ? footerBlock : <View style={{ height: insets.bottom + 16 }} />}
             </>
           )}
-        </AnimatedView>
+        </Animated.View>
       </View>
     </Portal>
   );

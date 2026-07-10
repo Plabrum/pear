@@ -66,22 +66,23 @@ class AppDelegate: RCTAppDelegate, UNUserNotificationCenterDelegate {
     completionHandler([.banner, .list, .sound])
   }
 
-  // Linking API
+  // Linking API — RCTAppDelegate does not implement this selector itself
+  // (it only declares UIApplicationDelegate conformance), so calling super
+  // here would forward to doesNotRecognizeSelector: and crash.
   override func application(
     _ app: UIApplication,
     open url: URL,
     options: [UIApplication.OpenURLOptionsKey: Any] = [:]
   ) -> Bool {
-    return super.application(app, open: url, options: options) || RCTLinkingManager.application(app, open: url, options: options)
+    return RCTLinkingManager.application(app, open: url, options: options)
   }
 
-  // Universal Links
+  // Universal Links — same story, RCTAppDelegate has no implementation to call super into.
   override func application(
     _ application: UIApplication,
     continue userActivity: NSUserActivity,
     restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void
   ) -> Bool {
-    let result = RCTLinkingManager.application(application, continue: userActivity, restorationHandler: restorationHandler)
-    return super.application(application, continue: userActivity, restorationHandler: restorationHandler) || result
+    return RCTLinkingManager.application(application, continue: userActivity, restorationHandler: restorationHandler)
   }
 }

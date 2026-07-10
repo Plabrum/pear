@@ -5,7 +5,6 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
-import { PortalHost } from '@rn-primitives/portal';
 import { StatusBar } from 'react-native';
 import { Toaster } from 'sonner-native';
 import { QueryClientProvider } from '@tanstack/react-query';
@@ -26,9 +25,6 @@ export default function App() {
             <AuthProvider>
               <BottomSheetModalProvider>
                 <RootNavigator />
-                {/* PortalHost sits inside the providers so portaled overlays
-                    (Dialog / Sheet) inherit Query and Auth context. */}
-                <PortalHost />
               </BottomSheetModalProvider>
               <Toaster position="bottom-center" richColors />
               <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
