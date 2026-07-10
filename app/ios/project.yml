@@ -125,6 +125,20 @@ targets:
             export SKIP_BUNDLING=1
           fi
 
+          # Release bundles inline APP_PUBLIC_API_URL into the JS via babel's
+          # transform-inline-environment-variables at this bundling step. If it's
+          # unset (or still the local-dev default), the archive silently ships
+          # pointed at localhost:8000 — reachable in the simulator, dead on a real
+          # device. Xcode Cloud must set APP_PUBLIC_API_URL as a workflow
+          # environment variable (App Store Connect > Xcode Cloud > workflow >
+          # Environment). Fail loudly here instead of shipping that build.
+          if [[ "$CONFIGURATION" != *Debug* ]]; then
+            if [[ -z "$APP_PUBLIC_API_URL" || "$APP_PUBLIC_API_URL" == *localhost* ]]; then
+              echo "error: APP_PUBLIC_API_URL is unset or points at localhost for a $CONFIGURATION build (got: '${APP_PUBLIC_API_URL}'). Set it as an Xcode Cloud workflow environment variable before archiving." >&2
+              exit 1
+            fi
+          fi
+
           if [[ -f "$PODS_ROOT/../.xcode.env.updates" ]]; then
             source "$PODS_ROOT/../.xcode.env.updates"
           fi

@@ -84,42 +84,23 @@ module "media_cdn" {
   tags                        = merge(local.common_tags, { Name = "${local.name}-media-cdn" })
 }
 
-# -- Secrets Manager -----------------------------------------------------------
-# Created with placeholder values by Terraform; populate after first apply:
-#   aws secretsmanager put-secret-value --secret-id <arn> --secret-string '{"SECRET_KEY":"..."}'
+# -- Secrets Manager -------------------------------------------------------------
+# One secret holds everything. Terraform generates what it safely can
+# (SECRET_KEY, DB_APP_PASSWORD, UPDATES_PUBLISH_TOKEN, UPDATES_SIGNING_PRIVATE_KEY)
+# and seeds placeholders for the rest (Apple/APNs) - populate those manually after
+# first apply:
+#   aws secretsmanager put-secret-value --secret-id <arn> --secret-string '{...}'
 # deploy.sh refreshes the box's .env from here on every deploy.
 
-resource "aws_secretsmanager_secret" "app" {
-  name                    = "${local.name}-app-secrets"
-  description             = "Pear ${var.environment} secrets - populate manually after first apply"
-  recovery_window_in_days = var.environment == "production" ? 7 : 0
-
-  tags = { Name = "${local.name}-app-secrets" }
+resource "random_password" "secret_key" {
+  length  = 48
+  special = false
 }
 
-resource "aws_secretsmanager_secret_version" "app" {
-  secret_id = aws_secretsmanager_secret.app.id
-
-  # Pear's app secrets. All placeholders - populate real values out of band after
-  # first apply. Auth is magic-link + Apple; Pear self-hosts auth and push.
-  secret_string = jsonencode({
-    SECRET_KEY      = "CHANGE-ME" # Litestar session signing secret (signs the session cookie)
-    APPLE_CLIENT_ID = "CHANGE-ME" # Apple Sign-In `aud`
-    APNS_KEY        = ""          # APNs auth key (.p8 contents) - push
-    APNS_KEY_ID     = ""          # APNs key ID - push
-    APNS_TEAM_ID    = ""          # Apple team ID - push
-  })
-
-  lifecycle {
-    ignore_changes = [secret_string]
-  }
+resource "random_password" "db_app_password" {
+  length  = 32
+  special = false # round-trips through a single-line .env
 }
-
-# -- Secrets Manager (OTA publish token + code-signing key) --------------------
-# Kept in a SEPARATE secret from aws_secretsmanager_secret.app above: that one has
-# `lifecycle { ignore_changes = [secret_string] }`, so Terraform never touches its
-# contents after first apply. This secret has no such lifecycle block — Terraform
-# is the sole owner of its contents, generated fresh, no manual sync required.
 
 resource "random_password" "updates_publish_token" {
   length  = 48
@@ -143,24 +124,39 @@ resource "tls_self_signed_cert" "updates_signing" {
   is_ca_certificate     = false
 }
 
-resource "aws_secretsmanager_secret" "updates" {
-  name                    = "${local.name}-ota-secrets"
-  description             = "Terraform-owned OTA publish token + code-signing private key - fully managed, no manual sync"
+resource "aws_secretsmanager_secret" "app" {
+  name                    = "${local.name}-app-secrets"
+  description             = "Pear ${var.environment} secrets - populate manually after first apply"
   recovery_window_in_days = var.environment == "production" ? 7 : 0
 
-  tags = { Name = "${local.name}-ota-secrets" }
+  tags = { Name = "${local.name}-app-secrets" }
 }
 
-resource "aws_secretsmanager_secret_version" "updates" {
-  secret_id = aws_secretsmanager_secret.updates.id
+resource "aws_secretsmanager_secret_version" "app" {
+  secret_id = aws_secretsmanager_secret.app.id
 
-  # No ignore_changes - Terraform is the sole owner of this secret's contents.
+  # Pear's app secrets. Auth is magic-link + Apple; Pear self-hosts auth and push.
+  # Terraform-generated values are real; Apple/APNs are placeholders - populate
+  # real values out of band after first apply (only the user can supply them).
   secret_string = jsonencode({
+    SECRET_KEY            = random_password.secret_key.result # Litestar session signing secret (signs the session cookie)
+    APPLE_CLIENT_ID       = "CHANGE-ME"                       # Apple Sign-In `aud`
+    APPLE_TEAM_ID         = "CHANGE-ME"
+    APPLE_KEY_ID          = "CHANGE-ME"
+    APPLE_PRIVATE_KEY     = ""
+    APNS_KEY              = "" # APNs auth key (.p8 contents) - push
+    APNS_KEY_ID           = "" # APNs key ID - push
+    APNS_TEAM_ID          = "" # Apple team ID - push
+    DB_APP_PASSWORD       = random_password.db_app_password.result
     UPDATES_PUBLISH_TOKEN = random_password.updates_publish_token.result
     # base64-encoded so the PEM's embedded newlines never round-trip through
     # deploy.sh's single-line .env merge - decoded back to PEM in signing.py.
     UPDATES_SIGNING_PRIVATE_KEY = base64encode(tls_private_key.updates_signing.private_key_pem)
   })
+
+  lifecycle {
+    ignore_changes = [secret_string]
+  }
 }
 
 # -- SES -----------------------------------------------------------------------
@@ -254,7 +250,7 @@ resource "aws_iam_role_policy" "app" {
       {
         Effect   = "Allow"
         Action   = ["secretsmanager:GetSecretValue"]
-        Resource = [aws_secretsmanager_secret.app.arn, aws_secretsmanager_secret.updates.arn]
+        Resource = [aws_secretsmanager_secret.app.arn]
       },
       {
         Effect   = "Allow"
@@ -296,23 +292,22 @@ resource "aws_instance" "app" {
   vpc_security_group_ids = [aws_security_group.app.id]
 
   user_data = base64encode(templatefile("${path.module}/user_data.sh", {
-    compose_content     = file("${path.module}/docker-compose.yml")
-    caddyfile_content   = file("${path.module}/Caddyfile")
-    aws_region          = var.aws_region
-    ecr_repo_url        = var.ecr_repository_url
-    image_tag           = var.image_tag
-    domain              = var.domain
-    api_subdomain       = var.api_subdomain
-    db_name             = var.db_name
-    db_user             = var.db_username
-    db_password         = var.db_password
-    secrets_arn         = aws_secretsmanager_secret.app.arn
-    updates_secrets_arn = aws_secretsmanager_secret.updates.arn
-    ses_config_set      = aws_ses_configuration_set.main.name
-    s3_media_bucket     = module.media.bucket_name
-    frontend_origin     = "https://app.${var.domain}"
-    api_base_url        = "https://${var.api_subdomain}.${var.domain}"
-    extra_env           = var.extra_env
+    compose_content   = file("${path.module}/docker-compose.yml")
+    caddyfile_content = file("${path.module}/Caddyfile")
+    aws_region        = var.aws_region
+    ecr_repo_url      = var.ecr_repository_url
+    image_tag         = var.image_tag
+    domain            = var.domain
+    api_subdomain     = var.api_subdomain
+    db_name           = var.db_name
+    db_user           = var.db_username
+    db_password       = var.db_password
+    secrets_arn       = aws_secretsmanager_secret.app.arn
+    ses_config_set    = aws_ses_configuration_set.main.name
+    s3_media_bucket   = module.media.bucket_name
+    frontend_origin   = "https://app.${var.domain}"
+    api_base_url      = "https://${var.api_subdomain}.${var.domain}"
+    extra_env         = var.extra_env
   }))
 
   root_block_device {

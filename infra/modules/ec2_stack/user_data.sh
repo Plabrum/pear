@@ -119,17 +119,16 @@ if os.path.exists(env_path):
     with open(env_path) as f:
         env = parse_env(f.read())
 
-# Multiple secrets - all values are plain single-line strings now
-# (UPDATES_SIGNING_PRIVATE_KEY is base64-encoded PEM, no embedded newlines).
-for secret_arn in ['${secrets_arn}', '${updates_secrets_arn}']:
-    raw = subprocess.check_output([
-        'aws', 'secretsmanager', 'get-secret-value',
-        '--region', '${aws_region}',
-        '--secret-id', secret_arn,
-        '--query', 'SecretString',
-        '--output', 'text',
-    ])
-    env.update(json.loads(raw))
+# All values are plain single-line strings now (UPDATES_SIGNING_PRIVATE_KEY is
+# base64-encoded PEM, no embedded newlines).
+raw = subprocess.check_output([
+    'aws', 'secretsmanager', 'get-secret-value',
+    '--region', '${aws_region}',
+    '--secret-id', '${secrets_arn}',
+    '--query', 'SecretString',
+    '--output', 'text',
+])
+env.update(json.loads(raw))
 
 with open(env_path, 'w') as f:
     for k, v in env.items():

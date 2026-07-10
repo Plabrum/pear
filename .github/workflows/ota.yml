@@ -11,21 +11,22 @@ name: OTA Publish
 # pipeline ignores app/**, this one ignores everything else).
 #
 # AUTH: assumes the GitHub OIDC role `secrets.OIDC_ROLE_ARN` (same convention as
-# build-test-deploy.yml) — no long-lived AWS keys. That role must additionally
-# allow s3:PutObject/s3:List on the updates/ prefix of the media bucket,
-# cloudfront:CreateInvalidation on the CDN distribution in front of it, and
-# ssm:GetParameter(s)/secretsmanager:GetSecretValue on the OTA SSM params and
-# secret (infra/modules/ec2_stack/ssm_params.tf's `github_oidc_ota_ci_read`
-# policy grants this by role name — see that file for how the role is targeted
-# without Terraform owning its lifecycle).
+# build-test-deploy.yml) — no long-lived AWS keys. That role must allow
+# s3:PutObject/s3:List on the updates/ prefix of the media bucket and
+# cloudfront:CreateInvalidation on the CDN distribution in front of it.
 #
-# REQUIRED repo config (Settings → Actions → Secrets): only
-#   secrets.OIDC_ROLE_ARN
-# remains. Everything else — media bucket, API base URL, CloudFront domain/
-# distribution ID, the OTA secrets ARN, and the publish token + code-signing key
-# inside it — is fetched at runtime from SSM Parameter Store + Secrets Manager;
-# see infra/modules/ec2_stack/ssm_params.tf. Nothing here needs copy-pasting
-# after a `terraform apply`.
+# CONFIG SOURCING: no SSM Parameter Store or Secrets Manager lookups anymore —
+#   - API_BASE_URL is a hardcoded literal below (it's a domain we chose, not an
+#     AWS-generated identifier).
+#   - S3_MEDIA_BUCKET / CLOUDFRONT_DOMAIN / CLOUDFRONT_DISTRIBUTION_ID are
+#     GitHub Actions repo Variables (Settings → Actions → Variables) — AWS-
+#     generated identifiers, editable without a redeploy if the bucket/
+#     distribution is ever recreated.
+#   - UPDATES_PUBLISH_TOKEN is a GitHub Actions repo Secret.
+#
+# REQUIRED repo config (Settings → Actions):
+#   Secrets:   OIDC_ROLE_ARN, UPDATES_PUBLISH_TOKEN
+#   Variables: S3_MEDIA_BUCKET, CLOUDFRONT_DOMAIN, CLOUDFRONT_DISTRIBUTION_ID
 
 on:
   push:
@@ -41,7 +42,7 @@ on:
 
 env:
   AWS_REGION: us-east-1
-  SSM_PREFIX: /pear/production/ota
+  API_BASE_URL: https://api.usepear.app
 
 jobs:
   export-and-publish:
@@ -72,29 +73,6 @@ jobs:
         with:
           role-to-assume: ${{ secrets.OIDC_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
-
-      - name: Fetch dynamic config (SSM + Secrets Manager)
-        # Terraform owns every one of these values (infra/modules/ec2_stack/
-        # ssm_params.tf) — nothing here is a repo var that could drift from a
-        # `terraform apply`. The OTA secret's ARN is itself an SSM param, so this
-        # job never needs to know the secret's name ahead of time.
-        run: |
-          S3_MEDIA_BUCKET=$(aws ssm get-parameter --name "${SSM_PREFIX}/s3_media_bucket" --query Parameter.Value --output text)
-          API_BASE_URL=$(aws ssm get-parameter --name "${SSM_PREFIX}/api_base_url" --query Parameter.Value --output text)
-          CLOUDFRONT_DOMAIN=$(aws ssm get-parameter --name "${SSM_PREFIX}/cloudfront_domain" --query Parameter.Value --output text)
-          CLOUDFRONT_DISTRIBUTION_ID=$(aws ssm get-parameter --name "${SSM_PREFIX}/cloudfront_distribution_id" --query Parameter.Value --output text)
-          OTA_SECRETS_ARN=$(aws ssm get-parameter --name "${SSM_PREFIX}/ota_secrets_arn" --query Parameter.Value --output text)
-
-          UPDATES_PUBLISH_TOKEN=$(aws secretsmanager get-secret-value --secret-id "$OTA_SECRETS_ARN" --query SecretString --output text \
-            | node -e 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>process.stdout.write(JSON.parse(d).UPDATES_PUBLISH_TOKEN))')
-
-          echo "::add-mask::${UPDATES_PUBLISH_TOKEN}"
-
-          echo "S3_MEDIA_BUCKET=${S3_MEDIA_BUCKET}" >> "$GITHUB_ENV"
-          echo "API_BASE_URL=${API_BASE_URL}" >> "$GITHUB_ENV"
-          echo "CLOUDFRONT_DOMAIN=${CLOUDFRONT_DOMAIN}" >> "$GITHUB_ENV"
-          echo "CLOUDFRONT_DISTRIBUTION_ID=${CLOUDFRONT_DISTRIBUTION_ID}" >> "$GITHUB_ENV"
-          echo "UPDATES_PUBLISH_TOKEN=${UPDATES_PUBLISH_TOKEN}" >> "$GITHUB_ENV"
 
       - name: Resolve runtime_version
         # Phase 6 of the off-Expo migration: runtime_version is now CFBundleVersion
@@ -131,6 +109,8 @@ jobs:
         run: npm run export:ota
 
       - name: Upload bundle to S3
+        env:
+          S3_MEDIA_BUCKET: ${{ vars.S3_MEDIA_BUCKET }}
         run: |
           aws s3 sync dist/ "s3://${S3_MEDIA_BUCKET}/updates/${UPDATE_ID}/"
 
@@ -139,6 +119,10 @@ jobs:
         # token guarded (`requires_updates_publish_token`), inserts the app_updates
         # row directly (no RLS on that table, no task/worker indirection — see the
         # model's docstring).
+        env:
+          CLOUDFRONT_DOMAIN: ${{ vars.CLOUDFRONT_DOMAIN }}
+          S3_MEDIA_BUCKET: ${{ vars.S3_MEDIA_BUCKET }}
+          UPDATES_PUBLISH_TOKEN: ${{ secrets.UPDATES_PUBLISH_TOKEN }}
         run: |
           ASSET_BASE_URL="https://${CLOUDFRONT_DOMAIN}/updates/${UPDATE_ID}"
 
@@ -159,6 +143,8 @@ jobs:
       - name: Invalidate CloudFront cache
         # CloudFront is always provisioned (infra/modules/cloudfront_media, wired
         # into both ec2_stack and app_stack) — no unset-var no-op branch needed.
+        env:
+          CLOUDFRONT_DISTRIBUTION_ID: ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}
         run: |
           aws cloudfront create-invalidation \
             --distribution-id "${CLOUDFRONT_DISTRIBUTION_ID}" \

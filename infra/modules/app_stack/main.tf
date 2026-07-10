@@ -162,33 +162,15 @@ resource "aws_rds_cluster_instance" "main" {
 # SECRETS MANAGER
 # -
 
-resource "aws_secretsmanager_secret" "app" {
-  name                    = "${local.name}-app-secrets"
-  description             = "Pear application secrets - managed outside Terraform after initial creation"
-  recovery_window_in_days = 7
-  tags                    = { Name = "${local.name}-app-secrets" }
+resource "random_password" "secret_key" {
+  length  = 48
+  special = false
 }
 
-resource "aws_secretsmanager_secret_version" "app" {
-  secret_id = aws_secretsmanager_secret.app.id
-  # Seed placeholders only. Real values are set out-of-band (console/CLI/CI) and
-  # preserved by the ignore_changes lifecycle below — Terraform never overwrites them.
-  secret_string = jsonencode({
-    SECRET_KEY      = "CHANGE-ME"
-    APPLE_CLIENT_ID = "CHANGE-ME"
-    APNS_KEY        = ""
-    APNS_KEY_ID     = ""
-    APNS_TEAM_ID    = ""
-  })
-
-  lifecycle {
-    ignore_changes = [secret_string]
-  }
+resource "random_password" "db_app_password" {
+  length  = 32
+  special = false # round-trips through a single-line .env
 }
-
-# Separate secret for the OTA publish token + code-signing private key - kept
-# apart from aws_secretsmanager_secret.app (which has ignore_changes = [secret_string]
-# above) so Terraform can fully own its contents, generated fresh, no manual sync.
 
 resource "random_password" "updates_publish_token" {
   length  = 48
@@ -212,23 +194,37 @@ resource "tls_self_signed_cert" "updates_signing" {
   is_ca_certificate     = false
 }
 
-resource "aws_secretsmanager_secret" "updates" {
-  name                    = "${local.name}-ota-secrets"
-  description             = "Terraform-owned OTA publish token + code-signing private key - fully managed, no manual sync"
-  recovery_window_in_days = var.environment == "production" ? 7 : 0
-  tags                    = { Name = "${local.name}-ota-secrets" }
+resource "aws_secretsmanager_secret" "app" {
+  name                    = "${local.name}-app-secrets"
+  description             = "Pear application secrets - managed outside Terraform after initial creation"
+  recovery_window_in_days = 7
+  tags                    = { Name = "${local.name}-app-secrets" }
 }
 
-resource "aws_secretsmanager_secret_version" "updates" {
-  secret_id = aws_secretsmanager_secret.updates.id
-
-  # No ignore_changes - Terraform is the sole owner of this secret's contents.
+resource "aws_secretsmanager_secret_version" "app" {
+  secret_id = aws_secretsmanager_secret.app.id
+  # Terraform-generated values are real; Apple/APNs are placeholders - set real
+  # values out-of-band (console/CLI/CI). Preserved by the ignore_changes lifecycle
+  # below — Terraform never overwrites them after first apply.
   secret_string = jsonencode({
+    SECRET_KEY            = random_password.secret_key.result
+    APPLE_CLIENT_ID       = "CHANGE-ME"
+    APPLE_TEAM_ID         = "CHANGE-ME"
+    APPLE_KEY_ID          = "CHANGE-ME"
+    APPLE_PRIVATE_KEY     = ""
+    APNS_KEY              = ""
+    APNS_KEY_ID           = ""
+    APNS_TEAM_ID          = ""
+    DB_APP_PASSWORD       = random_password.db_app_password.result
     UPDATES_PUBLISH_TOKEN = random_password.updates_publish_token.result
-    # base64-encoded so the PEM's embedded newlines never round-trip through
-    # deploy.sh's single-line .env merge - decoded back to PEM in signing.py.
+    # base64-encoded so the PEM's embedded newlines never round-trip through a
+    # single-line .env merge - decoded back to PEM in signing.py.
     UPDATES_SIGNING_PRIVATE_KEY = base64encode(tls_private_key.updates_signing.private_key_pem)
   })
+
+  lifecycle {
+    ignore_changes = [secret_string]
+  }
 }
 
 # -
@@ -262,7 +258,7 @@ resource "aws_iam_role_policy" "ecs_task_execution_secrets" {
     Statement = [{
       Effect   = "Allow"
       Action   = ["secretsmanager:GetSecretValue"]
-      Resource = [aws_secretsmanager_secret.app.arn, aws_secretsmanager_secret.updates.arn]
+      Resource = [aws_secretsmanager_secret.app.arn]
     }]
   })
 }
@@ -508,8 +504,8 @@ module "api_service" {
   ], [for k, v in var.extra_env : { name = k, value = v }])
 
   secrets = [
-    { name = "UPDATES_PUBLISH_TOKEN", valueFrom = "${aws_secretsmanager_secret.updates.arn}:UPDATES_PUBLISH_TOKEN::" },
-    { name = "UPDATES_SIGNING_PRIVATE_KEY", valueFrom = "${aws_secretsmanager_secret.updates.arn}:UPDATES_SIGNING_PRIVATE_KEY::" },
+    { name = "UPDATES_PUBLISH_TOKEN", valueFrom = "${aws_secretsmanager_secret.app.arn}:UPDATES_PUBLISH_TOKEN::" },
+    { name = "UPDATES_SIGNING_PRIVATE_KEY", valueFrom = "${aws_secretsmanager_secret.app.arn}:UPDATES_SIGNING_PRIVATE_KEY::" },
   ]
 
   target_group_arn = aws_lb_target_group.api.arn
@@ -562,8 +558,8 @@ module "worker_service" {
   ], [for k, v in var.extra_env : { name = k, value = v }])
 
   secrets = [
-    { name = "UPDATES_PUBLISH_TOKEN", valueFrom = "${aws_secretsmanager_secret.updates.arn}:UPDATES_PUBLISH_TOKEN::" },
-    { name = "UPDATES_SIGNING_PRIVATE_KEY", valueFrom = "${aws_secretsmanager_secret.updates.arn}:UPDATES_SIGNING_PRIVATE_KEY::" },
+    { name = "UPDATES_PUBLISH_TOKEN", valueFrom = "${aws_secretsmanager_secret.app.arn}:UPDATES_PUBLISH_TOKEN::" },
+    { name = "UPDATES_SIGNING_PRIVATE_KEY", valueFrom = "${aws_secretsmanager_secret.app.arn}:UPDATES_SIGNING_PRIVATE_KEY::" },
   ]
 
   tags = local.common_tags
