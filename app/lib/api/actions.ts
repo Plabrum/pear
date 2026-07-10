@@ -87,6 +87,31 @@ export function switchToDater(profileId: string): Promise<ActionExecutionRespons
   });
 }
 
+/**
+ * Deactivate the caller's account: hides them everywhere (discover, matches,
+ * messages, wingpeople lists) and revokes their Apple Sign-In grant. Reversible —
+ * logging back in automatically clears the flag. Object-scoped: pass the
+ * caller's own profile id (Profile.id === userId).
+ */
+export function deactivateAccount(profileId: string): Promise<ActionExecutionResponse> {
+  return apiActionsActionGroupObjectIdExecuteObjectAction('profile_actions', profileId, {
+    action: 'profile_actions__deactivate',
+    data: EMPTY,
+  });
+}
+
+/**
+ * Reactivate a deactivated account. Object-scoped: pass the caller's own profile
+ * id (Profile.id === userId). Exposed for completeness/admin use — normal
+ * reactivation happens automatically on login.
+ */
+export function reactivateAccount(profileId: string): Promise<ActionExecutionResponse> {
+  return apiActionsActionGroupObjectIdExecuteObjectAction('profile_actions', profileId, {
+    action: 'profile_actions__reactivate',
+    data: EMPTY,
+  });
+}
+
 // ── dating_profile_actions ───────────────────────────────────────────────────
 
 /**

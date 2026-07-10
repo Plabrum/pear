@@ -16,6 +16,7 @@ from app.config import Config, config
 # app.domain.users.models for the import path the DI resolves by.
 from app.domain.users.models import User
 from app.platform.actions.registry import ActionRegistry
+from app.platform.auth.clients.apple_oauth import BaseAppleOAuthClient
 from app.platform.comms.service.emails import EmailService
 from app.platform.media.client import BaseMediaClient
 from app.platform.push.service import PushService
@@ -35,12 +36,13 @@ class ActionDeps:
     push: PushService
     email: EmailService
     state_machine_service: StateMachineService
-    # `realtime` and `media` are always injected in production by
-    # `provide_action_deps`. They carry `None` defaults ONLY so unit tests that
-    # build `ActionDeps` directly and don't exercise the realtime/media paths need
+    # `realtime`, `media`, and `apple_oauth_client` are always injected in
+    # production by `provide_action_deps`. They carry `None` defaults ONLY so unit
+    # tests that build `ActionDeps` directly and don't exercise those paths need
     # not supply them; every request-path construction passes the real services.
     realtime: RealtimeService | None = None
     media: BaseMediaClient | None = None
+    apple_oauth_client: BaseAppleOAuthClient | None = None
 
 
 @dep("action_registry", sync_to_thread=False)
@@ -56,14 +58,15 @@ def provide_action_deps(
     push: Any,
     email: Any,
     state_machine_service: Any,
+    apple_oauth_client: Any,
     realtime: Any,
     media: Any,
 ) -> ActionDeps:
     """Assemble `ActionDeps` from request-scoped Litestar dependencies.
 
-    `user`, `push`, `email`, `state_machine_service`, `realtime`, and `media` are
-    provided by other modules' `@dep(...)` registrations (resolved by name at
-    request time).
+    `user`, `push`, `email`, `state_machine_service`, `apple_oauth_client`,
+    `realtime`, and `media` are provided by other modules' `@dep(...)`
+    registrations (resolved by name at request time).
     """
     return ActionDeps(
         transaction=transaction,
@@ -73,6 +76,7 @@ def provide_action_deps(
         push=push,
         email=email,
         state_machine_service=state_machine_service,
+        apple_oauth_client=apple_oauth_client,
         realtime=realtime,
         media=media,
     )

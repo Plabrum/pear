@@ -720,10 +720,9 @@ async def test_suggest_duplicate_is_noop_no_push(graph: DomainGraph, db_session:
     _push(deps).assert_not_awaited()
 
 
-# NOTE: the "non-active wingperson is denied" case is no longer a handler-side check —
-# it's enforced by the decisions INSERT RLS policy (see
-# tests/test_rls.py::test_winger_cannot_insert_decision_for_unrelated_dater) and the
-# action dispatcher translates that DB denial into a 403
+# The "non-active wingperson is denied" case is enforced by the decisions INSERT
+# RLS policy (see tests/test_rls.py::test_winger_cannot_insert_decision_for_unrelated_dater)
+# and the action dispatcher translates that DB denial into a 403
 # (tests/test_actions.py::test_trigger_translates_rls_denial_to_403).
 
 

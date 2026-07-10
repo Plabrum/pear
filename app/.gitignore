@@ -30,8 +30,8 @@ yarn-error.*
 .DS_Store
 *.pem
 # ...except the committed OTA code-signing PUBLIC certificate (no private key
-# material — see certs/README.md).
-!certs/updates-signing.pem
+# material — see ios/Pear/OTA/README.md).
+!ios/Pear/OTA/updates-signing.pem
 
 # local env files
 .env*.local
@@ -46,18 +46,24 @@ app-example
 # android — pure CNG, generated on demand
 /android
 
-# ios/ — committed native project for Xcode Cloud (see docs/migration/09-off-eas.md 9a).
-# Regenerate with `expo prebuild -p ios --clean` after any app.config.js native change;
-# a CI drift-guard fails PRs where the committed tree no longer matches that output.
+# ios/ — hand-maintained native project for Xcode Cloud, except everything XcodeGen
+# generates from ios/project.yml (`xcodegen generate && pod install`, or
+# `npm run dev:sim`, which does this automatically): the Xcode project itself, plus
+# Info.plist and Pear.entitlements, whose content now lives in project.yml's
+# info.properties/entitlements.properties.
 ios/Pods/
 ios/build/
 ios/DerivedData/
 ios/*.xcuserstate
 **/xcuserdata/
+ios/Pear.xcodeproj/
+ios/Pear.xcworkspace/
+ios/Pear/Info.plist
+ios/Pear/Pear.entitlements
 
 # fingerprint cache (local build state)
 .build-fingerprint
-.dev-sim-fingerprint
+.dev-sim-rev
 
 # drizzle-kit introspect artifacts (we only commit schema.ts + relations.ts)
 .drizzle/

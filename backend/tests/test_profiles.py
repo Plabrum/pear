@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, date, datetime
 from unittest.mock import MagicMock
 
 import pytest
@@ -13,10 +14,23 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import app.domain.dating_profiles.actions  # noqa: F401, E402  (registers DATING_PROFILE_SWIPE_ACTIONS)
 import app.domain.photos.actions  # noqa: F401, E402  (registers PHOTO_ACTIONS)
 import app.domain.prompts.actions  # noqa: F401, E402  (registers PROFILE_PROMPT/PROMPT_RESPONSE_ACTIONS)
+from app.domain.contacts.enums import WingpersonStatus
+from app.domain.contacts.queries import (
+    fetch_active_wingpeople,
+    fetch_incoming_invitations,
+    fetch_sent_invitations,
+    fetch_winging_for,
+    fetch_winging_for_tabs,
+)
 from app.domain.dating_profiles.enums import City, DatingStatus, Interest, Religion
+from app.domain.dating_profiles.queries import fetch_swipe_pool
+from app.domain.matches.queries import fetch_matches
+from app.domain.messages.queries import fetch_conversations
 from app.domain.photos.enums import PhotoApprovalState
 from app.domain.profiles.actions import (
     CreateDatingProfile,
+    DeactivateAccount,
+    ReactivateAccount,
     UpdateDatingProfile,
     UpdateProfile,
 )
@@ -43,16 +57,21 @@ from app.domain.profiles.transformers import (
     row_to_profile,
 )
 from app.domain.prompts.enums import ApprovalState
+from app.platform.actions.base import EmptyActionData
 from app.platform.actions.deps import ActionDeps
 from app.platform.actions.enums import ActionGroupType
 from app.platform.actions.hydrate import resolve_group
 from app.platform.actions.schemas import ActionDTO
+from app.platform.auth.clients.apple_oauth import LocalAppleOAuthClient
+from app.platform.auth.enums import AuthProvider
+from app.platform.auth.models import AuthIdentity
 from app.platform.auth.principal import User
 from app.platform.media.enums import MediaState
 from app.platform.media.models import Media
 from app.platform.media.service import MediaService
 from app.platform.state_machine.machine import StateMachineService
 from app.platform.state_machine.roles import Role
+from tests.factories import ContactFactory
 from tests.fixtures.graph import DomainGraph
 from tests.fixtures.ids import fake_id
 from tests.fixtures.media import local_media
@@ -60,7 +79,7 @@ from tests.fixtures.media import local_media
 # `asyncio_mode = "auto"` (pyproject.toml) runs `async def test_*` without a marker.
 
 
-def _deps(session: AsyncSession, *, user_id, role: Role = Role.DATER) -> ActionDeps:
+def _deps(session: AsyncSession, *, user_id, role: Role = Role.DATER, apple_oauth_client=None) -> ActionDeps:
     """ActionDeps backed by the test session and a given actor."""
     return ActionDeps(
         transaction=session,
@@ -70,6 +89,7 @@ def _deps(session: AsyncSession, *, user_id, role: Role = Role.DATER) -> ActionD
         push=MagicMock(),
         email=MagicMock(),
         state_machine_service=StateMachineService(transaction=session),
+        apple_oauth_client=apple_oauth_client,
     )
 
 
@@ -94,8 +114,9 @@ async def test_get_own_profile(graph: DomainGraph, db_session: AsyncSession) -> 
     # gender serializes by .value through msgspec -> matches the Zod enum wire form.
     assert dto.gender is Gender.MALE
     # The owner sees the edit action on their own profile row.
-    # A dater also sees the role transition into winging ("just winging").
-    assert _keys(dto.actions) == {"update", "switch_to_winger"}
+    # A dater also sees the role transition into winging ("just winging") and can
+    # deactivate their (not-yet-deactivated) account.
+    assert _keys(dto.actions) == {"update", "switch_to_winger", "deactivate"}
     update = next(a for a in dto.actions if a.action.endswith("__update"))
     assert update.action_group_type == ActionGroupType.PROFILE_ACTIONS
 
@@ -420,3 +441,196 @@ async def test_create_dating_profile_conflict(graph: DomainGraph, db_session: As
     )
     with pytest.raises(DatingProfileAlreadyExistsError):
         await CreateDatingProfile.execute(data, db_session, deps.user, deps)
+
+
+# ── Deactivate / Reactivate account ──────────────────────────────────────────────
+
+
+async def _normalize_ages(graph: DomainGraph, db_session: AsyncSession) -> None:
+    """Pin candidate DOBs (~30) and widen dater_a's preferred range to [18, 99]."""
+    in_range = date(1995, 1, 1)
+    graph.dater_b.date_of_birth = in_range
+    graph.dater_c.date_of_birth = in_range
+    graph.dating_profile_a.age_from = 18
+    graph.dating_profile_a.age_to = 99
+    await db_session.flush()
+
+
+async def test_deactivate_account_is_available_gating(graph: DomainGraph, db_session: AsyncSession) -> None:
+    deps = _deps(db_session, user_id=graph.dater_a.id)
+    assert DeactivateAccount.is_available(graph.dater_a, deps.user, deps) is True
+
+    # Not the owner -> denied.
+    other_deps = _deps(db_session, user_id=graph.dater_b.id)
+    assert DeactivateAccount.is_available(graph.dater_a, other_deps.user, other_deps) is False
+
+    # Already deactivated -> denied.
+    graph.dater_a.deactivated_at = datetime.now(UTC)
+    await db_session.flush()
+    assert DeactivateAccount.is_available(graph.dater_a, deps.user, deps) is False
+    # ...and Reactivate becomes available in its place.
+    assert ReactivateAccount.is_available(graph.dater_a, deps.user, deps) is True
+
+
+async def test_deactivate_account_sets_flag_and_revokes_apple_grant(
+    graph: DomainGraph, db_session: AsyncSession
+) -> None:
+    identity = AuthIdentity(
+        provider=AuthProvider.APPLE,
+        provider_subject="apple-sub-deactivate",
+        profile_id=graph.dater_a.id,
+        apple_refresh_token="rt-to-revoke",
+    )
+    db_session.add(identity)
+    await db_session.flush()
+
+    oauth_client = LocalAppleOAuthClient()
+    deps = _deps(db_session, user_id=graph.dater_a.id, apple_oauth_client=oauth_client)
+    result = await DeactivateAccount.execute(graph.dater_a, EmptyActionData(), db_session, deps.user, deps)
+
+    assert result.message == "Account deactivated"
+    assert graph.dater_a.deactivated_at is not None
+    await db_session.refresh(identity)
+    assert identity.apple_refresh_token is None
+
+
+async def test_deactivate_account_revoke_failure_does_not_block_deactivation(
+    graph: DomainGraph, db_session: AsyncSession
+) -> None:
+    identity = AuthIdentity(
+        provider=AuthProvider.APPLE,
+        provider_subject="apple-sub-revoke-fail",
+        profile_id=graph.dater_a.id,
+        apple_refresh_token="rt-will-fail",
+    )
+    db_session.add(identity)
+    await db_session.flush()
+
+    class _FailingRevokeClient(LocalAppleOAuthClient):
+        async def revoke_token(self, refresh_token: str) -> bool:
+            return False
+
+    deps = _deps(db_session, user_id=graph.dater_a.id, apple_oauth_client=_FailingRevokeClient())
+    result = await DeactivateAccount.execute(graph.dater_a, EmptyActionData(), db_session, deps.user, deps)
+
+    assert result.message == "Account deactivated"
+    assert graph.dater_a.deactivated_at is not None
+    # A failed revoke leaves the stored token in place (nothing to retry from) but
+    # never rolls back the deactivation itself.
+    await db_session.refresh(identity)
+    assert identity.apple_refresh_token == "rt-will-fail"
+
+
+async def test_reactivate_account_clears_flag(graph: DomainGraph, db_session: AsyncSession) -> None:
+    graph.dater_a.deactivated_at = datetime.now(UTC)
+    await db_session.flush()
+
+    deps = _deps(db_session, user_id=graph.dater_a.id)
+    assert ReactivateAccount.is_available(graph.dater_a, deps.user, deps) is True
+    result = await ReactivateAccount.execute(graph.dater_a, EmptyActionData(), db_session, deps.user, deps)
+
+    assert result.message == "Account reactivated"
+    assert graph.dater_a.deactivated_at is None
+    assert ReactivateAccount.is_available(graph.dater_a, deps.user, deps) is False
+
+
+async def test_deactivated_dater_hidden_from_swipe_pool_matches_and_conversations(
+    graph: DomainGraph, db_session: AsyncSession
+) -> None:
+    await _normalize_ages(graph, db_session)
+
+    # Sanity: dater_b is visible before deactivating.
+    pool_before = await fetch_swipe_pool(db_session, viewer_id=graph.dater_a.id, page_size=20, page_offset=0)
+    assert graph.dater_b.id in {r.user_id for r in pool_before}
+    matches_before = await fetch_matches(db_session, graph.dater_a.id)
+    assert any(m.other_user_id == graph.dater_b.id for m in matches_before)
+    convos_before = await fetch_conversations(db_session, graph.dater_a.id)
+    assert any(c.other_user_id == graph.dater_b.id for c in convos_before)
+
+    graph.dater_b.deactivated_at = datetime.now(UTC)
+    await db_session.flush()
+
+    pool_after = await fetch_swipe_pool(db_session, viewer_id=graph.dater_a.id, page_size=20, page_offset=0)
+    assert graph.dater_b.id not in {r.user_id for r in pool_after}
+    matches_after = await fetch_matches(db_session, graph.dater_a.id)
+    assert not any(m.other_user_id == graph.dater_b.id for m in matches_after)
+    convos_after = await fetch_conversations(db_session, graph.dater_a.id)
+    assert not any(c.other_user_id == graph.dater_b.id for c in convos_after)
+
+    # Reactivating restores visibility everywhere.
+    graph.dater_b.deactivated_at = None
+    await db_session.flush()
+
+    pool_restored = await fetch_swipe_pool(db_session, viewer_id=graph.dater_a.id, page_size=20, page_offset=0)
+    assert graph.dater_b.id in {r.user_id for r in pool_restored}
+    matches_restored = await fetch_matches(db_session, graph.dater_a.id)
+    assert any(m.other_user_id == graph.dater_b.id for m in matches_restored)
+    convos_restored = await fetch_conversations(db_session, graph.dater_a.id)
+    assert any(c.other_user_id == graph.dater_b.id for c in convos_restored)
+
+
+async def test_deactivated_winger_hidden_from_dater_wingpeople_list(
+    graph: DomainGraph, db_session: AsyncSession
+) -> None:
+    wingpeople_before = await fetch_active_wingpeople(db_session, graph.dater_a.id)
+    assert any(w.winger_id == graph.winger.id for w in wingpeople_before)
+
+    graph.winger.deactivated_at = datetime.now(UTC)
+    await db_session.flush()
+
+    wingpeople_after = await fetch_active_wingpeople(db_session, graph.dater_a.id)
+    assert not any(w.winger_id == graph.winger.id for w in wingpeople_after)
+
+    graph.winger.deactivated_at = None
+    await db_session.flush()
+    wingpeople_restored = await fetch_active_wingpeople(db_session, graph.dater_a.id)
+    assert any(w.winger_id == graph.winger.id for w in wingpeople_restored)
+
+
+async def test_deactivated_dater_hidden_from_winger_winging_for_lists(
+    graph: DomainGraph, db_session: AsyncSession
+) -> None:
+    winging_for_before = await fetch_winging_for(db_session, graph.winger.id)
+    assert any(d.dater_id == graph.dater_a.id for d in winging_for_before)
+    tabs_before = await fetch_winging_for_tabs(db_session, graph.winger.id)
+    assert any(t.id == graph.dater_a.id for t in tabs_before)
+
+    graph.dater_a.deactivated_at = datetime.now(UTC)
+    await db_session.flush()
+
+    winging_for_after = await fetch_winging_for(db_session, graph.winger.id)
+    assert not any(d.dater_id == graph.dater_a.id for d in winging_for_after)
+    tabs_after = await fetch_winging_for_tabs(db_session, graph.winger.id)
+    assert not any(t.id == graph.dater_a.id for t in tabs_after)
+
+
+async def test_deactivated_party_hidden_from_wingperson_invitation_lists(
+    graph: DomainGraph, db_session: AsyncSession
+) -> None:
+    # A pending invitation from dater_a to dater_c (acting as the invited winger).
+    invite = await ContactFactory.create_async(
+        db_session,
+        user_id=graph.dater_a.id,
+        winger_id=graph.dater_c.id,
+        state=WingpersonStatus.INVITED,
+    )
+    await db_session.flush()
+
+    incoming_before = await fetch_incoming_invitations(db_session, graph.dater_c.id)
+    assert any(i.id == invite.id for i in incoming_before)
+    sent_before = await fetch_sent_invitations(db_session, graph.dater_a.id)
+    assert any(s.id == invite.id for s in sent_before)
+
+    # The inviting dater deactivates -> hidden from the invitee's incoming list.
+    graph.dater_a.deactivated_at = datetime.now(UTC)
+    await db_session.flush()
+    incoming_after = await fetch_incoming_invitations(db_session, graph.dater_c.id)
+    assert not any(i.id == invite.id for i in incoming_after)
+    graph.dater_a.deactivated_at = None
+    await db_session.flush()
+
+    # The invited (prospective) winger deactivates -> hidden from the dater's sent list.
+    graph.dater_c.deactivated_at = datetime.now(UTC)
+    await db_session.flush()
+    sent_after = await fetch_sent_invitations(db_session, graph.dater_a.id)
+    assert not any(s.id == invite.id for s in sent_after)

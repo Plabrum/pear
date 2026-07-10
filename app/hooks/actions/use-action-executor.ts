@@ -3,7 +3,7 @@
 // generated mutations, then handles the response's message/invalidation/result.
 import { useState } from 'react';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { useRouter } from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
 import { toast } from 'sonner-native';
 import type { ReactNode } from 'react';
 
@@ -60,7 +60,7 @@ export function useActionExecutor({
   formContext,
 }: ActionExecutorOptions) {
   const queryClient = useQueryClient();
-  const router = useRouter();
+  const navigation = useNavigation();
   const executeGroupActionMutation = useApiActionsActionGroupExecuteAction();
   const executeObjectActionMutation = useApiActionsActionGroupObjectIdExecuteObjectAction();
   const [state, setState] = useState<ActionExecutorState>({
@@ -119,7 +119,7 @@ export function useActionExecutor({
       onSuccess?.(action, response);
 
       if (!silent) {
-        handleActionResult(response, router);
+        handleActionResult(response, navigation);
         setState({
           isExecuting: false,
           pendingAction: null,

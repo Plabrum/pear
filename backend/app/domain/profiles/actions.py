@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import logging
+from datetime import UTC, datetime
 from enum import StrEnum
 from typing import ClassVar
 
 from msgspec import UNSET
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.dating_profiles.enums import DatingStatus
@@ -29,7 +32,11 @@ from app.platform.actions.base import (
 from app.platform.actions.deps import ActionDeps
 from app.platform.actions.enums import ActionGroupType, ActionIcon
 from app.platform.actions.schemas import ActionExecutionResponse
+from app.platform.auth.enums import AuthProvider
+from app.platform.auth.models import AuthIdentity
 from app.platform.auth.principal import User
+
+logger = logging.getLogger(__name__)
 
 # camelCase field name -> ORM (snake_case) attribute name. Only fields that
 # differ from a naive lower-snake of the JSON key need listing; we map them all
@@ -73,6 +80,8 @@ class ProfileActionKey(StrEnum):
     UPDATE = "update"
     SWITCH_TO_WINGER = "switch_to_winger"
     SWITCH_TO_DATER = "switch_to_dater"
+    DEACTIVATE = "deactivate"
+    REACTIVATE = "reactivate"
 
 
 class DatingProfileActionKey(StrEnum):
@@ -189,6 +198,88 @@ class SwitchToDater(BaseObjectAction[Profile, EmptyActionData]):
         return ActionExecutionResponse(
             message="Welcome back to dating",
             invalidate_queries=["/profiles", "/dating-profiles/me", "/winger-tabs"],
+        )
+
+
+# ── POST /profiles/me (deactivate / reactivate account) ────────────────────────
+
+
+@profile_actions
+class DeactivateAccount(BaseObjectAction[Profile, EmptyActionData]):
+    """Reversible account deactivation: hides the user everywhere and revokes
+    their Apple Sign-In grant (App Store Guideline 5.1.1(v)). Not a state-machine
+    transition — `deactivated_at` is a plain flag, same shape as `is_active`."""
+
+    action_key: ClassVar[ProfileActionKey] = ProfileActionKey.DEACTIVATE
+    label = "Deactivate Account"
+    icon = ActionIcon.TRASH
+
+    @classmethod
+    def is_available(cls, obj: Profile, user: User, deps: ActionDeps) -> bool:
+        return obj.id == user.id and obj.deactivated_at is None
+
+    @classmethod
+    async def execute(
+        cls,
+        obj: Profile,
+        data: EmptyActionData,
+        transaction: AsyncSession,
+        user: User,
+        deps: ActionDeps,
+    ) -> ActionExecutionResponse:
+        obj.deactivated_at = datetime.now(UTC)
+        await transaction.flush()
+
+        identity = (
+            await transaction.execute(
+                select(AuthIdentity).where(
+                    AuthIdentity.provider == AuthProvider.APPLE,
+                    AuthIdentity.profile_id == obj.id,
+                )
+            )
+        ).scalar_one_or_none()
+        if identity is not None and identity.apple_refresh_token and deps.apple_oauth_client is not None:
+            revoked = await deps.apple_oauth_client.revoke_token(identity.apple_refresh_token)
+            if revoked:
+                identity.apple_refresh_token = None
+                await transaction.flush()
+            else:
+                # Compliance-relevant, but must not block/roll back deactivation.
+                logger.warning("Apple grant revoke failed for profile_id=%s", obj.id)
+
+        return ActionExecutionResponse(
+            message="Account deactivated",
+            invalidate_queries=["/profiles", "/dating-profiles/me", "/matches", "/wingpeople"],
+        )
+
+
+@profile_actions
+class ReactivateAccount(BaseObjectAction[Profile, EmptyActionData]):
+    """Exposed for completeness/admin use — normal reactivation happens via login
+    (see `AuthService._reactivate_if_needed`)."""
+
+    action_key: ClassVar[ProfileActionKey] = ProfileActionKey.REACTIVATE
+    label = "Reactivate Account"
+    icon = ActionIcon.EDIT
+
+    @classmethod
+    def is_available(cls, obj: Profile, user: User, deps: ActionDeps) -> bool:
+        return obj.id == user.id and obj.deactivated_at is not None
+
+    @classmethod
+    async def execute(
+        cls,
+        obj: Profile,
+        data: EmptyActionData,
+        transaction: AsyncSession,
+        user: User,
+        deps: ActionDeps,
+    ) -> ActionExecutionResponse:
+        obj.deactivated_at = None
+        await transaction.flush()
+        return ActionExecutionResponse(
+            message="Account reactivated",
+            invalidate_queries=["/profiles", "/dating-profiles/me", "/matches", "/wingpeople"],
         )
 
 

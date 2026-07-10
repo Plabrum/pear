@@ -68,7 +68,12 @@ async def fetch_matches(db: AsyncSession, viewer_id: Sqid) -> list[MatchRow]:
             )
             .outerjoin(Profile, Profile.id == other_id_expr)
             .outerjoin(DatingProfile, DatingProfile.user_id == Profile.id)
-            .where(or_(Match.user_a_id == viewer_id, Match.user_b_id == viewer_id))
+            .where(
+                or_(Match.user_a_id == viewer_id, Match.user_b_id == viewer_id),
+                # `Profile.id.is_(None)` guards a genuinely-missing join from being
+                # misread as "deactivated".
+                or_(Profile.id.is_(None), Profile.deactivated_at.is_(None)),
+            )
             .order_by(desc(Match.created_at))
         )
     ).all()

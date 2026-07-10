@@ -7,7 +7,7 @@
 
 import { ApiError } from '@/lib/api/errors';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000';
+const API_URL = process.env.APP_PUBLIC_API_URL ?? 'http://localhost:8000';
 
 export type AuthUser = {
   id: string;
@@ -48,8 +48,7 @@ async function authFetch<T>(
 
   const text = [204, 205, 304].includes(res.status) ? null : await res.text();
   const contentType = res.headers.get('content-type') ?? '';
-  const data: unknown =
-    text && contentType.includes('application/json') ? JSON.parse(text) : text;
+  const data: unknown = text && contentType.includes('application/json') ? JSON.parse(text) : text;
 
   if (!res.ok) {
     const message = isAuthError(data) ? data.error : (text ?? `Request failed (${res.status})`);
@@ -64,10 +63,15 @@ async function authFetch<T>(
 
 export async function signInWithApple(
   identityToken: string,
-  fullName?: string
+  fullName?: string,
+  authorizationCode?: string
 ): Promise<AuthUser> {
   return authFetch<AuthUser>('/auth/apple', {
-    body: { identityToken, ...(fullName ? { fullName } : {}) },
+    body: {
+      identityToken,
+      ...(fullName ? { fullName } : {}),
+      ...(authorizationCode ? { authorizationCode } : {}),
+    },
   });
 }
 

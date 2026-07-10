@@ -13,6 +13,7 @@ from litestar.response import Redirect
 from app.config import config
 from app.domain.profiles.models import Profile
 from app.platform.auth.clients.apple import AppleAuthError, BaseAppleVerifier
+from app.platform.auth.clients.apple_oauth import BaseAppleOAuthClient
 from app.platform.auth.enums import AuthProvider
 from app.platform.auth.principal import User
 from app.platform.auth.schemas import (
@@ -68,6 +69,7 @@ def _normalize_email(raw: str) -> str:
 async def apple_sign_in(
     data: AppleIn,
     apple_verifier: BaseAppleVerifier,
+    apple_oauth_client: BaseAppleOAuthClient,
     auth_service: AuthService,
     request: Request,
 ) -> UserOut:
@@ -88,6 +90,12 @@ async def apple_sign_in(
         email=identity.email,
         name=data.full_name,
     )
+    if data.authorization_code:
+        refresh_token = await apple_oauth_client.exchange_code(data.authorization_code)
+        if refresh_token:
+            await auth_service.store_apple_refresh_token(identity.subject, refresh_token)
+        else:
+            logger.warning("Apple code exchange returned no refresh_token for subject=%s", identity.subject)
     return _start_session(request, profile)
 
 

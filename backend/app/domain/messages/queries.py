@@ -16,12 +16,23 @@ async def fetch_push_token(db: AsyncSession, user_id: Sqid) -> str | None:
 
 
 async def is_viewer_in_match(db: AsyncSession, viewer_id: Sqid, match_id: Sqid) -> bool:
+    """The viewer is a participant AND the other participant isn't deactivated.
+
+    404s an already-known match once the other party deactivates, so a direct
+    thread-by-match_id lookup doesn't stay readable.
+    """
+    other_id_expr = case(
+        (Match.user_a_id == viewer_id, Match.user_b_id),
+        else_=Match.user_a_id,
+    )
     row = (
         await db.execute(
             select(Match.id)
+            .outerjoin(Profile, Profile.id == other_id_expr)
             .where(
                 Match.id == match_id,
                 or_(Match.user_a_id == viewer_id, Match.user_b_id == viewer_id),
+                or_(Profile.id.is_(None), Profile.deactivated_at.is_(None)),
             )
             .limit(1)
         )
@@ -128,7 +139,10 @@ async def fetch_conversations(db: AsyncSession, viewer_id: Sqid) -> list[Convers
             .select_from(Match)
             .outerjoin(other, other.id == other_join)
             .outerjoin(last_msg, true())
-            .where(or_(Match.user_a_id == viewer_id, Match.user_b_id == viewer_id))
+            .where(
+                or_(Match.user_a_id == viewer_id, Match.user_b_id == viewer_id),
+                or_(other.id.is_(None), other.deactivated_at.is_(None)),
+            )
             .order_by(desc(order_expr))
         )
     ).all()

@@ -1,10 +1,10 @@
 name: OTA Publish
 
-# Publishes a JS-only Expo Updates bundle to our self-hosted manifest server
+# Publishes a JS-only OTA bundle to our self-hosted manifest server
 # (docs/migration/09-off-eas.md, 9b "Publish side"). This is the FAST path: no
-# native compile, ubuntu-latest only. `expo export -p ios` runs Metro + Hermes
-# over JS/assets — the native archive (Xcode Cloud, gated on `v*` tags) is a
-# separate, slower pipeline.
+# native compile, ubuntu-latest only. scripts/export-ota-bundle.js runs Metro +
+# Hermes over JS/assets — the native archive (Xcode Cloud, gated on `v*` tags)
+# is a separate, slower pipeline.
 #
 # SCOPE: app/** only. Pure backend/infra changes must not fire this (mirrors the
 # monorepo path-filter convention in build-test-deploy.yml, inverted: that
@@ -32,7 +32,12 @@ on:
     branches: [main]
     paths:
       - "app/**"
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      runtime_version:
+        description: "Override runtime_version (CFBundleVersion) — defaults to ios/Pear/Info.plist's committed value. Only needed to re-publish against an older still-installed build."
+        required: false
+        type: string
 
 env:
   AWS_REGION: us-east-1
@@ -91,48 +96,38 @@ jobs:
           echo "CLOUDFRONT_DISTRIBUTION_ID=${CLOUDFRONT_DISTRIBUTION_ID}" >> "$GITHUB_ENV"
           echo "UPDATES_PUBLISH_TOKEN=${UPDATES_PUBLISH_TOKEN}" >> "$GITHUB_ENV"
 
-      - name: Fingerprint guardrail
-        # The load-bearing invariant of 9b: an OTA update only applies to an
-        # installed build whose runtimeVersion fingerprint matches. Compute the
-        # fingerprint the same way the client/runtimeVersion policy does and
-        # compare it against the fingerprint of the latest Xcode Cloud native
-        # build (recorded by app/ios/ci_scripts/ci_post_xcodebuild.sh via
-        # `POST /updates/native-build-fingerprint`), so we never publish an
-        # update that can't apply to anything.
+      - name: Resolve runtime_version
+        # Phase 6 of the off-Expo migration: runtime_version is now CFBundleVersion
+        # (the build number), read straight from the committed ios/ project — this
+        # repo has no Xcode Cloud automatic-versioning bump, CURRENT_PROJECT_VERSION
+        # in the pbxproj and CFBundleVersion in Info.plist are both static committed
+        # values, so what's checked out here is exactly what any Xcode Cloud archive
+        # at this commit would produce. This replaces the old @expo/fingerprint
+        # guardrail entirely — no separate check needed, since the manifest lookup
+        # backend/app/platform/updates/queries.py does is keyed by
+        # (runtime_version, channel, platform), which already structurally
+        # guarantees an OTA bundle can never be served to an incompatible native
+        # build. `workflow_dispatch` can still override for a manual out-of-band
+        # publish (e.g. re-publishing against an older still-installed build).
         run: |
-          FINGERPRINT=$(npx expo-updates fingerprint:generate --platform ios | node -e '
-            let data = "";
-            process.stdin.on("data", (chunk) => (data += chunk));
-            process.stdin.on("end", () => {
-              const parsed = JSON.parse(data);
-              process.stdout.write(parsed.hash ?? parsed.fingerprintHash ?? "");
-            });
-          ')
+          if [ -n "${{ github.event.inputs.runtime_version }}" ]; then
+            RUNTIME_VERSION="${{ github.event.inputs.runtime_version }}"
+          else
+            RUNTIME_VERSION=$(grep -A1 '<key>CFBundleVersion</key>' ios/Pear/Info.plist | tail -1 | sed -E 's/.*<string>(.*)<\/string>.*/\1/')
+          fi
 
-          echo "Computed fingerprint: ${FINGERPRINT}"
-          echo "FINGERPRINT=${FINGERPRINT}" >> "$GITHUB_ENV"
-
-          EXPECTED=$(curl -sS "${API_BASE_URL}/updates/native-build-fingerprint?platform=ios" | node -e '
-            let data = "";
-            process.stdin.on("data", (chunk) => (data += chunk));
-            process.stdin.on("end", () => process.stdout.write(JSON.parse(data).fingerprint ?? ""));
-          ')
-
-          if [ -z "$EXPECTED" ]; then
-            echo "::error::No native-build fingerprint on record at ${API_BASE_URL}/updates/native-build-fingerprint?platform=ios — no Xcode Cloud archive has reported one yet. Refusing to publish an OTA update that may never apply to any installed build."
+          if [ -z "$RUNTIME_VERSION" ]; then
+            echo "::error::Could not resolve a runtime_version — checked workflow_dispatch input and ios/Pear/Info.plist's CFBundleVersion."
             exit 1
           fi
 
-          if [ "$FINGERPRINT" != "$EXPECTED" ]; then
-            echo "::error::Fingerprint mismatch: exported bundle fingerprint (${FINGERPRINT}) != latest Xcode Cloud native build fingerprint (${EXPECTED}). A native change landed without a matching Xcode Cloud build, or vice versa — this OTA would silently no-op on every installed client. Not publishing."
-            exit 1
-          fi
-
+          echo "Publishing against runtime_version: ${RUNTIME_VERSION}"
+          echo "RUNTIME_VERSION=${RUNTIME_VERSION}" >> "$GITHUB_ENV"
           echo "UPDATE_ID=$(node -e 'process.stdout.write(require("crypto").randomUUID())')" >> "$GITHUB_ENV"
 
       - name: Export JS bundle + assets
         env:
-          EXPO_PUBLIC_API_URL: ${{ env.API_BASE_URL }}
+          APP_PUBLIC_API_URL: ${{ env.API_BASE_URL }}
         run: npm run export:ota
 
       - name: Upload bundle to S3
@@ -147,7 +142,7 @@ jobs:
         run: |
           ASSET_BASE_URL="https://${CLOUDFRONT_DOMAIN}/updates/${UPDATE_ID}"
 
-          PAYLOAD=$(node scripts/build-ota-payload.js dist "$ASSET_BASE_URL" "$FINGERPRINT" production ios)
+          PAYLOAD=$(node scripts/build-ota-payload.js dist/bundle.hbc dist/assets "$ASSET_BASE_URL" "$RUNTIME_VERSION" production ios)
 
           HTTP_STATUS=$(curl -sS -o response.json -w '%{http_code}' \
             -X POST "${API_BASE_URL}/updates/publish" \

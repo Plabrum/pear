@@ -21,5 +21,6 @@ class ProfileFactory(BaseFactory):
     gender = Gender.MALE
     avatar_media_id = None
     push_token = None
+    deactivated_at = None
     # `state` is the user's role (DATER|WINGER) — override for wingers.
     state = UserRole.DATER

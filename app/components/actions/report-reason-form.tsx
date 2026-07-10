@@ -6,7 +6,7 @@ import { useState } from 'react';
 
 import type { ReportActionData } from '@/lib/api/generated/model';
 import { createTypedForm } from '@/lib/forms/typed-form';
-import { Dialog } from '@/components/ui/Dialog';
+import { Dialog } from '@/components/Dialog';
 
 const ReasonForm = createTypedForm<ReportActionData>();
 

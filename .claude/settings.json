@@ -1,4 +1,7 @@
 {
+  "permissions": {
+    "allow": ["Bash(git *)"]
+  },
   "enabledMcpjsonServers": ["XcodeBuildMCP"],
   "enabledPlugins": {
     "expo-app-design@expo-plugins": true,

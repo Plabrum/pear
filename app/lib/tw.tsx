@@ -1,4 +1,4 @@
-import { useCssElement } from 'react-native-css';
+import { cssInterop } from 'nativewind';
 import React from 'react';
 import {
   View as RNView,
@@ -11,52 +11,32 @@ import {
 import { SafeAreaView as RNSafeAreaView } from 'react-native-safe-area-context';
 import Animated from 'react-native-reanimated';
 
-export const View = (props: React.ComponentProps<typeof RNView> & { className?: string }) =>
-  useCssElement(RNView, props, { className: 'style' });
-View.displayName = 'CSS(View)';
+// View, Text, Pressable, ScrollView, TextInput, and SafeAreaView already get
+// className→style interop for free from NativeWind's jsx pragma (see
+// babel.config.js's jsxImportSource: 'nativewind') — these are plain
+// re-exports so every existing `import { View, Text } from '@/lib/tw'`
+// callsite keeps working unchanged.
+export const View = RNView;
+export const Text = RNText;
+export const Pressable = RNPressable;
+export const ScrollView = RNScrollView;
+export const TextInput = RNTextInput;
+export const SafeAreaView = RNSafeAreaView;
 
-export const Text = (props: React.ComponentProps<typeof RNText> & { className?: string }) =>
-  useCssElement(RNText, props, { className: 'style' });
-Text.displayName = 'CSS(Text)';
-
-export const Pressable = (
-  props: React.ComponentProps<typeof RNPressable> & { className?: string }
-) =>
-  useCssElement(RNPressable as React.ComponentType<any>, props, { className: 'style' });
-Pressable.displayName = 'CSS(Pressable)';
-
-export const ScrollView = (
-  props: React.ComponentProps<typeof RNScrollView> & {
-    className?: string;
-    contentContainerClassName?: string;
-  }
-) =>
-  useCssElement(RNScrollView as React.ComponentType<any>, props, {
-    className: 'style',
-    contentContainerClassName: 'contentContainerStyle',
-  });
-ScrollView.displayName = 'CSS(ScrollView)';
-
-export const TextInput = (
-  props: React.ComponentProps<typeof RNTextInput> & { className?: string }
-) => useCssElement(RNTextInput, props, { className: 'style' });
-TextInput.displayName = 'CSS(TextInput)';
-
-export const SafeAreaView = (
-  props: React.ComponentProps<typeof RNSafeAreaView> & { className?: string }
-) => useCssElement(RNSafeAreaView, props, { className: 'style' });
-SafeAreaView.displayName = 'CSS(SafeAreaView)';
-
-export const AnimatedView = Animated.createAnimatedComponent(View);
+// Animated.createAnimatedComponent produces a new component type that isn't
+// one of NativeWind's auto-registered core components, so it needs an
+// explicit cssInterop registration.
+export const AnimatedView = Animated.createAnimatedComponent(RNView);
+cssInterop(AnimatedView, { className: 'style' });
 
 // ── Modal / ModalView ──────────────────────────────────────────────────────────
 //
-// NativeWind v5 (Tailwind v4) resolves color tokens as CSS custom properties
-// (e.g. `bg-black` → `var(--color-black)`). React Native's <Modal> renders
-// into a separate native window layer where those CSS variables are NOT
-// injected, so className color classes on the root View inside a Modal are
-// silently dropped — the background appears transparent even though the class
-// looks correct.
+// NativeWind resolves color tokens as CSS custom properties (e.g. `bg-black`
+// → `var(--color-black)`). React Native's <Modal> renders into a separate
+// native window layer where those CSS variables are NOT injected, so
+// className color classes on the root View inside a Modal are silently
+// dropped — the background appears transparent even though the class looks
+// correct.
 //
 // Layout-only classes (flex-1, justify-center, p-6, etc.) resolve to plain CSS
 // values and work fine inside a Modal. Only CSS-variable-backed values (colors,
@@ -76,10 +56,6 @@ type ModalViewProps = React.ComponentProps<typeof RNView> & {
 
 export function ModalView({ backgroundColor = 'black', style, ...props }: ModalViewProps) {
   // backgroundColor is intentionally applied via style, NOT className.
-  return useCssElement(
-    RNView,
-    { style: [{ flex: 1, backgroundColor }, style], ...props },
-    { className: 'style' }
-  );
+  return <RNView style={[{ flex: 1, backgroundColor }, style]} {...props} />;
 }
 ModalView.displayName = 'ModalView';

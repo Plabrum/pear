@@ -267,7 +267,6 @@ async def test_approve_photo_happy_path(graph: DomainGraph, db_session: AsyncSes
 
 async def test_approve_photo_unavailable_when_already_approved(graph: DomainGraph, db_session: AsyncSession) -> None:
     deps = _deps(db_session, user_id=graph.dater_a.id)
-    # The seeded approved photo is no longer pending -> gate denies.
     assert ApprovePhoto.is_available(graph.approved_photo, deps.user, deps) is False
 
 

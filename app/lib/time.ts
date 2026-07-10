@@ -1,5 +1,4 @@
-// Unified time + name helpers. Previously duplicated across matches, messages,
-// and the winger activity feed. Single source of truth for relative-time
+// Unified time + name helpers — single source of truth for relative-time
 // formatting so the whole app reads consistently.
 
 /** Parse an ISO string that may use a space separator (Postgres-style). */
@@ -40,15 +39,4 @@ export function matchedAgo(createdAt: string): string {
   if (days < 30) return `matched ${days} days ago`;
   const months = Math.floor(days / 30);
   return months === 1 ? 'matched 1 month ago' : `matched ${months} months ago`;
-}
-
-/** Up-to-two-letter uppercase initials from a name. */
-export function getInitials(name: string | null | undefined): string {
-  if (!name) return '?';
-  return name
-    .split(' ')
-    .map((w) => w[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
 }

@@ -121,6 +121,7 @@ async def fetch_active_wingpeople(db: AsyncSession, dater_id: Sqid) -> list[Wing
                 and_(
                     Contact.user_id == dater_id,
                     Contact.state == WingpersonStatus.ACTIVE,
+                    winger.deactivated_at.is_(None),
                 )
             )
             .order_by(asc(Contact.created_at))
@@ -154,6 +155,7 @@ async def fetch_incoming_invitations(db: AsyncSession, winger_id: Sqid) -> list[
                 and_(
                     Contact.winger_id == winger_id,
                     Contact.state == WingpersonStatus.INVITED,
+                    dater.deactivated_at.is_(None),
                 )
             )
             .order_by(desc(Contact.created_at))
@@ -181,6 +183,7 @@ async def fetch_sent_invitations(db: AsyncSession, dater_id: Sqid) -> list[SentI
                 and_(
                     Contact.user_id == dater_id,
                     Contact.state == WingpersonStatus.INVITED,
+                    winger.deactivated_at.is_(None),
                 )
             )
             .order_by(desc(Contact.created_at))
@@ -218,6 +221,7 @@ async def fetch_winging_for(db: AsyncSession, winger_id: Sqid) -> list[WingingFo
                 and_(
                     Contact.winger_id == winger_id,
                     Contact.state == WingpersonStatus.ACTIVE,
+                    dater.deactivated_at.is_(None),
                 )
             )
             .order_by(asc(Contact.created_at))
@@ -258,6 +262,7 @@ async def fetch_winging_for_tabs(db: AsyncSession, winger_id: Sqid) -> list[Wing
                 and_(
                     Contact.winger_id == winger_id,
                     Contact.state == WingpersonStatus.ACTIVE,
+                    dater.deactivated_at.is_(None),
                 )
             )
             .order_by(desc(Contact.created_at))

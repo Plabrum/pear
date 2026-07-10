@@ -28,12 +28,8 @@ _INTENTIONAL_NO_RLS = {
     "state_transition_logs",  # Append-only state-machine audit log: system-written.
     "app_updates",  # OTA manifest rows: written by the unauthenticated (bearer-token
     # guarded) `POST /updates/publish` CI endpoint, read by the unauthenticated
-    # `GET /updates/manifest` route — no per-request actor either way, same shape as
-    # `profiles`.
-    "native_build_fingerprints",  # Same shape as `app_updates`: written by the
-    # bearer-token-guarded `POST /updates/native-build-fingerprint` (Xcode Cloud CI),
-    # read by the unauthenticated `GET /updates/native-build-fingerprint` — no
-    # per-request actor either way.
+    # `GET /updates/v2/manifest` route — no per-request actor either way, same
+    # shape as `profiles`.
 }
 
 

@@ -4,7 +4,9 @@ import re
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime, timedelta
 from typing import Any
+from unittest.mock import MagicMock, patch
 
+import httpx
 import jwt
 import pytest
 from cryptography.hazmat.primitives import serialization
@@ -20,6 +22,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import Config, config
 from app.domain.profiles.models import Profile
 from app.factory import create_app
+from app.platform.auth.clients.apple_oauth import (
+    AppleClientSecretSigner,
+    AppleOAuthClient,
+    LocalAppleOAuthClient,
+)
 from app.platform.auth.enums import AuthProvider
 from app.platform.auth.models import AuthIdentity, MagicLinkToken
 from app.platform.auth.principal import User
@@ -316,6 +323,254 @@ async def test_apple_tampered_signature_rejected(auth_app: AsyncTestClient, appl
     assert resp.status_code == 401
 
 
+async def test_apple_authorization_code_exchanged_and_persisted(
+    auth_app: AsyncTestClient, apple_keypair: tuple[str, str]
+) -> None:
+    # ENV=testing selects LocalAppleOAuthClient, which fabricates a deterministic
+    # refresh token from the code rather than calling Apple.
+    private_pem, _ = apple_keypair
+    cfg: Config = auth_app.config  # type: ignore[attr-defined]
+    token = _apple_token(
+        private_pem,
+        aud=cfg.APPLE_CLIENT_ID,
+        iss=cfg.APPLE_ISSUER,
+        exp_delta=timedelta(minutes=5),
+        sub="apple-user-code",
+    )
+    resp = await auth_app.post("/auth/apple", json={"identityToken": token, "authorizationCode": "auth-code-123"})
+    assert resp.status_code == 201, resp.text
+
+    db: AsyncSession = auth_app.db_session  # type: ignore[attr-defined]
+    identity = (
+        await db.execute(
+            select(AuthIdentity).where(
+                AuthIdentity.provider == AuthProvider.APPLE,
+                AuthIdentity.provider_subject == "apple-user-code",
+            )
+        )
+    ).scalar_one()
+    assert identity.apple_refresh_token == "local-refresh-token-auth-code-123"
+
+
+async def test_apple_exchange_failure_still_completes_signin(
+    auth_app: AsyncTestClient, apple_keypair: tuple[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def _fail_exchange(self, code: str) -> str | None:
+        return None
+
+    monkeypatch.setattr(LocalAppleOAuthClient, "exchange_code", _fail_exchange)
+
+    private_pem, _ = apple_keypair
+    cfg: Config = auth_app.config  # type: ignore[attr-defined]
+    token = _apple_token(
+        private_pem,
+        aud=cfg.APPLE_CLIENT_ID,
+        iss=cfg.APPLE_ISSUER,
+        exp_delta=timedelta(minutes=5),
+        sub="apple-user-exchange-fail",
+    )
+    resp = await auth_app.post("/auth/apple", json={"identityToken": token, "authorizationCode": "will-fail"})
+    assert resp.status_code == 201, resp.text
+
+    db: AsyncSession = auth_app.db_session  # type: ignore[attr-defined]
+    identity = (
+        await db.execute(
+            select(AuthIdentity).where(
+                AuthIdentity.provider == AuthProvider.APPLE,
+                AuthIdentity.provider_subject == "apple-user-exchange-fail",
+            )
+        )
+    ).scalar_one()
+    assert identity.apple_refresh_token is None
+
+
+async def test_apple_login_reactivates_deactivated_profile(
+    auth_app: AsyncTestClient, apple_keypair: tuple[str, str]
+) -> None:
+    private_pem, _ = apple_keypair
+    cfg: Config = auth_app.config  # type: ignore[attr-defined]
+
+    def _tok() -> str:
+        return _apple_token(
+            private_pem,
+            aud=cfg.APPLE_CLIENT_ID,
+            iss=cfg.APPLE_ISSUER,
+            exp_delta=timedelta(minutes=5),
+            sub="apple-user-reactivate",
+        )
+
+    first = await auth_app.post("/auth/apple", json={"identityToken": _tok()})
+    assert first.status_code == 201, first.text
+    profile_id = first.json()["id"]
+
+    db: AsyncSession = auth_app.db_session  # type: ignore[attr-defined]
+    profile = await db.get(Profile, profile_id)
+    assert profile is not None
+    profile.deactivated_at = datetime.now(UTC)
+    await db.flush()
+
+    second = await auth_app.post("/auth/apple", json={"identityToken": _tok()})
+    assert second.status_code == 201, second.text
+
+    refreshed = await db.get(Profile, profile_id)
+    assert refreshed is not None
+    assert refreshed.deactivated_at is None
+
+
+# ── Apple outbound OAuth client (code exchange / revoke, httpx mocked) ─────────
+
+
+def _oauth_client() -> AppleOAuthClient:
+    cfg = MagicMock()
+    key = ec.generate_private_key(ec.SECP256R1())
+    private_pem = key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    ).decode()
+    cfg.APPLE_PRIVATE_KEY = private_pem
+    cfg.APPLE_KEY_ID = "OAUTHKEYID"
+    cfg.APPLE_TEAM_ID = "TEAM123456"
+    cfg.APPLE_CLIENT_ID = "com.plabrum.pear"
+    return AppleOAuthClient(cfg)
+
+
+class _MockAsyncClient:
+    """Stand-in for httpx.AsyncClient capturing the POST and returning a status."""
+
+    def __init__(self, *, status_code: int, json_body: dict | None = None):
+        self._status_code = status_code
+        self._json_body = json_body or {}
+
+    def __call__(self, **kwargs):
+        return self
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+    async def post(self, url, *, data):
+        self.last_url = url
+        self.last_data = data
+        resp = MagicMock()
+        resp.status_code = self._status_code
+        resp.text = ""
+        resp.json.return_value = self._json_body
+        return resp
+
+
+def test_apple_client_secret_signer_header_and_claims() -> None:
+    key = ec.generate_private_key(ec.SECP256R1())
+    private_pem = key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    ).decode()
+    signer = AppleClientSecretSigner(key=private_pem, key_id="KID", team_id="TEAMID", client_id="com.plabrum.pear")
+    token = signer.token()
+    header = jwt.get_unverified_header(token)
+    assert header["alg"] == "ES256"
+    assert header["kid"] == "KID"
+
+    claims = jwt.decode(token, options={"verify_signature": False})
+    assert claims["iss"] == "TEAMID"
+    assert claims["sub"] == "com.plabrum.pear"
+    assert claims["aud"] == "https://appleid.apple.com"
+
+
+def test_apple_client_secret_signer_is_cached() -> None:
+    key = ec.generate_private_key(ec.SECP256R1())
+    private_pem = key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    ).decode()
+    signer = AppleClientSecretSigner(key=private_pem, key_id="KID", team_id="TEAMID", client_id="cid")
+    assert signer.token() == signer.token()
+
+
+async def test_exchange_code_success_returns_refresh_token() -> None:
+    client = _oauth_client()
+    mock = _MockAsyncClient(status_code=200, json_body={"refresh_token": "rt-abc"})
+    with patch("app.platform.auth.clients.apple_oauth.httpx.AsyncClient", mock):
+        result = await client.exchange_code("auth-code")
+    assert result == "rt-abc"
+    assert mock.last_url == "https://appleid.apple.com/auth/token"
+    assert mock.last_data["grant_type"] == "authorization_code"
+    assert mock.last_data["code"] == "auth-code"
+
+
+async def test_exchange_code_rejected_returns_none() -> None:
+    client = _oauth_client()
+    mock = _MockAsyncClient(status_code=400)
+    with patch("app.platform.auth.clients.apple_oauth.httpx.AsyncClient", mock):
+        result = await client.exchange_code("bad-code")
+    assert result is None
+
+
+async def test_exchange_code_transport_error_is_swallowed() -> None:
+    client = _oauth_client()
+
+    class _Raising:
+        def __call__(self, **kwargs):
+            return self
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *exc):
+            return False
+
+        async def post(self, *a, **k):
+            raise httpx.ConnectError("boom")
+
+    with patch("app.platform.auth.clients.apple_oauth.httpx.AsyncClient", _Raising()):
+        result = await client.exchange_code("code")
+    assert result is None
+
+
+async def test_revoke_token_success() -> None:
+    client = _oauth_client()
+    mock = _MockAsyncClient(status_code=200)
+    with patch("app.platform.auth.clients.apple_oauth.httpx.AsyncClient", mock):
+        result = await client.revoke_token("rt-abc")
+    assert result is True
+    assert mock.last_url == "https://appleid.apple.com/auth/revoke"
+    assert mock.last_data["token"] == "rt-abc"
+    assert mock.last_data["token_type_hint"] == "refresh_token"
+
+
+async def test_revoke_token_rejected_returns_false() -> None:
+    client = _oauth_client()
+    mock = _MockAsyncClient(status_code=400)
+    with patch("app.platform.auth.clients.apple_oauth.httpx.AsyncClient", mock):
+        result = await client.revoke_token("rt-abc")
+    assert result is False
+
+
+async def test_revoke_token_transport_error_is_swallowed() -> None:
+    client = _oauth_client()
+
+    class _Raising:
+        def __call__(self, **kwargs):
+            return self
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *exc):
+            return False
+
+        async def post(self, *a, **k):
+            raise httpx.ConnectError("boom")
+
+    with patch("app.platform.auth.clients.apple_oauth.httpx.AsyncClient", _Raising()):
+        result = await client.revoke_token("rt-abc")
+    assert result is False
+
+
 # ── Magic link ─────────────────────────────────────────────────────────────────
 
 
@@ -441,11 +696,9 @@ async def test_me_without_session_rejected(auth_app: AsyncTestClient) -> None:
 async def test_logout_clears_session(auth_app: AsyncTestClient) -> None:
     await _magic_login(auth_app, "logout-clear@example.com")
 
-    # Authenticated logout succeeds and clears the cookie.
     resp = await auth_app.post("/auth/logout")
     assert resp.status_code == 204
 
-    # After logout the session no longer authenticates /auth/me.
     after = await auth_app.get("/auth/me")
     assert after.status_code in (401, 403)
 

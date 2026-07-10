@@ -7,11 +7,11 @@ import { ApiError } from '@/lib/api/errors';
 export { ApiError, isApiError } from '@/lib/api/errors';
 export type { ApiErrorKind } from '@/lib/api/errors';
 
-// Data API base URL (EXPO_PUBLIC_API_URL), matching auth-client.ts and
+// Data API base URL (APP_PUBLIC_API_URL), matching auth-client.ts and
 // ws-client.ts. The generated client emits absolute paths (`/api/...`,
 // `/auth/...`), so the base is the bare API origin with no prefix. Defaults to
 // localhost for local dev.
-const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000';
+const API_BASE = process.env.APP_PUBLIC_API_URL ?? 'http://localhost:8000';
 
 // Shared mutator for the generated client. Auth is a server-side cookie session:
 // `credentials:'include'` sends the session cookie on every request and lets the
@@ -34,10 +34,7 @@ export async function pearFetch<T>(url: string, options: RequestInit = {}): Prom
   } catch {
     // fetch rejects (TypeError) when the request never reaches the server:
     // offline, server down, DNS failure, connection refused/timed out.
-    throw new ApiError(
-      `Could not reach the server (${method} ${url})`,
-      'network'
-    );
+    throw new ApiError(`Could not reach the server (${method} ${url})`, 'network');
   }
 
   const bodyText = [204, 205, 304].includes(res.status) ? null : await res.text();

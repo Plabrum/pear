@@ -249,6 +249,7 @@ def build_preference_filters(
         # A candidate who is currently winging (role == WINGER) is out of the pool —
         # "winging" now lives on the profile role, not a `dating_status` value.
         Profile.state != UserRole.WINGER,
+        Profile.deactivated_at.is_(None),
         DatingProfile.city == viewer_dp.city,
         # Forward: viewer is open to the candidate's gender.
         or_(
@@ -539,6 +540,7 @@ def _build_likes_you_filters(
         DatingProfile.state == DatingStatus.OPEN,
         # A winging candidate (role == WINGER) is excluded from the likes-you pool too.
         Profile.state != UserRole.WINGER,
+        Profile.deactivated_at.is_(None),
         DatingProfile.city == vdp.city,
         # Forward: viewer is open to the liker's gender.
         or_(

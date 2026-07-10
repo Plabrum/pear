@@ -44,10 +44,9 @@ from app.platform.plugins import SqidSchemaPlugin
 from app.platform.queue.config import queue_config
 from app.platform.realtime.routes import realtime_ws
 from app.platform.updates.routes import (
-    get_manifest,
-    get_native_build_fingerprint,
+    get_manifest_v2,
+    post_client_event,
     publish_update,
-    set_native_build_fingerprint,
 )
 from app.utils.deps import get_dependencies
 from app.utils.discovery import discover_and_import
@@ -235,23 +234,21 @@ def create_app(
             # auth exclude list, so SessionAuth runs on the upgrade and authenticates
             # the handshake via the session cookie (see realtime/routes.py).
             realtime_ws,
-            # Self-hosted OTA manifest endpoint (Expo Updates protocol v1). Stays at
-            # the root (`/updates/manifest`), not under `/api` — `expo-updates` speaks
-            # this protocol unauthenticated with its own `expo-*` header set, not a
-            # session cookie. `exclude_from_auth=True` on the handler itself opts it
-            # out of SessionAuth (see platform/updates/routes.py).
-            get_manifest,
+            # Self-hosted OTA manifest endpoint: plain-JSON, snake_case protocol for
+            # our custom Swift OTA client. Stays at the root, not under `/api` —
+            # unauthenticated, its own query-param contract, not a session cookie.
+            # `exclude_from_auth=True` on the handler itself opts it out of
+            # SessionAuth (see platform/updates/routes.py).
+            get_manifest_v2,
+            # Client-side observability: the Swift OTA client posts here on download
+            # failure, verify failure, apply, and rollback — visible in server logs
+            # instead of only discoverable via a support ticket or a device in hand.
+            post_client_event,
             # CI-only publish endpoint: `ota.yml` calls this after uploading a bundle
             # to S3 to register the new `app_updates` row. Bearer-token guarded
             # (`requires_updates_publish_token`), not session-auth'd, so it also stays
             # at the root, `exclude_from_auth=True`.
             publish_update,
-            # Xcode Cloud write-back / CI read of the latest native build's
-            # `@expo/fingerprint` hash (replaces a GitHub Actions variable Xcode
-            # Cloud has no automated way to write). POST reuses the same bearer
-            # guard as `publish_update`; GET is unauthenticated (not sensitive).
-            set_native_build_fingerprint,
-            get_native_build_fingerprint,
             # Dev/test only: backs the `LocalMediaClient` presigned `/_local-media/*`
             # URLs with an on-disk sink so uploads round-trip with no S3. The handlers'
             # `requires_local` guard rejects the route in prod.

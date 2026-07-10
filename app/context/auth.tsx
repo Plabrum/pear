@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useEffect } from 'react';
-import * as SplashScreen from 'expo-splash-screen';
-import * as Linking from 'expo-linking';
+import { Linking } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import {
   signInWithApple as clientSignInWithApple,
@@ -10,8 +9,8 @@ import {
 } from '@/lib/auth-client';
 import { queryClient } from '@/lib/queryClient';
 import { authMeQueryKey, sessionQueryOptions, type Session } from '@/lib/auth-session';
-import Splash from '@/components/ui/Splash';
-import ScreenErrorBoundary from '@/components/ui/ScreenErrorBoundary';
+import Splash from '@/components/Splash';
+import ScreenErrorBoundary from '@/components/ScreenErrorBoundary';
 
 export type { Session };
 
@@ -31,12 +30,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // unreachable (a 401 resolves to null, not an error).
   const { data: session, isPending, error, refetch } = useQuery(sessionQueryOptions);
 
-  // Hide the native splash once the session has settled (data or error), and
-  // keep it up while pending. Effect because it pokes a native module.
-  useEffect(() => {
-    if (!isPending) SplashScreen.hideAsync();
-  }, [isPending]);
-
   // Magic-link deep link — a genuine external event (inbound URL), so a
   // mount-only effect is the sanctioned exception. On a verified token we
   // invalidate the session query (refetches the full session incl.
@@ -44,9 +37,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     async function handleMagicLink(url: string | null): Promise<void> {
       if (!url) return;
-      const { hostname, queryParams } = Linking.parse(url);
+      const parsed = new URL(url);
+      const hostname = parsed.hostname;
       if (hostname !== 'magic-link') return;
-      const token = queryParams?.token;
+      const token = parsed.searchParams.get('token');
       if (typeof token !== 'string') return;
       try {
         await clientVerifyMagicLink(token);
@@ -111,9 +105,13 @@ export function useAuthActions() {
   if (!ctx) throw new Error('useAuthActions must be used within AuthProvider');
 
   return {
-    async signInWithApple(identityToken: string, fullName?: string): Promise<AuthResult> {
+    async signInWithApple(
+      identityToken: string,
+      fullName?: string,
+      authorizationCode?: string
+    ): Promise<AuthResult> {
       try {
-        await clientSignInWithApple(identityToken, fullName);
+        await clientSignInWithApple(identityToken, fullName, authorizationCode);
         await queryClient.invalidateQueries({ queryKey: authMeQueryKey });
         return { error: null };
       } catch (e) {

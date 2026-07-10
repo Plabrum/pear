@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import base64
-import json
-import re
 from collections.abc import AsyncGenerator
 
 import pytest
@@ -16,17 +14,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import config
 from app.factory import create_app
 from app.platform.updates.enums import RolloutStatus, UpdateChannel, UpdatePlatform
-from app.platform.updates.models import AppUpdate, NativeBuildFingerprint
+from app.platform.updates.models import AppUpdate
 
 # `asyncio_mode = "auto"` (pyproject.toml) runs `async def test_*` without a marker.
 
 _RUNTIME_VERSION = "1.0.0-fingerprint-abc123"
-_HEADERS = {
-    "expo-runtime-version": _RUNTIME_VERSION,
-    "expo-platform": "ios",
-    "expo-channel-name": "production",
-    "expo-protocol-version": "1",
-}
 
 
 def _rsa_keypair() -> tuple[str, str]:
@@ -51,59 +43,48 @@ def _rsa_keypair() -> tuple[str, str]:
 
 @pytest.fixture
 async def updates_client(db_session: AsyncSession) -> AsyncGenerator[AsyncTestClient]:
-    """Real app hitting `/updates/manifest` + `/updates/publish`, with `transaction`
-    pinned to the savepoint `db_session` — `app_updates` has no RLS (see
-    `models.py`), so seeding/reading rows needs no actor or system-mode setup.
+    """Real app hitting `/updates/v2/manifest` + `/updates/publish`, with
+    `transaction` pinned to the savepoint `db_session` — `app_updates` has no RLS
+    (see `models.py`), so seeding/reading rows needs no actor or system-mode setup.
     """
     app = create_app(dependencies_overrides={"transaction": Provide(lambda: db_session, sync_to_thread=False)})
     async with AsyncTestClient(app=app) as client:
         yield client
 
 
-def _assert_valid_signature(signature_header: str | None, body_bytes: bytes, public_pem: str) -> None:
-    """Verify the `expo-signature` part header (`sig="<base64>", keyid="main"`)
-    against the public half of the keypair injected for this test."""
-    assert signature_header is not None
-    assert 'keyid="main"' in signature_header
-    sig_b64 = signature_header.split('sig="')[1].split('"')[0]
+def _v2_params(**overrides: str) -> dict[str, str]:
+    return {
+        "runtime_version": _RUNTIME_VERSION,
+        "platform": "ios",
+        "channel": "production",
+        **overrides,
+    }
+
+
+def _assert_valid_v2_signature(response, public_pem: str) -> None:
+    signature_b64 = response.headers.get("x-update-signature")
+    assert signature_b64 is not None
+    assert response.headers["x-update-signing-key-id"] == "main"
     public_key = serialization.load_pem_public_key(public_pem.encode())
     assert isinstance(public_key, rsa.RSAPublicKey)
     public_key.verify(
-        base64.b64decode(sig_b64),
-        body_bytes,
+        base64.b64decode(signature_b64),
+        response.content,
         padding.PKCS1v15(),
         hashes.SHA256(),
     )
 
 
-def _parse_multipart_json(response) -> tuple[str, dict, str | None, bytes]:
-    """Pull `(part_name, json_body, expo-signature part header, raw json bytes)`
-    out of the `multipart/mixed` body this route hand-assembles (see
-    `app.platform.updates.multipart.encode_multipart_mixed`).
-    """
-    content_type = response.headers["content-type"]
-    boundary = content_type.split("boundary=")[1]
-    raw = response.content
-    # Between the opening `--<boundary>\r\n` and the closing `\r\n--<boundary>--`.
-    part = raw.split(f"--{boundary}".encode())[1].strip(b"\r\n-")
-    header_block, _, json_block = part.partition(b"\r\n\r\n")
-    header_text = header_block.decode()
-    name_match = re.search(r'name="(\w+)"', header_text)
-    sig_match = re.search(r"expo-signature: (.+)", header_text)
-    return (
-        name_match.group(1) if name_match else "",
-        json.loads(json_block),
-        sig_match.group(1).strip() if sig_match else None,
-        json_block,
-    )
+async def test_manifest_v2_no_row_returns_no_update(updates_client: AsyncTestClient) -> None:
+    response = await updates_client.get("/updates/v2/manifest", params=_v2_params())
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "no_update", "manifest": None, "rollback_created_at": None}
 
 
-async def test_manifest_current_update_returns_no_update_directive(
-    updates_client: AsyncTestClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+async def test_manifest_v2_current_update_returns_no_update(
+    updates_client: AsyncTestClient, db_session: AsyncSession
 ) -> None:
-    private_key_b64, public_pem = _rsa_keypair()
-    monkeypatch.setattr(config, "UPDATES_SIGNING_PRIVATE_KEY", private_key_b64)
-
     row = AppUpdate(
         runtime_version=_RUNTIME_VERSION,
         channel=UpdateChannel.PRODUCTION,
@@ -116,24 +97,16 @@ async def test_manifest_current_update_returns_no_update_directive(
     await db_session.flush()
 
     response = await updates_client.get(
-        "/updates/manifest",
-        headers={**_HEADERS, "expo-current-update-id": str(row.update_uuid)},
+        "/updates/v2/manifest", params=_v2_params(current_update_id=str(row.update_uuid))
     )
 
     assert response.status_code == 200
-    assert response.headers["expo-protocol-version"] == "1"
-    part_name, body, signature_header, body_bytes = _parse_multipart_json(response)
-    assert part_name == "directive"
-    assert body == {"type": "noUpdateAvailable"}
-    _assert_valid_signature(signature_header, body_bytes, public_pem)
+    assert response.json()["status"] == "no_update"
 
 
-async def test_manifest_rolled_back_returns_rollback_directive(
-    updates_client: AsyncTestClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+async def test_manifest_v2_rolled_back_returns_rollback(
+    updates_client: AsyncTestClient, db_session: AsyncSession
 ) -> None:
-    private_key_b64, public_pem = _rsa_keypair()
-    monkeypatch.setattr(config, "UPDATES_SIGNING_PRIVATE_KEY", private_key_b64)
-
     row = AppUpdate(
         runtime_version=_RUNTIME_VERSION,
         channel=UpdateChannel.PRODUCTION,
@@ -145,17 +118,15 @@ async def test_manifest_rolled_back_returns_rollback_directive(
     db_session.add(row)
     await db_session.flush()
 
-    response = await updates_client.get("/updates/manifest", headers=_HEADERS)
+    response = await updates_client.get("/updates/v2/manifest", params=_v2_params())
 
     assert response.status_code == 200
-    part_name, body, signature_header, body_bytes = _parse_multipart_json(response)
-    assert part_name == "directive"
-    assert body["type"] == "rollBackToEmbedded"
-    assert body["parameters"]["createdAt"] == row.created_at.isoformat()
-    _assert_valid_signature(signature_header, body_bytes, public_pem)
+    body = response.json()
+    assert body["status"] == "rollback"
+    assert body["rollback_created_at"] == row.created_at.isoformat()
 
 
-async def test_manifest_normal_case_returns_signed_manifest(
+async def test_manifest_v2_normal_case_returns_signed_manifest(
     updates_client: AsyncTestClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     private_key_b64, public_pem = _rsa_keypair()
@@ -185,17 +156,40 @@ async def test_manifest_normal_case_returns_signed_manifest(
     db_session.add(row)
     await db_session.flush()
 
-    response = await updates_client.get("/updates/manifest", headers=_HEADERS)
+    response = await updates_client.get("/updates/v2/manifest", params=_v2_params())
 
     assert response.status_code == 200
-    part_name, manifest, signature_header, body_bytes = _parse_multipart_json(response)
-    assert part_name == "manifest"
-    assert manifest["id"] == str(row.update_uuid)
-    assert manifest["runtimeVersion"] == _RUNTIME_VERSION
-    assert manifest["launchAsset"]["url"] == "https://cdn.example.com/bundle.js"
-    assert manifest["assets"][0]["fileExtension"] == ".png"
+    body = response.json()
+    assert body["status"] == "update_available"
+    manifest = body["manifest"]
+    assert manifest["update_uuid"] == str(row.update_uuid)
+    assert manifest["runtime_version"] == _RUNTIME_VERSION
+    assert manifest["launch_asset"] == {
+        "key": "bundle-key",
+        "content_type": "application/javascript",
+        "url": "https://cdn.example.com/bundle.js",
+        "hash": "bundle-hash",
+        "file_extension": None,
+    }
+    assert manifest["assets"][0] == {
+        "key": "asset-key",
+        "content_type": "image/png",
+        "url": "https://cdn.example.com/asset.png",
+        "hash": "asset-hash",
+        "file_extension": ".png",
+    }
+    _assert_valid_v2_signature(response, public_pem)
 
-    _assert_valid_signature(signature_header, body_bytes, public_pem)
+
+async def test_manifest_v2_unsigned_when_no_signing_key_configured(
+    updates_client: AsyncTestClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(config, "UPDATES_SIGNING_PRIVATE_KEY", "")
+
+    response = await updates_client.get("/updates/v2/manifest", params=_v2_params())
+
+    assert response.status_code == 200
+    assert "x-update-signature" not in response.headers
 
 
 _PUBLISH_BODY = {
@@ -268,109 +262,3 @@ async def test_publish_inserts_app_update_row(
     assert row.rollout == RolloutStatus.LIVE
     assert row.launch_asset["url"] == "https://cdn.example.com/bundle.js"
     assert row.assets[0]["fileExtension"] == ".png"
-
-
-# ─── Native build fingerprint (POST guarded, GET unauthenticated) ──────────────
-
-
-async def test_set_fingerprint_rejects_missing_token(
-    updates_client: AsyncTestClient, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(config, "UPDATES_PUBLISH_TOKEN", "the-real-token")
-    response = await updates_client.post(
-        "/updates/native-build-fingerprint", json={"platform": "ios", "fingerprint": "abc123"}
-    )
-    assert response.status_code == 401
-
-
-async def test_set_fingerprint_rejects_wrong_token(
-    updates_client: AsyncTestClient, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(config, "UPDATES_PUBLISH_TOKEN", "the-real-token")
-    response = await updates_client.post(
-        "/updates/native-build-fingerprint",
-        json={"platform": "ios", "fingerprint": "abc123"},
-        headers={"authorization": "Bearer wrong-token"},
-    )
-    assert response.status_code == 401
-
-
-async def test_set_fingerprint_rejects_when_no_token_configured(
-    updates_client: AsyncTestClient, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(config, "UPDATES_PUBLISH_TOKEN", "")
-    response = await updates_client.post(
-        "/updates/native-build-fingerprint",
-        json={"platform": "ios", "fingerprint": "abc123"},
-        headers={"authorization": "Bearer "},
-    )
-    assert response.status_code == 401
-
-
-async def test_set_fingerprint_inserts_row(
-    updates_client: AsyncTestClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(config, "UPDATES_PUBLISH_TOKEN", "the-real-token")
-
-    response = await updates_client.post(
-        "/updates/native-build-fingerprint",
-        json={"platform": "ios", "fingerprint": "abc123"},
-        headers={"authorization": "Bearer the-real-token"},
-    )
-
-    assert response.status_code == 201
-    assert response.json() == {"platform": "ios", "fingerprint": "abc123"}
-
-    row = (
-        await db_session.execute(
-            select(NativeBuildFingerprint).where(NativeBuildFingerprint.platform == UpdatePlatform.IOS)
-        )
-    ).scalar_one()
-    assert row.fingerprint == "abc123"
-
-
-async def test_set_fingerprint_upsert_overwrites_not_duplicates(
-    updates_client: AsyncTestClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(config, "UPDATES_PUBLISH_TOKEN", "the-real-token")
-    headers = {"authorization": "Bearer the-real-token"}
-
-    await updates_client.post(
-        "/updates/native-build-fingerprint", json={"platform": "ios", "fingerprint": "first"}, headers=headers
-    )
-    response = await updates_client.post(
-        "/updates/native-build-fingerprint", json={"platform": "ios", "fingerprint": "second"}, headers=headers
-    )
-
-    assert response.status_code == 201
-    assert response.json()["fingerprint"] == "second"
-
-    rows = (
-        (
-            await db_session.execute(
-                select(NativeBuildFingerprint).where(NativeBuildFingerprint.platform == UpdatePlatform.IOS)
-            )
-        )
-        .scalars()
-        .all()
-    )
-    assert len(rows) == 1
-    assert rows[0].fingerprint == "second"
-
-
-async def test_get_fingerprint_no_row_returns_none(updates_client: AsyncTestClient) -> None:
-    response = await updates_client.get("/updates/native-build-fingerprint", params={"platform": "ios"})
-    assert response.status_code == 200
-    assert response.json() == {"platform": "ios", "fingerprint": None}
-
-
-async def test_get_fingerprint_with_row_is_unauthenticated(
-    updates_client: AsyncTestClient, db_session: AsyncSession
-) -> None:
-    db_session.add(NativeBuildFingerprint(platform=UpdatePlatform.IOS, fingerprint="xyz789"))
-    await db_session.flush()
-
-    response = await updates_client.get("/updates/native-build-fingerprint", params={"platform": "ios"})
-
-    assert response.status_code == 200
-    assert response.json() == {"platform": "ios", "fingerprint": "xyz789"}

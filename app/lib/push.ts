@@ -1,26 +1,17 @@
-import * as Notifications from 'expo-notifications';
-import * as Device from 'expo-device';
-import { Platform } from 'react-native';
+import { NativeModules, Platform } from 'react-native';
 import { updateMyProfile } from '@/lib/api/actions';
 
-// iOS suppresses banners while the app is foregrounded unless a handler
-// opts in. Without this, recipients sitting in the app on a non-chat
-// screen never see the new-message push, which reads as "notifications
-// arrive inconsistently."
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-});
+// Foreground presentation is handled natively in AppDelegate's
+// UNUserNotificationCenterDelegate — iOS suppresses banners while the app is
+// foregrounded unless a delegate opts in, so that lives next to the rest of
+// the push registration in PearNotificationsModule/AppDelegate.swift.
+const { PearNotificationsModule } = NativeModules;
 
 export async function registerPushToken(userId: string) {
-  if (Platform.OS === 'web') return;
-  if (!Device.isDevice) return;
-  const { status } = await Notifications.requestPermissionsAsync();
-  if (status !== 'granted') return;
-  const token = (await Notifications.getDevicePushTokenAsync()).data;
+  if (Platform.OS !== 'ios') return;
+  const isDevice: boolean = await PearNotificationsModule.isDevice();
+  if (!isDevice) return;
+  const token: string | null = await PearNotificationsModule.requestAndRegister();
+  if (!token) return;
   await updateMyProfile(userId, { pushToken: token });
 }

@@ -8,13 +8,13 @@
 // is layout-only.
 import * as React from 'react';
 import { TextInput as RNTextInput, type KeyboardTypeOptions } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 
 import { View, Text, TextInput, Pressable } from '@/lib/tw';
 import { colors } from '@/constants/theme';
 import { formatPhoneInput } from '@/lib/phoneUtils';
-import DateInput from '@/components/ui/DateInput';
-import { Sheet } from '@/components/ui/Sheet';
+import DateInput from '@/components/DateInput';
+import { Sheet } from '@/components/Sheet';
 
 export const FIELD_ERROR = '#A33';
 

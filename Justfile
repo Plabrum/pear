@@ -1,13 +1,11 @@
 default:
     @just --list
 
-# ─── App (Expo) ──────────────────────────────────────────────
+# ─── App ─────────────────────────────────────────────────────
 app-install:
     cd app && npm install
 app-dev:
     cd app && npm run dev:sim
-app-web:
-    cd app && npm run web
 app-lint:
     cd app && npm run lint
 app-typecheck:

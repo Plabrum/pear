@@ -98,6 +98,7 @@ class AuthService:
                 identity.profile_id = profile.id
                 await self.db.flush()
                 return profile, True
+            await self._reactivate_if_needed(profile)
             return profile, False
 
         profile = await self._create_profile(name=name)
@@ -105,6 +106,30 @@ class AuthService:
         self.db.add(identity)
         await self.db.flush()
         return profile, True
+
+    async def _reactivate_if_needed(self, profile: Profile) -> None:
+        """Clear a deactivated account's flag on successful login.
+
+        Deactivation doesn't block sign-in (so a user can reach a reactivate path
+        at all) — logging back in IS the reactivation trigger.
+        """
+        if profile.deactivated_at is not None:
+            profile.deactivated_at = None
+            await self.db.flush()
+
+    async def store_apple_refresh_token(self, subject: str, refresh_token: str) -> None:
+        """Persist the Apple OAuth refresh token onto the matching `AuthIdentity` row."""
+        result = await self.db.execute(
+            select(AuthIdentity).where(
+                AuthIdentity.provider == AuthProvider.APPLE,
+                AuthIdentity.provider_subject == subject,
+            )
+        )
+        identity = result.scalar_one_or_none()
+        if identity is None:
+            return
+        identity.apple_refresh_token = refresh_token
+        await self.db.flush()
 
     async def _create_profile(self, *, name: str | None = None) -> Profile:
         """Create a bootstrap profile row. Onboarding fills in role/chosen_name.

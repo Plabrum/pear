@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 
 import sqlalchemy as sa
 from sqlalchemy.orm import Mapped, mapped_column
@@ -35,3 +35,7 @@ class Profile(
     )
     # Expo push token; set after the user grants notification permission.
     push_token: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
+    # Set on account deactivation (Settings -> Delete account); cleared automatically
+    # on a successful login (see AuthService.find_or_create_identity). Not a state
+    # machine field — `state` already means UserRole and is unrelated.
+    deactivated_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True), nullable=True, default=None)

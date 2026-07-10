@@ -50,4 +50,3 @@ class DatingProfile(
     is_active: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=True, server_default=sa.true())
     # `state` (OPEN|BREAK — the dater's availability) is the canonical lifecycle
     # column added by StateMachineMixin, flipped only via the dating-status actions.
-    # "Winging" is no longer a dating_status — it lives on profiles.state (role).

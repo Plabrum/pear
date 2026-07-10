@@ -25,6 +25,12 @@ class AuthIdentity(BaseDBModel):
         nullable=False,
         index=True,
     )
+    # Only ever populated on `provider == AuthProvider.APPLE` rows — the refresh
+    # token used to revoke the user's Apple Sign-In grant on account deactivation
+    # (App Store Guideline 5.1.1(v)). Stored as plain text: no encryption-at-rest
+    # helper exists in the codebase today, and adding one for a single column would
+    # be new infrastructure for this pass — a deliberate MVP tradeoff.
+    apple_refresh_token: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
 
 
 # Bearer-secret table: mint + consume both run UNAUTHENTICATED (no app.user_id), and
