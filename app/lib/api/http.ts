@@ -11,7 +11,7 @@ export type { ApiErrorKind } from '@/lib/api/errors';
 // ws-client.ts. The generated client emits absolute paths (`/api/...`,
 // `/auth/...`), so the base is the bare API origin with no prefix. Defaults to
 // localhost for local dev.
-const API_BASE = process.env.APP_PUBLIC_API_URL ?? 'http://localhost:8000';
+export const API_BASE = process.env.APP_PUBLIC_API_URL ?? 'http://localhost:8000';
 
 // Shared mutator for the generated client. Auth is a server-side cookie session:
 // `credentials:'include'` sends the session cookie on every request and lets the

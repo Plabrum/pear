@@ -137,6 +137,7 @@ targets:
               echo "error: APP_PUBLIC_API_URL is unset or points at localhost for a $CONFIGURATION build (got: '${APP_PUBLIC_API_URL}'). Set it as an Xcode Cloud workflow environment variable before archiving." >&2
               exit 1
             fi
+            echo "Bundling $CONFIGURATION build with APP_PUBLIC_API_URL='${APP_PUBLIC_API_URL}'"
           fi
 
           if [[ -f "$PODS_ROOT/../.xcode.env.updates" ]]; then
