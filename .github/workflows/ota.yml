@@ -76,12 +76,15 @@ jobs:
 
       - name: Resolve runtime_version
         # Phase 6 of the off-Expo migration: runtime_version is now CFBundleVersion
-        # (the build number), read straight from the committed ios/ project — this
+        # (the build number), read straight from the committed ios/project.yml — this
         # repo has no Xcode Cloud automatic-versioning bump, CURRENT_PROJECT_VERSION
-        # in the pbxproj and CFBundleVersion in Info.plist are both static committed
-        # values, so what's checked out here is exactly what any Xcode Cloud archive
-        # at this commit would produce. This replaces the old @expo/fingerprint
-        # guardrail entirely — no separate check needed, since the manifest lookup
+        # is a static committed value there, so what's checked out here is exactly
+        # what any Xcode Cloud archive at this commit would produce. NOT read from
+        # ios/Pear/Info.plist: that file is XcodeGen-generated (`xcodegen generate`)
+        # and gitignored (app/.gitignore), so it never exists in a plain checkout —
+        # project.yml is the actual committed source of truth (CLAUDE.md's Build
+        # Configuration section). This replaces the old @expo/fingerprint guardrail
+        # entirely — no separate check needed, since the manifest lookup
         # backend/app/platform/updates/queries.py does is keyed by
         # (runtime_version, channel, platform), which already structurally
         # guarantees an OTA bundle can never be served to an incompatible native
@@ -91,11 +94,11 @@ jobs:
           if [ -n "${{ github.event.inputs.runtime_version }}" ]; then
             RUNTIME_VERSION="${{ github.event.inputs.runtime_version }}"
           else
-            RUNTIME_VERSION=$(grep -A1 '<key>CFBundleVersion</key>' ios/Pear/Info.plist | tail -1 | sed -E 's/.*<string>(.*)<\/string>.*/\1/')
+            RUNTIME_VERSION=$(grep -E '^[[:space:]]*CURRENT_PROJECT_VERSION:' ios/project.yml | sed -E 's/.*CURRENT_PROJECT_VERSION:[[:space:]]*"?([^"[:space:]]+)"?.*/\1/')
           fi
 
           if [ -z "$RUNTIME_VERSION" ]; then
-            echo "::error::Could not resolve a runtime_version — checked workflow_dispatch input and ios/Pear/Info.plist's CFBundleVersion."
+            echo "::error::Could not resolve a runtime_version — checked workflow_dispatch input and ios/project.yml's CURRENT_PROJECT_VERSION."
             exit 1
           fi
 
