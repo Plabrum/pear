@@ -92,6 +92,8 @@ targets:
         aps-environment: production
         com.apple.developer.applesignin:
           - Default
+        com.apple.developer.associated-domains:
+          - applinks:usepear.app
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.plabrum.pear

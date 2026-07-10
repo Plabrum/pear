@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import hashlib
-import hmac
 import secrets
 from datetime import UTC, datetime, timedelta
 
@@ -13,6 +11,7 @@ from app.domain.profiles.enums import UserRole
 from app.domain.profiles.models import Profile
 from app.platform.auth.enums import AuthProvider
 from app.platform.auth.models import AuthIdentity, MagicLinkToken
+from app.utils.tokens import hash_bearer_token
 
 
 class AuthService:
@@ -23,12 +22,7 @@ class AuthService:
     # ── Magic-link tokens ─────────────────────────────────────────────────────
 
     def _hash_token(self, token: str) -> str:
-        """HMAC-SHA256 the raw token with `SECRET_KEY` (hex digest, 64 chars).
-
-        Keyed (not a bare hash) so a DB leak of `token_hash` can't be brute-forced
-        into a usable token without also holding the server secret.
-        """
-        return hmac.new(self.config.SECRET_KEY.encode(), token.encode(), hashlib.sha256).hexdigest()
+        return hash_bearer_token(self.config.SECRET_KEY, token)
 
     async def issue_magic_link(self, email: str) -> str:
         """Mint a single-use token bound to `email`, persist its hash, return the raw token.

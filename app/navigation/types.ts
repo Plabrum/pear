@@ -47,7 +47,7 @@ export type RootStackParamList = {
   Onboarding: undefined;
   WingerTabs: NavigatorScreenParams<WingerTabParamList>;
   DaterTabs: NavigatorScreenParams<DaterTabParamList>;
-  Invite: undefined;
+  Invite: { token?: string } | undefined;
   MagicLink: undefined;
   Settings: undefined;
 } & WingerTabParamList &

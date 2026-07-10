@@ -424,6 +424,9 @@
                     "$ref": "#/components/schemas/AcceptInviteAction"
                   },
                   {
+                    "$ref": "#/components/schemas/AcceptInviteByTokenAction"
+                  },
+                  {
                     "$ref": "#/components/schemas/DeclineInviteAction"
                   },
                   {
@@ -673,6 +676,9 @@
                   },
                   {
                     "$ref": "#/components/schemas/AcceptInviteAction"
+                  },
+                  {
+                    "$ref": "#/components/schemas/AcceptInviteByTokenAction"
                   },
                   {
                     "$ref": "#/components/schemas/DeclineInviteAction"
@@ -1898,6 +1904,133 @@
         "deprecated": false
       }
     },
+    "/invite/verify": {
+      "get": {
+        "tags": ["contacts"],
+        "summary": "InviteVerifyRedirect",
+        "operationId": "InviteVerifyInviteVerifyRedirect",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Redirect Response",
+            "headers": {
+              "location": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "target path for the redirect",
+                "required": false,
+                "deprecated": false
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": ["null", "object", "array"]
+                    }
+                  },
+                  "type": "object",
+                  "required": ["detail", "status_code"],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      },
+      "post": {
+        "tags": ["contacts"],
+        "summary": "InviteVerify",
+        "operationId": "InviteVerifyInviteVerify",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InviteVerifyIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Document created, URL follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InviteVerifyOut"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": ["null", "object", "array"]
+                    }
+                  },
+                  "type": "object",
+                  "required": ["detail", "status_code"],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
     "/updates/v2/manifest": {
       "get": {
         "summary": "GetManifestV2",
@@ -2344,6 +2477,30 @@
         "required": ["action", "data"],
         "title": "AcceptInviteAction"
       },
+      "AcceptInviteByTokenAction": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AcceptInviteByTokenData"
+          },
+          "action": {
+            "type": "string",
+            "const": "contact_actions__accept_by_token"
+          }
+        },
+        "type": "object",
+        "required": ["action", "data"],
+        "title": "AcceptInviteByTokenAction"
+      },
+      "AcceptInviteByTokenData": {
+        "properties": {
+          "token": {
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": ["token"],
+        "title": "AcceptInviteByTokenData"
+      },
       "ActionCTA": {
         "properties": {
           "label": {
@@ -2463,6 +2620,16 @@
                 "type": "string",
                 "description": "SQID-encoded identifier",
                 "example": "kmxpqdrv"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "invite_url": {
+            "oneOf": [
+              {
+                "type": "string"
               },
               {
                 "type": "null"
@@ -3206,6 +3373,41 @@
           "Volunteering"
         ],
         "title": "Interest"
+      },
+      "InviteVerifyIn": {
+        "properties": {
+          "token": {
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": ["token"],
+        "title": "InviteVerifyIn"
+      },
+      "InviteVerifyOut": {
+        "properties": {
+          "contactId": {
+            "type": "string",
+            "description": "SQID-encoded identifier",
+            "example": "kmxpqdrv"
+          },
+          "daterName": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "alreadyLinked": {
+            "type": "boolean"
+          }
+        },
+        "type": "object",
+        "required": ["alreadyLinked", "contactId", "daterName"],
+        "title": "InviteVerifyOut"
       },
       "InviteWingpersonAction": {
         "properties": {

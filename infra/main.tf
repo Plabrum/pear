@@ -82,5 +82,9 @@ module "ecs" {
 }
 
 # NOTE: Pear is iOS-only - there is no web frontend, so no Vercel provider,
-# Vercel projects, or root/www/app DNS records. The api.<domain> A-record lives
-# in the ec2_stack module (it points at the instance's public IP).
+# Vercel projects, or www/app DNS records. The api.<domain> A-record lives in
+# the ec2_stack module (it points at the instance's public IP). The bare apex
+# (<domain>, e.g. usepear.app) DOES have an A-record (also in ec2_stack) — not
+# a web frontend either, but the backend serves the wingperson-invite
+# universal-link AASA file + fallback landing page from that host, since
+# Associated Domains requires them at the apex, not a subdomain.

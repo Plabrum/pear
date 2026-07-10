@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Share } from 'react-native';
 import { ScrollView, Text, View } from '@/lib/tw';
 import { Button } from '@/components/Button';
 import { FaceAvatar } from '@/components/FaceAvatar';
@@ -7,17 +6,12 @@ import { StepHeader } from '@/features/onboarding/chrome';
 import { InviteWingpersonSheet } from '@/features/wingpeople/InviteWingpersonSheet';
 
 export function WingInviteStep({ onFinish }: { onFinish: () => void }) {
+  // Both buttons open the same phone-collection sheet — a real, token-bound
+  // invite link needs a Contact row to mint against, so "Share a link" can't
+  // skip straight to Share.share() with a static URL. `deliveryMethod` only
+  // changes how the resulting link is handed off.
   const [inviteVisible, setInviteVisible] = useState(false);
-
-  async function shareLink() {
-    try {
-      await Share.share({
-        message: 'Be my wingperson on Pear: https://usepear.app/invite',
-      });
-    } catch {
-      // user cancelled
-    }
-  }
+  const [deliveryMethod, setDeliveryMethod] = useState<'sms' | 'share'>('sms');
 
   return (
     <View className="flex-1">
@@ -45,10 +39,25 @@ export function WingInviteStep({ onFinish }: { onFinish: () => void }) {
             . Quality {'>'} quantity.
           </Text>
           <View style={{ gap: 8 }}>
-            <Button block size="md" onPress={() => setInviteVisible(true)}>
+            <Button
+              block
+              size="md"
+              onPress={() => {
+                setDeliveryMethod('sms');
+                setInviteVisible(true);
+              }}
+            >
               From contacts
             </Button>
-            <Button block size="md" variant="secondary" onPress={shareLink}>
+            <Button
+              block
+              size="md"
+              variant="secondary"
+              onPress={() => {
+                setDeliveryMethod('share');
+                setInviteVisible(true);
+              }}
+            >
               Share a link
             </Button>
           </View>
@@ -61,7 +70,11 @@ export function WingInviteStep({ onFinish }: { onFinish: () => void }) {
         Finish setup
       </Button>
 
-      <InviteWingpersonSheet visible={inviteVisible} onClose={() => setInviteVisible(false)} />
+      <InviteWingpersonSheet
+        visible={inviteVisible}
+        onClose={() => setInviteVisible(false)}
+        deliveryMethod={deliveryMethod}
+      />
     </View>
   );
 }

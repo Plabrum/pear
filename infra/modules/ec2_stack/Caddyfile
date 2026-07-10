@@ -2,3 +2,12 @@
 {$API_DOMAIN} {
     reverse_proxy api:8000
 }
+
+# DOMAIN is the bare apex (usepear.app) — no web frontend lives here, but the
+# backend serves the wingperson-invite universal-link AASA file and its
+# fallback landing page from this host (see
+# backend/app/platform/universal_links). Caddy auto-provisions TLS for this
+# hostname the same way it does for the API block above.
+{$DOMAIN} {
+    reverse_proxy api:8000
+}

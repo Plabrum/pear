@@ -84,6 +84,8 @@ class ActionExecutionResponse(BaseSchema):
     invalidate_queries: list[str] = []  # Query keys the client should invalidate
     action_result: ActionResult | None = None  # Follow-up the client should perform
     created_id: Sqid | None = None  # ID of a newly created object (for create actions)
+    # Populated only by contact_actions.invite_wingperson — the shareable invite URL.
+    invite_url: str | None = None
 
 
 class ActionListResponse(BaseSchema):

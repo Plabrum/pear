@@ -17,4 +17,5 @@ export interface ActionExecutionResponse {
     | CopyToClipboardActionResult
     | null;
   created_id?: string | null;
+  invite_url?: string | null;
 }

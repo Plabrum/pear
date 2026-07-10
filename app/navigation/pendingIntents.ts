@@ -4,18 +4,18 @@
 // navigator actually mounts. No AsyncStorage needed — these only need to
 // survive a single launch → auth/onboarding → gate-flip handoff.
 
-let pendingWingerInvite = false;
+let pendingWingerInvite: { token: string } | null = null;
 
-export function setPendingWingerInvite(): void {
-  pendingWingerInvite = true;
+export function setPendingWingerInvite(token: string): void {
+  pendingWingerInvite = { token };
 }
 
-export function peekPendingWingerInvite(): boolean {
+export function peekPendingWingerInvite(): { token: string } | null {
   return pendingWingerInvite;
 }
 
 export function clearPendingWingerInvite(): void {
-  pendingWingerInvite = false;
+  pendingWingerInvite = null;
 }
 
 type OnboardingDestination = 'Profile' | 'Discover';

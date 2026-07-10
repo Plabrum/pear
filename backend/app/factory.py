@@ -24,6 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from app.config import Config, config
 from app.domain.contacts.routes import contacts_router
+from app.domain.contacts.routes_methods import invite_router
 from app.domain.dating_profiles.routes import dating_profiles_router
 from app.domain.decisions.routes import decisions_router
 from app.domain.matches.routes import matches_router
@@ -43,6 +44,7 @@ from app.platform.media.routes import media_router
 from app.platform.plugins import SqidSchemaPlugin
 from app.platform.queue.config import queue_config
 from app.platform.realtime.routes import realtime_ws
+from app.platform.universal_links.routes import universal_links_router
 from app.platform.updates.routes import (
     get_manifest_v2,
     post_client_event,
@@ -229,6 +231,16 @@ def create_app(
             health,
             auth_router,
             api_router,
+            # Unauthenticated wingperson-invite verify hop (GET redirects into the
+            # deep link, POST previews the token). Stays at the root, not under
+            # `/api` — matches the `UNIVERSAL_LINK_BASE_URL/invite/verify` URL
+            # minted by `InviteWingperson`, mirroring `auth_router`'s magic-link
+            # verify hop.
+            invite_router,
+            # Associated Domains universal-link support for the invite flow: the
+            # AASA file iOS fetches to verify the entitlement, and the fallback
+            # landing page shown when the link opens without the app installed.
+            *universal_links_router,
             # Realtime websocket. Stays at the root (`/ws`), not under `/api` — it
             # is a long-lived socket, not an HTTP data/action route. It is NOT in the
             # auth exclude list, so SessionAuth runs on the upgrade and authenticates

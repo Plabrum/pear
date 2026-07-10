@@ -359,6 +359,18 @@ export function removeWingperson(contactId: string): Promise<ActionExecutionResp
   });
 }
 
+/**
+ * Accept a wingperson invite from a shared link's token. Top-level — unlike
+ * `acceptWingperson`, works for a brand-new invitee whose `Contact` row they
+ * can't yet RLS-read (no `winger_id` link until this call).
+ */
+export function acceptInviteByToken(token: string): Promise<ActionExecutionResponse> {
+  return apiActionsActionGroupExecuteAction('contact_actions', {
+    action: 'contact_actions__accept_by_token',
+    data: { token },
+  });
+}
+
 // ── message_actions ──────────────────────────────────────────────────────────
 
 /**

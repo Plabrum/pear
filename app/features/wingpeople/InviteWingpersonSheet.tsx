@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Linking } from 'react-native';
+import { Linking, Share } from 'react-native';
 import { Controller, useForm } from 'react-hook-form';
 import { toast } from 'sonner-native';
 import Contacts from 'react-native-contacts';
@@ -24,9 +24,19 @@ type Props = {
   visible: boolean;
   onClose: () => void;
   variant?: 'dater' | 'winger';
+  // 'sms' opens the Messages compose sheet directly; 'share' hands the invite
+  // link to the OS share sheet instead (onboarding's "Share a link" button —
+  // it has no separate delivery channel of its own, so it reuses this sheet's
+  // phone-collection UI and only swaps how the resulting link is sent).
+  deliveryMethod?: 'sms' | 'share';
 };
 
-export function InviteWingpersonSheet({ visible, onClose, variant = 'dater' }: Props) {
+export function InviteWingpersonSheet({
+  visible,
+  onClose,
+  variant = 'dater',
+  deliveryMethod = 'sms',
+}: Props) {
   const queryClient = useQueryClient();
   const { data: profile } = useGetApiProfilesMeSuspense();
 
@@ -62,14 +72,20 @@ export function InviteWingpersonSheet({ visible, onClose, variant = 'dater' }: P
     }
     // The action records the contact (and, when the invitee is already a Pear
     // user, fires a server-side push). The response doesn't distinguish existing
-    // vs. new users, so we also offer the SMS invite as the delivery channel for
-    // invitees who aren't on Pear yet.
-    const isAvailable = await Linking.canOpenURL('sms:');
-    if (isAvailable) {
+    // vs. new users, so we also offer a link-delivery channel for invitees who
+    // aren't on Pear yet — `invite_url` carries the invite's own token-bound
+    // link, which resolves through the app if installed or the universal-link
+    // fallback page if not (see `AcceptInviteByToken`).
+    if (result.invite_url) {
       const daterName = profile?.chosenName ?? 'Someone';
-      const appUrl = 'https://apps.apple.com/app/pear/id6744145981';
-      const body = `${daterName} invited you to be their wingperson on Pear! Download the app: ${appUrl}`;
-      await Linking.openURL(`sms:${e164}&body=${encodeURIComponent(body)}`);
+      const body = `${daterName} invited you to be their wingperson on Pear! ${result.invite_url}`;
+      if (deliveryMethod === 'share') {
+        await Share.share({ message: body }).catch(() => {
+          // user cancelled
+        });
+      } else if (await Linking.canOpenURL('sms:')) {
+        await Linking.openURL(`sms:${e164}&body=${encodeURIComponent(body)}`);
+      }
     }
     queryClient.invalidateQueries({ queryKey: getGetApiWingpeopleQueryKey() });
     return true;
@@ -117,7 +133,9 @@ export function InviteWingpersonSheet({ visible, onClose, variant = 'dater' }: P
         subtitle={
           variant === 'winger'
             ? 'Invite them to Pear and you can start swiping for them.'
-            : 'Enter their phone number — we’ll text them an invite.'
+            : deliveryMethod === 'share'
+              ? 'Enter their phone number — we’ll link their invite to it, then hand you a link to share.'
+              : 'Enter their phone number — we’ll text them an invite.'
         }
         footer={
           <View style={{ gap: 10 }}>

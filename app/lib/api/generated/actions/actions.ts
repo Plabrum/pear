@@ -19,6 +19,7 @@ import type {
 
 import type {
   AcceptInviteAction,
+  AcceptInviteByTokenAction,
   ActionExecutionResponse,
   ActionGroupType,
   ActionListResponse,
@@ -214,7 +215,7 @@ export const getApiActionsActionGroupExecuteActionUrl = (actionGroup: ActionGrou
 
 export const apiActionsActionGroupExecuteAction = async (
   actionGroup: ActionGroupType,
-  sendMessageActionMarkMessagesReadActionLikeActionPassActionSuggestActionDeclineForDaterActionReportActionInviteWingpersonActionAcceptInviteActionDeclineInviteActionRemoveWingpersonActionCreateProfilePromptActionDeleteProfilePromptActionCreatePromptResponseActionApprovePromptResponseActionDeletePromptResponseActionUpdateProfileActionSwitchToWingerActionSwitchToDaterActionDeactivateAccountActionReactivateAccountActionCreateDatingProfileActionUpdateDatingProfileActionPauseDatingActionResumeDatingActionCreatePhotoActionApprovePhotoActionRejectPhotoActionDeletePhotoActionReorderPhotoAction:
+  sendMessageActionMarkMessagesReadActionLikeActionPassActionSuggestActionDeclineForDaterActionReportActionInviteWingpersonActionAcceptInviteActionAcceptInviteByTokenActionDeclineInviteActionRemoveWingpersonActionCreateProfilePromptActionDeleteProfilePromptActionCreatePromptResponseActionApprovePromptResponseActionDeletePromptResponseActionUpdateProfileActionSwitchToWingerActionSwitchToDaterActionDeactivateAccountActionReactivateAccountActionCreateDatingProfileActionUpdateDatingProfileActionPauseDatingActionResumeDatingActionCreatePhotoActionApprovePhotoActionRejectPhotoActionDeletePhotoActionReorderPhotoAction:
     | SendMessageAction
     | MarkMessagesReadAction
     | LikeAction
@@ -224,6 +225,7 @@ export const apiActionsActionGroupExecuteAction = async (
     | ReportAction
     | InviteWingpersonAction
     | AcceptInviteAction
+    | AcceptInviteByTokenAction
     | DeclineInviteAction
     | RemoveWingpersonAction
     | CreateProfilePromptAction
@@ -252,7 +254,7 @@ export const apiActionsActionGroupExecuteAction = async (
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     body: JSON.stringify(
-      sendMessageActionMarkMessagesReadActionLikeActionPassActionSuggestActionDeclineForDaterActionReportActionInviteWingpersonActionAcceptInviteActionDeclineInviteActionRemoveWingpersonActionCreateProfilePromptActionDeleteProfilePromptActionCreatePromptResponseActionApprovePromptResponseActionDeletePromptResponseActionUpdateProfileActionSwitchToWingerActionSwitchToDaterActionDeactivateAccountActionReactivateAccountActionCreateDatingProfileActionUpdateDatingProfileActionPauseDatingActionResumeDatingActionCreatePhotoActionApprovePhotoActionRejectPhotoActionDeletePhotoActionReorderPhotoAction
+      sendMessageActionMarkMessagesReadActionLikeActionPassActionSuggestActionDeclineForDaterActionReportActionInviteWingpersonActionAcceptInviteActionAcceptInviteByTokenActionDeclineInviteActionRemoveWingpersonActionCreateProfilePromptActionDeleteProfilePromptActionCreatePromptResponseActionApprovePromptResponseActionDeletePromptResponseActionUpdateProfileActionSwitchToWingerActionSwitchToDaterActionDeactivateAccountActionReactivateAccountActionCreateDatingProfileActionUpdateDatingProfileActionPauseDatingActionResumeDatingActionCreatePhotoActionApprovePhotoActionRejectPhotoActionDeletePhotoActionReorderPhotoAction
     ),
   });
 };
@@ -276,6 +278,7 @@ export const getApiActionsActionGroupExecuteActionMutationOptions = <
         | ReportAction
         | InviteWingpersonAction
         | AcceptInviteAction
+        | AcceptInviteByTokenAction
         | DeclineInviteAction
         | RemoveWingpersonAction
         | CreateProfilePromptAction
@@ -316,6 +319,7 @@ export const getApiActionsActionGroupExecuteActionMutationOptions = <
       | ReportAction
       | InviteWingpersonAction
       | AcceptInviteAction
+      | AcceptInviteByTokenAction
       | DeclineInviteAction
       | RemoveWingpersonAction
       | CreateProfilePromptAction
@@ -361,6 +365,7 @@ export const getApiActionsActionGroupExecuteActionMutationOptions = <
         | ReportAction
         | InviteWingpersonAction
         | AcceptInviteAction
+        | AcceptInviteByTokenAction
         | DeclineInviteAction
         | RemoveWingpersonAction
         | CreateProfilePromptAction
@@ -405,6 +410,7 @@ export type ApiActionsActionGroupExecuteActionMutationBody =
   | ReportAction
   | InviteWingpersonAction
   | AcceptInviteAction
+  | AcceptInviteByTokenAction
   | DeclineInviteAction
   | RemoveWingpersonAction
   | CreateProfilePromptAction
@@ -451,6 +457,7 @@ export const useApiActionsActionGroupExecuteAction = <
           | ReportAction
           | InviteWingpersonAction
           | AcceptInviteAction
+          | AcceptInviteByTokenAction
           | DeclineInviteAction
           | RemoveWingpersonAction
           | CreateProfilePromptAction
@@ -493,6 +500,7 @@ export const useApiActionsActionGroupExecuteAction = <
       | ReportAction
       | InviteWingpersonAction
       | AcceptInviteAction
+      | AcceptInviteByTokenAction
       | DeclineInviteAction
       | RemoveWingpersonAction
       | CreateProfilePromptAction
@@ -697,7 +705,7 @@ export const getApiActionsActionGroupObjectIdExecuteObjectActionUrl = (
 export const apiActionsActionGroupObjectIdExecuteObjectAction = async (
   actionGroup: ActionGroupType,
   objectId: string,
-  sendMessageActionMarkMessagesReadActionLikeActionPassActionSuggestActionDeclineForDaterActionReportActionInviteWingpersonActionAcceptInviteActionDeclineInviteActionRemoveWingpersonActionCreateProfilePromptActionDeleteProfilePromptActionCreatePromptResponseActionApprovePromptResponseActionDeletePromptResponseActionUpdateProfileActionSwitchToWingerActionSwitchToDaterActionDeactivateAccountActionReactivateAccountActionCreateDatingProfileActionUpdateDatingProfileActionPauseDatingActionResumeDatingActionCreatePhotoActionApprovePhotoActionRejectPhotoActionDeletePhotoActionReorderPhotoAction:
+  sendMessageActionMarkMessagesReadActionLikeActionPassActionSuggestActionDeclineForDaterActionReportActionInviteWingpersonActionAcceptInviteActionAcceptInviteByTokenActionDeclineInviteActionRemoveWingpersonActionCreateProfilePromptActionDeleteProfilePromptActionCreatePromptResponseActionApprovePromptResponseActionDeletePromptResponseActionUpdateProfileActionSwitchToWingerActionSwitchToDaterActionDeactivateAccountActionReactivateAccountActionCreateDatingProfileActionUpdateDatingProfileActionPauseDatingActionResumeDatingActionCreatePhotoActionApprovePhotoActionRejectPhotoActionDeletePhotoActionReorderPhotoAction:
     | SendMessageAction
     | MarkMessagesReadAction
     | LikeAction
@@ -707,6 +715,7 @@ export const apiActionsActionGroupObjectIdExecuteObjectAction = async (
     | ReportAction
     | InviteWingpersonAction
     | AcceptInviteAction
+    | AcceptInviteByTokenAction
     | DeclineInviteAction
     | RemoveWingpersonAction
     | CreateProfilePromptAction
@@ -737,7 +746,7 @@ export const apiActionsActionGroupObjectIdExecuteObjectAction = async (
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...options?.headers },
       body: JSON.stringify(
-        sendMessageActionMarkMessagesReadActionLikeActionPassActionSuggestActionDeclineForDaterActionReportActionInviteWingpersonActionAcceptInviteActionDeclineInviteActionRemoveWingpersonActionCreateProfilePromptActionDeleteProfilePromptActionCreatePromptResponseActionApprovePromptResponseActionDeletePromptResponseActionUpdateProfileActionSwitchToWingerActionSwitchToDaterActionDeactivateAccountActionReactivateAccountActionCreateDatingProfileActionUpdateDatingProfileActionPauseDatingActionResumeDatingActionCreatePhotoActionApprovePhotoActionRejectPhotoActionDeletePhotoActionReorderPhotoAction
+        sendMessageActionMarkMessagesReadActionLikeActionPassActionSuggestActionDeclineForDaterActionReportActionInviteWingpersonActionAcceptInviteActionAcceptInviteByTokenActionDeclineInviteActionRemoveWingpersonActionCreateProfilePromptActionDeleteProfilePromptActionCreatePromptResponseActionApprovePromptResponseActionDeletePromptResponseActionUpdateProfileActionSwitchToWingerActionSwitchToDaterActionDeactivateAccountActionReactivateAccountActionCreateDatingProfileActionUpdateDatingProfileActionPauseDatingActionResumeDatingActionCreatePhotoActionApprovePhotoActionRejectPhotoActionDeletePhotoActionReorderPhotoAction
       ),
     }
   );
@@ -763,6 +772,7 @@ export const getApiActionsActionGroupObjectIdExecuteObjectActionMutationOptions 
         | ReportAction
         | InviteWingpersonAction
         | AcceptInviteAction
+        | AcceptInviteByTokenAction
         | DeclineInviteAction
         | RemoveWingpersonAction
         | CreateProfilePromptAction
@@ -804,6 +814,7 @@ export const getApiActionsActionGroupObjectIdExecuteObjectActionMutationOptions 
       | ReportAction
       | InviteWingpersonAction
       | AcceptInviteAction
+      | AcceptInviteByTokenAction
       | DeclineInviteAction
       | RemoveWingpersonAction
       | CreateProfilePromptAction
@@ -850,6 +861,7 @@ export const getApiActionsActionGroupObjectIdExecuteObjectActionMutationOptions 
         | ReportAction
         | InviteWingpersonAction
         | AcceptInviteAction
+        | AcceptInviteByTokenAction
         | DeclineInviteAction
         | RemoveWingpersonAction
         | CreateProfilePromptAction
@@ -899,6 +911,7 @@ export type ApiActionsActionGroupObjectIdExecuteObjectActionMutationBody =
   | ReportAction
   | InviteWingpersonAction
   | AcceptInviteAction
+  | AcceptInviteByTokenAction
   | DeclineInviteAction
   | RemoveWingpersonAction
   | CreateProfilePromptAction
@@ -947,6 +960,7 @@ export const useApiActionsActionGroupObjectIdExecuteObjectAction = <
           | ReportAction
           | InviteWingpersonAction
           | AcceptInviteAction
+          | AcceptInviteByTokenAction
           | DeclineInviteAction
           | RemoveWingpersonAction
           | CreateProfilePromptAction
@@ -990,6 +1004,7 @@ export const useApiActionsActionGroupObjectIdExecuteObjectAction = <
       | ReportAction
       | InviteWingpersonAction
       | AcceptInviteAction
+      | AcceptInviteByTokenAction
       | DeclineInviteAction
       | RemoveWingpersonAction
       | CreateProfilePromptAction
