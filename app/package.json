@@ -1,7 +1,7 @@
 {
   "name": "pear",
   "main": "index.js",
-  "version": "1.0.23",
+  "version": "1.0.24",
   "scripts": {
     "postinstall": "patch-package",
     "dev:sim": "bash scripts/dev-sim.sh",
