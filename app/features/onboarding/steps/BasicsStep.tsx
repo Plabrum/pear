@@ -4,11 +4,11 @@ import { cn } from '@/lib/cn';
 import DateInput from '@/components/DateInput';
 import { Pill } from '@/components/Pill';
 import { createTypedForm } from '@/lib/forms/typed-form';
-import { GENDERS } from '@/constants/enums';
+import { GENDERS, CITIES } from '@/constants/enums';
 import { colors } from '@/constants/theme';
 import { updateMyProfile, createDatingProfile, switchToWinger } from '@/lib/api/actions';
 import { useAuth } from '@/context/auth';
-import type { UserRole, Gender as GenderModel } from '@/lib/api/generated/model';
+import type { UserRole, Gender as GenderModel, City } from '@/lib/api/generated/model';
 import { ChipRow, MonoLabel, StepHeader } from '@/features/onboarding/chrome';
 
 type Role = UserRole;
@@ -21,6 +21,7 @@ type BasicsValues = {
   dateOfBirth: Date;
   gender: Gender;
   interestedGender: Gender[];
+  city: City;
 };
 const basicsForm = createTypedForm<BasicsValues>();
 
@@ -70,6 +71,7 @@ export function BasicsStep({
         dateOfBirth: undefined,
         gender: undefined,
         interestedGender: [],
+        city: undefined,
       }}
       onSubmit={async (v) => {
         // The profile already exists (created at auth); update it by its id,
@@ -87,7 +89,7 @@ export function BasicsStep({
           return;
         }
         const dp = await createDatingProfile({
-          city: 'Boston',
+          city: v.city,
           ageFrom: 18,
           interestedGender: v.interestedGender,
           religion: 'Prefer not to say',
@@ -170,6 +172,22 @@ export function BasicsStep({
               )}
             />
           </View>
+          {role === 'dater' && (
+            <View>
+              <MonoLabel>City</MonoLabel>
+              <basicsForm.CustomField
+                name="city"
+                requiredMessage="Pick a city"
+                render={({ value, onChange }) => (
+                  <ChipRow
+                    options={CITIES}
+                    value={(value as City) ?? null}
+                    onChange={(c) => onChange(c)}
+                  />
+                )}
+              />
+            </View>
+          )}
         </View>
       </ScrollView>
       <basicsForm.SubmitButton label="Continue" size="md" />
