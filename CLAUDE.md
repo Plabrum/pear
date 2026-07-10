@@ -41,33 +41,50 @@ wingmate/
 ├── Justfile                    # Root task runner (just --list) — app-*, backend, db-*, tf-* recipes
 ├── app/                        # Bare React Native app (cwd for npm CLI)
 │   ├── App.tsx                 # Root component — providers, fonts-free (static UIAppFonts
-│   │                           # linking), StatusBar, magic-link Linking listener, pending-
-│   │                           # winger-invite handoff
+│   │                           # linking), StatusBar. No Linking/invite-handoff code here —
+│   │                           # the magic-link deep-link listener lives in context/auth.tsx,
+│   │                           # the pending-invite handoff in navigation/RootNavigator.tsx.
 │   ├── index.js                # AppRegistry.registerComponent entry point
 │   ├── app.json                # `{"name": "main", ...}` — AppRegistry name, must stay "main"
 │   │                           # (ios/Pear/AppDelegate.swift hardcodes it)
 │   ├── navigation/             # @react-navigation tree: RootNavigator.tsx (4-way auth-gate
 │   │                           # conditional render), types.ts (RootStackParamList),
-│   │                           # pendingIntents.ts, one file per nested Tab/Stack navigator
-│   ├── app/                    # Screen files only (not a routes dir — no file-based routing).
-│   │   ├── invite.tsx          # Deep-link handler
-│   │   ├── (auth)/             # login.tsx, sms.tsx, apple.tsx
-│   │   ├── (onboarding)/index.tsx  # Onboarding orchestrator
-│   │   ├── (tabs)/             # Dater tab shell (discover, matches, messages/, profile/)
-│   │   └── (winger-tabs)/      # Winger tab shell (activity, friends/[id])
-│   ├── components/             # onboarding/, profile/, ui/ (shared primitives)
-│   ├── context/auth.tsx        # AuthProvider, useSession(), useAuth()
+│   │                           # pendingIntents.ts, plus one file per nested Tab/Stack
+│   │                           # navigator (WingerTabsNavigator.tsx, DaterTabsNavigator.tsx,
+│   │                           # FriendsStackNavigator.tsx, MessagesStackNavigator.tsx,
+│   │                           # ProfileStackNavigator.tsx)
+│   ├── features/               # Screen files, one flat dir per feature (not a routes dir —
+│   │                           # no file-based routing; replaced the old app/(group)/ tree):
+│   │   ├── root/               # invite.tsx, magic-link.tsx, settings.tsx — the always-mounted
+│   │   │                       # root-level screens
+│   │   ├── auth/                # login.tsx, EmailSheet.tsx (no phone/OTP, no separate Apple screen)
+│   │   ├── onboarding/          # index.tsx orchestrator, chrome.tsx, RoleStep.tsx, ProfileSetup.tsx, steps/
+│   │   ├── discover/, matches/, messages/  # Dater tab shell screens
+│   │   ├── profile/             # index.tsx, edit.tsx, edit/, tabs
+│   │   ├── wingpeople/          # index.tsx, contribute.tsx, wingswipe.tsx, ContactsPicker.tsx,
+│   │   │                       # InviteWingpersonSheet.tsx, WingerActivityFeed.tsx
+│   │   ├── winger/              # activity.tsx, me.tsx — Winger tab shell
+│   │   └── friends/             # index.tsx, [id]/
+│   ├── components/             # Flat dir of ~30 shared primitives (not onboarding/profile/ui/
+│   │                           # subfolders) — see Shared UI Components below. Two subdirs:
+│   │                           # actions/ (form components for actions) and icons/.
+│   ├── context/auth.tsx        # AuthProvider, useSession(), useAuth(), useAuthActions()
 │   ├── lib/
 │   │   ├── tw.tsx              # Styled primitives — ALWAYS import from here
 │   │   ├── cn.ts              # clsx + tailwind-merge
-│   │   ├── auth-client.ts      # Self-hosted auth: SecureStore refresh + in-mem access + refresh-on-401
+│   │   ├── auth-client.ts      # Self-hosted auth: cookie-bearing fetch (credentials:'include')
+│   │   ├── auth-session.ts     # getAuthGateStatus() — source of truth for the routing auth gate
 │   │   ├── ws-client.ts        # Litestar Channels websocket (realtime)
-│   │   ├── forms/index.tsx     # Button, TextInput, form primitives
+│   │   ├── forms/               # fields.tsx (Controller-based field kit), typed-form.tsx (createTypedForm)
+│   │   ├── actions/             # registry.tsx, types.ts — action-executor plumbing
 │   │   └── api/
 │   │       ├── http.ts         # pearFetch — sends session cookie (credentials:'include'), throws on !ok
 │   │       ├── actions.ts      # Typed write client → POST /api/actions/{group}[/{id}]
+│   │       ├── errors.ts, error-toast.ts
 │   │       └── generated/      # Orval read hooks (committed)
-│   ├── hooks/ assets/ constants/  # constants/theme.ts = hex escape-hatch values
+│   ├── hooks/                   # use-swipe-deck.ts, use-messages.ts, use-presence.ts, use-typing.ts,
+│   │                           # use-upload-profile-photo.ts, actions/ (use-action-executor.ts, etc.)
+│   ├── assets/ constants/       # constants/theme.ts = hex escape-hatch values, constants/enums.ts
 │   ├── scripts/                # dev/sim, etc.
 │   ├── ios/                    # Native project for Xcode Cloud — no `expo prebuild` step,
 │   │                           # zero Expo (the off-Expo migration's native-ownership
@@ -118,6 +135,8 @@ All endpoints live under `backend/app/domain/<feature>/` (Litestar). Mounted und
 | `winger_activity` | Feed of winger actions for the dater              |
 | `winger_tabs`     | Winger-tab navigation data                        |
 | `reports`         | Report/block a profile                            |
+| `dating_profiles` | Dater config (bio, city, preferences, dating_status) |
+| `users`           | User-level account data                           |
 
 Cross-cutting platform code (auth, actions framework, state machine, RLS, queue,
 media, realtime) lives under `backend/app/platform/`, not in a domain.
@@ -224,7 +243,9 @@ system is the *external* Apple identity token we verify in `clients/apple.py`.
 On the client, `app/lib/auth-client.ts` is a thin cookie-bearing fetch
 (`credentials: 'include'`) — no token storage, no `Authorization` header, no
 refresh-on-401. It exposes `signInWithApple()`, `requestMagicLink(email)`,
-`verifyMagicLink(token)`, `me()`, `restoreSession()`, `logout()`. The hook shapes are:
+`verifyMagicLink(token)`, `me()`, `logout()` — screens consume the first three via
+`useAuthActions()` in `context/auth.tsx`, not directly. Session restore is a plain
+`useQuery` (no `restoreSession()` function). The hook shapes are:
 
 ```ts
 const { session, loading } = useSession(); // routing layer — session may be null
@@ -330,22 +351,24 @@ Key enums: `role`: `dater|winger` · `dating_status`: `open|break|winging` · `w
 | Component                                | Key props                                   |
 | ---------------------------------------- | ------------------------------------------- |
 | `Pill`                                   | `label?`, `children?`, `tone?`, `size?`     |
-| `WingStack`                              | `initials: string[]`, `size?`               |
-| `PhotoRect`                              | `uri`, `ratio?`, `blur?`                    |
-| `FaceAvatar`                             | `initials`, `bg`, `size?`                   |
+| `WingStack`                              | `items: WingStackItem[]`, `size?`, `max?`, `label?` |
+| `PhotoRect`                              | `uri`, `ratio?`, `blur?`, `style?`          |
+| `FaceAvatar`                             | `name`, `size?`, `photoUri?`, `ring?`       |
 | `LargeHeader`                            | `title`, `right?`                           |
 | `NavHeader`                              | `back`, `onBack`, `title`, `sub?`, `right?` |
 | `LargeNavHeader`                         | `back`, `onBack`, `title`, `right?` — large-serif chrome for full-screen sub-pages (settings, wingpeople, profile edit, contribute) |
 | `EmptyCard`                              | `children` — dashed-border empty-state panel |
-| `TextTabBar`                             | `tabs`, `active`, `setActive`               |
-| `DateInput`                              | platform-split date picker                  |
+| `TextTabBar`                             | `tabs`, `active`, `setActive`, `badges?`    |
+| `DateInput`/`DateInput.native`           | platform-split date picker (web `<input type=date>` vs `@react-native-community/datetimepicker`) |
 | `ScreenSuspense` / `ScreenErrorBoundary` | screen wrappers                             |
+| `Card`, `Dialog`, `Sheet`, `FullSheet`, `ForwardSheet` | modal/sheet shells — see [Form/modal kit] pattern; prefer these over hand-rolled `Modal` |
+| `NoteModal`, `PagedCarousel`, `AvatarPicker`, `GradientBlock`, `PulseSpinner`, `SectionLabel`, `FieldLabel`, `tabBar`, `icon-symbol`, `PearMark`, `Splash` | other shared primitives — check here before writing new markup |
 
 **Button** lives in `components/Button.tsx` — `import { Button } from '@/components/Button'`. Variants: `primary`, `secondary`, `accent`, `ghost`, `danger`. Sizes: `sm`, `md`, `lg`. Props: `block`, `icon`, `disabled`, `loading`. Never hardcode a filled CTA manually.
 
 ---
 
-## Styling (NativeWind v5 + Tailwind v4)
+## Styling (NativeWind v4 + Tailwind v3)
 
 - **Always** import styled primitives from `@/lib/tw`: `View`, `Text`, `Pressable`, `ScrollView`, `TextInput`, `SafeAreaView`, `AnimatedView`.
 - Never use `StyleSheet.create` — use `className`.
@@ -375,7 +398,7 @@ Key enums: `role`: `dater|winger` · `dating_status`: `open|break|winging` · `w
 
 **Sizes:** `text-11` through `text-30` · **Radii:** `radius-4/9/13/14/16/18/21/22/26`
 
-**Escape hatch** (icon `color=`, animated values): `import { colors } from '@/constants/theme'` — `colors.primary` `colors.primarySoft` `colors.ink` `colors.inkMid` `colors.inkDim` `colors.divider` `colors.green` `colors.white`.
+**Escape hatch** (icon `color=`, animated values): `import { colors } from '@/constants/theme'` — `colors.primary` `colors.primarySoft` `colors.ink` `colors.inkMid` `colors.inkDim` `colors.divider` `colors.green` `colors.white`, plus ~40 more (state/overlay/decorative tints) — check `theme.ts` for the full set. Note `theme.ts`'s hex values are hand-kept approximations of `global.css`'s CSS-var tokens, not always byte-identical — `theme.ts` says as much in its own comment.
 
 ---
 
@@ -383,7 +406,7 @@ Key enums: `role`: `dater|winger` · `dating_status`: `open|break|winging` · `w
 
 - **Composition:** Orchestrators decide what to render; logic lives close to where it's used.
 - **Control flow:** `switch` on discriminated unions. Explicit `return` on every branch.
-- **No `useEffect`:** Move async work into transition handlers. Exceptions: the auth-provider mount effect (restore session on launch + handle the magic-link deep link), push token registration, AsyncStorage deep-link check (mount-only, genuine external events).
+- **No `useEffect`:** Move async work into transition handlers. Exceptions (mount-only, genuine external events): the auth-provider mount effect for the magic-link deep-link listener (`context/auth.tsx`), push-token registration (`navigation/RootNavigator.tsx`), and the pending-intent handoff (`navigation/RootNavigator.tsx`/`pendingIntents.ts`, in-memory module state — no AsyncStorage in this app).
 - **Error propagation:** No try/catch across callback boundaries. Return errors as values. User-facing errors via `toast.error()`.
 - **Forms:** react-hook-form everywhere — `Controller`, `handleSubmit`, `isSubmitting`, `isValid`, `mode: 'onChange'`.
 - **Queries:** Transforms belong in the query function. Unwrapping boilerplate belongs in the query wrapper, not callsites. No magic string cache keys.
