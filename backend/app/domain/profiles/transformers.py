@@ -3,7 +3,6 @@ from __future__ import annotations
 from datetime import date, datetime
 
 from app.domain.dating_profiles.models import DatingProfile
-from app.domain.photos.enums import PhotoApprovalState
 from app.domain.photos.models import ProfilePhoto
 from app.domain.profiles.models import Profile as ProfileModel
 from app.domain.profiles.schemas import (
@@ -119,23 +118,6 @@ def _prompt_to_own(
     return dto
 
 
-def compute_ripeness(
-    photos: list[OwnProfilePhoto],
-    prompts: list[OwnProfilePrompt],
-    bio: str | None,
-    interests: list,
-    city: object,
-) -> int:
-    """A 0-100 profile-completeness score."""
-    approved_photos = [p for p in photos if p.status is PhotoApprovalState.APPROVED]
-    photo_score = min(len(approved_photos) / 6, 1) * 30
-    prompt_score = min(len(prompts) / 3, 1) * 25
-    bio_score = 20 if bio else 0
-    interest_score = 15 if len(interests) > 0 else 0
-    city_score = 10 if city else 0
-    return round(photo_score + prompt_score + bio_score + interest_score + city_score)
-
-
 # A loaded bundle: the dating profile plus the joined photo/prompt/response data.
 # Photos: list of (ProfilePhoto, suggester chosen_name | None).
 # Prompts: list of (ProfilePrompt, template question, [(PromptResponse, author | None)]).
@@ -190,7 +172,6 @@ def dating_profile_to_own(
         updatedAt=_iso(base.updated_at) or "",
         photos=mapped_photos,
         prompts=mapped_prompts,
-        ripeness=compute_ripeness(mapped_photos, mapped_prompts, base.bio, list(base.interests), base.city),
     )
     # base -> DATING_PROFILE_ACTIONS (the EDIT group, not the swipe group).
     dto.actions = actions_for(dating_profile_group, deps, base)
