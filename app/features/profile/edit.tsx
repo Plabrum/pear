@@ -5,31 +5,11 @@ import {
   useGetApiDatingProfilesMeSuspense,
   useGetApiProfilesMeSuspense,
 } from '@/lib/api/generated/profiles/profiles';
-import type { OwnDatingProfile } from '@/lib/api/generated/model';
 import { View, Text, ScrollView, SafeAreaView, Pressable } from '@/lib/tw';
 import { FaceAvatar } from '@/components/FaceAvatar';
 import { colors } from '@/constants/theme';
 import ScreenSuspense from '@/components/ScreenSuspense';
 import { LargeNavHeader } from '@/components/LargeNavHeader';
-
-// ── Ripeness helpers ──────────────────────────────────────────────────────────
-
-function ripenessLabel(score: number): string {
-  if (score >= 100) return 'Fully ripe';
-  if (score >= 85) return 'Almost ripe';
-  if (score >= 60) return 'Getting there';
-  if (score >= 40) return 'Taking shape';
-  return 'Just sprouting';
-}
-
-function ripenessHint(data: OwnDatingProfile): string | null {
-  const approvedPhotos = data.photos.filter((p) => p.status === 'approved');
-  if (data.prompts.length < 3) return 'Add one more prompt to ripen';
-  if (approvedPhotos.length < 6) return 'Add more photos';
-  if (!data.bio) return 'Add a bio';
-  if (data.interests.length === 0) return 'Add some interests';
-  return null;
-}
 
 // ── Local components ──────────────────────────────────────────────────────────
 
@@ -106,53 +86,6 @@ function MenuRow({
       </View>
       <Ionicons name="chevron-forward" size={16} color={colors.inkAlpha35} />
     </Pressable>
-  );
-}
-
-function RipenessBar({ data }: { data: OwnDatingProfile }) {
-  const score = data.ripeness;
-  const label = ripenessLabel(score);
-  const hint = ripenessHint(data);
-
-  return (
-    <View
-      className="bg-surface"
-      style={{
-        borderRadius: 18,
-        borderWidth: 1,
-        borderColor: colors.divider,
-        padding: 16,
-        marginBottom: 4,
-      }}
-    >
-      <View className="flex-row items-center" style={{ gap: 8, marginBottom: 10 }}>
-        <Text style={{ fontSize: 26 }}>🍐</Text>
-        <View style={{ flex: 1 }}>
-          <Text className="text-fg" style={{ fontSize: 16, fontWeight: '700' }}>
-            {label}
-          </Text>
-          {hint ? (
-            <Text style={{ fontSize: 12.5, color: colors.inkAlpha55, marginTop: 1 }}>{hint}</Text>
-          ) : null}
-        </View>
-        <View
-          className="bg-primary-soft"
-          style={{ borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 }}
-        >
-          <Text style={{ fontSize: 12, fontWeight: '700', color: colors.leaf }}>{score}% ripe</Text>
-        </View>
-      </View>
-      <View className="bg-surface-muted" style={{ height: 6, borderRadius: 3, overflow: 'hidden' }}>
-        <View
-          style={{
-            height: 6,
-            borderRadius: 3,
-            backgroundColor: colors.leaf,
-            width: `${score}%`,
-          }}
-        />
-      </View>
-    </View>
   );
 }
 
@@ -290,8 +223,6 @@ function EditProfileHub() {
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 48 }}
         showsVerticalScrollIndicator={false}
       >
-        <RipenessBar data={datingProfile} />
-
         <SectionHeader label="Photos & Basics" />
         <MenuRow
           title="Photos"

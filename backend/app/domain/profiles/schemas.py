@@ -101,7 +101,6 @@ class OwnDatingProfile(ActionableDetail):
     updatedAt: str
     photos: list[OwnProfilePhoto]
     prompts: list[OwnProfilePrompt]
-    ripeness: int
 
 
 # GET /dating-profiles/me returns the profile or null.

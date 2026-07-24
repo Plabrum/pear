@@ -3973,9 +3973,6 @@
             },
             "type": "array"
           },
-          "ripeness": {
-            "type": "integer"
-          },
           "actions": {
             "items": {
               "$ref": "#/components/schemas/ActionDTO"
@@ -3999,7 +3996,6 @@
           "prompts",
           "religion",
           "religiousPreference",
-          "ripeness",
           "updatedAt",
           "userId"
         ],
