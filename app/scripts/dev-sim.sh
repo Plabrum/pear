@@ -8,7 +8,12 @@
 # The Xcode project itself (Pear.xcodeproj/Pear.xcworkspace) is XcodeGen-generated
 # from ios/project.yml, not committed — regenerate it unconditionally below so a
 # stale checked-out project.pbxproj is never silently built against.
+# pipefail matters here: xcodebuild is piped into xcbeautify below, so without it
+# `set -e` only ever sees xcbeautify's exit code — a failed build reads as success,
+# the stale .app from the previous build gets installed, and REV_FILE is written
+# recording the failure as current (so the next run skips rebuilding entirely).
 set -e
+set -o pipefail
 
 WORKSPACE="ios/Pear.xcworkspace"
 SCHEME="Pear"
@@ -19,6 +24,14 @@ BUNDLE_ID="com.plabrum.pear"
 
 echo "Generating Xcode project..."
 (cd ios && xcodegen generate)
+
+# pod install has to follow every xcodegen run, not just the first. project.yml sets no
+# configFiles, so the Pods xcconfigs are attached to the target purely by CocoaPods'
+# own integration step — regenerating the project above drops that link, and the build
+# then fails at `import React` with "no such module 'React'". CLAUDE.md documents the
+# two as a pair for exactly this reason. Costs ~10s on a warm Podfile.lock.
+echo "Installing pods..."
+(cd ios && pod install)
 
 # Boots an available iPhone simulator if none is currently booted.
 ensure_simulator_booted() {
@@ -45,10 +58,16 @@ ensure_simulator_booted() {
 # content (tracked + uncommitted) and compare against what was last built.
 # Replaces the old @expo/fingerprint-based cache (expo-updates, which computed
 # that, is gone) — git already has a content hash for exactly this purpose.
+# `HEAD:./ios`, not `HEAD:ios` — a `HEAD:path` rev is resolved from the repo root,
+# where this directory is `app/ios`, so the bare form always died with exit 128 and
+# contributed nothing (the tree hash of committed ios/ was silently missing from the
+# rev). The `./` anchors it to the cwd instead. `|| true` keeps a genuine failure
+# (detached tree, no HEAD) degrading to "hash the diff/status output only" rather
+# than aborting the script now that pipefail makes the group's exit code count.
 native_rev() {
   { git diff --stat -- ios/ package.json package-lock.json 2>/dev/null
     git status --porcelain -- ios/ package.json package-lock.json 2>/dev/null
-    git rev-parse HEAD:ios 2>/dev/null
+    git rev-parse HEAD:./ios 2>/dev/null || true
   } | git hash-object --stdin
 }
 
@@ -70,12 +89,19 @@ fi
 if [ "$NEEDS_BUILD" = true ]; then
   echo "Building for simulator (this takes a few minutes)..."
 
+  # ARCHS=arm64 is load-bearing. project.yml sets ONLY_ACTIVE_ARCH=YES for Debug, but
+  # that only resolves against a -destination; with a bare -sdk there is no "active
+  # arch", so xcodebuild falls back to every arch in ARCHS and tries an x86_64 slice.
+  # Xcode 26 ships no x86_64 iOS-simulator Swift stdlib (it is Apple-Silicon-only, as
+  # is every simulator runtime it installs), so that slice dies in SwiftEmitModule with
+  # "missing required module 'SwiftShims'" while arm64 builds fine.
   BUILD_CMD=(xcodebuild
     -workspace "$WORKSPACE"
     -scheme "$SCHEME"
     -configuration Debug
     -sdk iphonesimulator
     -derivedDataPath "$DERIVED_DATA"
+    ARCHS=arm64
     build)
 
   if command -v xcbeautify >/dev/null 2>&1; then
