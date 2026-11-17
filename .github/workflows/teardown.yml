@@ -1,0 +1,28 @@
+name: Teardown
+
+# Destroys every resource in the production Terraform state. Merging this file
+# to main runs it once; afterwards it can only be re-run by hand.
+#
+# Terraform cannot delete a non-empty ECR repository or versioned S3 bucket, so
+# empty the app's ECR repo and media bucket (all object versions) before running.
+
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/teardown.yml]
+  workflow_dispatch:
+
+concurrency:
+  group: terraform-production
+  cancel-in-progress: false
+
+jobs:
+  destroy:
+    permissions:
+      id-token: write
+      contents: read
+      pull-requests: write
+    uses: ./.github/workflows/_infrastructure.yml
+    with:
+      terraform_action: "destroy"
+    secrets: inherit
