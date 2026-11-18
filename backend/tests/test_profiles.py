@@ -50,7 +50,6 @@ from app.domain.profiles.schemas import (
 )
 from app.domain.profiles.transformers import (
     bundle_to_public_profile,
-    compute_ripeness,
     dating_profile_to_own,
     own_media_ids,
     public_media_ids,
@@ -176,8 +175,6 @@ async def test_get_own_dating_profile_bundle(graph: DomainGraph, db_session: Asy
     resp = prompt.responses[0]
     assert resp.status is ApprovalState.PENDING
     assert resp.author is not None and resp.author.id == graph.winger.id
-    # ripeness is the documented 0-100 completeness score.
-    assert 0 <= dto.ripeness <= 100
 
     # ── Hydrated actions, viewed as the owning dater ──────────────────────────
     # base -> the EDIT group (DATING_PROFILE_ACTIONS), never the swipe group. The
@@ -313,17 +310,6 @@ async def test_avatar_media_id_resolves_to_url_on_own_profile(graph: DomainGraph
     assert dto.avatarUrl is not None
     assert dto.avatarUrl.startswith("http")
     assert avatar.processed_key is not None and avatar.processed_key in dto.avatarUrl
-
-
-def test_compute_ripeness_matches_hono_formula() -> None:
-    # Empty profile -> 0; full profile (6 approved photos, 3 prompts, bio,
-    # interests, city) -> 100. Mirrors the TS weighting 30/25/20/15/10.
-    assert compute_ripeness([], [], None, [], None) == 0
-
-    photo = MagicMock(status=PhotoApprovalState.APPROVED)
-    prompt = MagicMock()
-    full = compute_ripeness([photo] * 6, [prompt] * 3, "bio", ["Travel"], City.BOSTON)
-    assert full == 100
 
 
 # ── Actions: happy path ─────────────────────────────────────────────────────────

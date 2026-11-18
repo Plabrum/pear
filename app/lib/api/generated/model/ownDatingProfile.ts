@@ -32,6 +32,5 @@ export interface OwnDatingProfile {
   updatedAt: string;
   photos: OwnProfilePhoto[];
   prompts: OwnProfilePrompt[];
-  ripeness: number;
   actions?: ActionDTO[];
 }
