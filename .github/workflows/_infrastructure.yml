@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       terraform_action:
-        description: "Terraform action: plan or apply"
+        description: "Terraform action: plan, apply or destroy"
         required: false
         default: "apply"
         type: string
@@ -132,7 +132,7 @@ jobs:
           TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
           TF_VAR_github_oidc_role_name: ${{ steps.oidc.outputs.role_name }}
         run: |
-          terraform plan -no-color -out=tfplan
+          terraform plan -no-color ${{ inputs.terraform_action == 'destroy' && '-destroy' || '' }} -out=tfplan
           terraform show -no-color tfplan > plan_output.txt
 
       - name: Comment PR with plan
@@ -155,7 +155,7 @@ jobs:
             });
 
       - name: Terraform apply
-        if: inputs.terraform_action == 'apply'
+        if: inputs.terraform_action == 'apply' || inputs.terraform_action == 'destroy'
         env:
           TF_VAR_aws_region: ${{ env.AWS_REGION }}
           TF_VAR_project_name: pear

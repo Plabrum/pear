@@ -16,8 +16,6 @@ name: Build · Test · Deploy
 # deploy job — `ssm:SendCommand` + `ssm:GetCommandInvocation` (see deploy-ec2).
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
     inputs:
       deploy_infrastructure:
